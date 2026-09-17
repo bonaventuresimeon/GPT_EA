@@ -11,6 +11,16 @@ input int  InpWebIntelFailureCircuitThreshold   = 3;
 input int  InpWebIntelMaxCacheAgeMinutes        = 12;
 input int  InpIntermarketMaxBarAgeMinutes       = 90;
 input int  InpIntermarketMinFreshComponents     = 1;
+input int  InpWebIntelMaxAsOfAgeMinutes          = 15;
+input int  InpWebIntelMaxFutureSkewSeconds       = 120;
+input int  InpWebIntelMinAnnotationURLs          = 1;
+input bool InpRequirePrimarySourceForHighRisk    = true;
+input string InpWebIntelProvenanceFile           = "GPT_EA_WebIntelProvenance.csv";
+
+string g_lastWebIntelAnnotationURLs="";
+string g_lastWebIntelAsOfUTC="";
+bool   g_lastWebIntelHasPrimarySource=false;
+bool   g_lastWebIntelProvenanceHardFail=false;
 
 string g_webHardFailSymbols[];
 int    g_webHardFailCounts[];
@@ -68,6 +78,118 @@ bool JsonIntFieldSimple(const string json,const string key,int &out)
    out=(int)StringToInteger(s); return true;
 }
 
+bool WebIntelLeapYear(int y)
+{
+   return ((y%4==0 && y%100!=0) || y%400==0);
+}
+
+int WebIntelDaysInMonth(int y,int m)
+{
+   int d[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+   if(m==2 && WebIntelLeapYear(y)) return 29;
+   if(m<1 || m>12) return 0;
+   return d[m-1];
+}
+
+bool ParseISO8601UTC(const string value,datetime &out)
+{
+   out=0;
+   if(StringLen(value)<20) return false;
+   int y=(int)StringToInteger(StringSubstr(value,0,4));
+   int mo=(int)StringToInteger(StringSubstr(value,5,2));
+   int da=(int)StringToInteger(StringSubstr(value,8,2));
+   int hh=(int)StringToInteger(StringSubstr(value,11,2));
+   int mm=(int)StringToInteger(StringSubstr(value,14,2));
+   int ss=(int)StringToInteger(StringSubstr(value,17,2));
+   if(y<1970 || mo<1 || mo>12 || da<1 || da>WebIntelDaysInMonth(y,mo) ||
+      hh<0 || hh>23 || mm<0 || mm>59 || ss<0 || ss>60) return false;
+   long days=0;
+   for(int yy=1970;yy<y;yy++) days+=(WebIntelLeapYear(yy)?366:365);
+   for(int m=1;m<mo;m++) days+=WebIntelDaysInMonth(y,m);
+   days+=da-1;
+   out=(datetime)(days*86400L+hh*3600+mm*60+MathMin(ss,59));
+   return true;
+}
+
+bool WebIntelOfficialDomain(const string url)
+{
+   string u=url; StringToLower(u);
+   string domains="federalreserve.gov|bls.gov|bea.gov|treasury.gov|census.gov|eia.gov|energy.gov|"
+                  "ecb.europa.eu|eurostat.ec.europa.eu|ec.europa.eu|bankofengland.co.uk|ons.gov.uk|"
+                  "boj.or.jp|rba.gov.au|rbnz.govt.nz|bankofcanada.ca|statcan.gc.ca|bis.org|opec.org|imf.org|worldbank.org";
+   string a[]; int n=StringSplit(domains,'|',a);
+   for(int i=0;i<n;i++) if(StringFind(u,a[i])>=0) return true;
+   return false;
+}
+
+void ExtractResponseAnnotationURLs(const string response,string &urls,int &count,bool &hasPrimary)
+{
+   urls=""; count=0; hasPrimary=false;
+   string key="\"url\":\"";
+   int pos=0;
+   while(pos<StringLen(response) && count<20)
+   {
+      int p=StringFind(response,key,pos); if(p<0) break;
+      p+=StringLen(key);
+      string raw=""; bool esc=false;
+      int end=p;
+      for(;end<StringLen(response);end++)
+      {
+         ushort ch=StringGetCharacter(response,end);
+         if(ch=='\\' && !esc){ esc=true; raw+="\\"; continue; }
+         if(ch=='\"' && !esc) break;
+         esc=false; raw+=ShortToString(ch);
+      }
+      string url=JsonUnescape(raw);
+      if(StringFind(url,"https://")==0)
+      {
+         bool duplicate=(StringFind("|"+urls+"|","|"+url+"|")>=0);
+         if(!duplicate)
+         {
+            if(urls!="") urls+="|";
+            urls+=url; count++;
+            if(WebIntelOfficialDomain(url)) hasPrimary=true;
+         }
+      }
+      pos=end+1;
+   }
+}
+
+void EnsureWebIntelProvenanceHeader()
+{
+   bool exists=FileIsExist(InpWebIntelProvenanceFile,FILE_COMMON);
+   int h=FileOpen(InpWebIntelProvenanceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","as_of_utc","annotation_count","primary_source","urls","verdict","risk_score","status");
+   FileClose(h);
+}
+
+void WriteWebIntelProvenance(const string asof,const string urls,int count,bool primary,const string verdict,int risk,const string status)
+{
+   EnsureWebIntelProvenanceHeader();
+   int h=FileOpen(InpWebIntelProvenanceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"web_intel_provenance_v1",TimeToString(TimeGMT(),TIME_DATE|TIME_SECONDS),asof,count,
+      primary?"1":"0",urls,verdict,risk,status);
+   FileFlush(h); FileClose(h);
+}
+
+bool WebIntelAsOfFresh(const string asof,string &why)
+{
+   datetime ts=0;
+   if(!ParseISO8601UTC(asof,ts)){ why="as_of_utc is not valid UTC ISO-8601"; return false; }
+   datetime now=TimeGMT();
+   long age=(long)now-(long)ts;
+   if(age < -MathMax(0,InpWebIntelMaxFutureSkewSeconds))
+   { why=StringFormat("as_of_utc is %d seconds in the future",(int)(-age)); return false; }
+   if(age > MathMax(1,InpWebIntelMaxAsOfAgeMinutes)*60)
+   { why=StringFormat("as_of_utc is stale by %d minutes",(int)(age/60)); return false; }
+   why=StringFormat("as_of_utc age %d seconds",(int)MathMax(0,(long)age));
+   return true;
+}
+
 string WebIntelJsonSchema()
 {
    return "{"
@@ -90,6 +212,8 @@ string WebIntelJsonSchema()
 bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &verdict,int &riskScore,string &sources,string &errorText)
 {
    answer=""; verdict=""; riskScore=0; sources=""; errorText="";
+   g_lastWebIntelAnnotationURLs=""; g_lastWebIntelAsOfUTC="";
+   g_lastWebIntelHasPrimarySource=false; g_lastWebIntelProvenanceHardFail=false;
    if(!InpUseLiveWebIntelligence){ errorText="Live web intelligence disabled."; return false; }
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest/web search unavailable in Strategy Tester."; return false; }
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured."; return false; }
@@ -107,6 +231,10 @@ bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &ver
    if(code==-1){ errorText=StringFormat("Structured web-intel WebRequest failed (%d).",GetLastError()); return false; }
    string response=CharArrayToString(result,0,-1,CP_UTF8);
    if(code<200 || code>=300){ errorText=StringFormat("Structured web-intel HTTP %d: %s",code,StringSubstr(response,0,500)); return false; }
+   int annotationCount=0; bool hasPrimary=false; string annotationURLs="";
+   ExtractResponseAnnotationURLs(response,annotationURLs,annotationCount,hasPrimary);
+   g_lastWebIntelAnnotationURLs=annotationURLs;
+   g_lastWebIntelHasPrimarySource=hasPrimary;
    answer=ExtractOpenAIText(response);
    if(answer=="" || StringFind(answer,"could not be parsed")>=0){ errorText="Structured web-intel response text unavailable."; return false; }
 
@@ -119,16 +247,53 @@ bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &ver
             JsonStringFieldSimple(answer,"intermarket",intermarket) &&
             JsonStringFieldSimple(answer,"sources",sources) &&
             JsonStringFieldSimple(answer,"as_of_utc",asof));
-   if(!ok){ errorText="Structured web-intel JSON failed required-field validation."; return false; }
+   if(!ok){ GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel JSON failed required-field validation."; return false; }
    StringToUpper(verdict);
    if(verdict!="CLEAR" && verdict!="WATCH" && verdict!="BLOCK")
-   { errorText="Structured web-intel verdict is outside CLEAR/WATCH/BLOCK contract."; return false; }
-   if(riskScore<0 || riskScore>100){ errorText="Structured web-intel risk_score is outside 0-100."; return false; }
+   { GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel verdict is outside CLEAR/WATCH/BLOCK contract."; return false; }
+   if(riskScore<0 || riskScore>100){ GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel risk_score is outside 0-100."; return false; }
    if(InpRequireWebIntelSources && StringLen(Trim(sources))<8)
-   { errorText="Structured web-intel did not provide source attribution."; return false; }
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true;
+      errorText="PROVENANCE_HARD_FAIL: structured web-intel did not provide source attribution.";
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_MODEL_SOURCES");
+      return false;
+   }
 
-   answer=StringFormat("VERDICT: %s; RISK_SCORE: %d; AS_OF_UTC: %s; EVENTS: %s; BREAKING_NEWS: %s; INVALIDATION_CHANNEL: %s; INTERMARKET: %s; SOURCES: %s",
-                       verdict,riskScore,asof,events,breaking,invalidation,intermarket,sources);
+   g_lastWebIntelAsOfUTC=asof;
+   string freshWhy="";
+   if(!WebIntelAsOfFresh(asof,freshWhy))
+   {
+      GVWrite(SysKey("MODEL_STALE"),GVRead(SysKey("MODEL_STALE"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true;
+      errorText="STALE_AS_OF: "+freshWhy;
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_AS_OF");
+      return false;
+   }
+   if(annotationCount<MathMax(1,InpWebIntelMinAnnotationURLs))
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true;
+      errorText=StringFormat("PROVENANCE_HARD_FAIL: Responses payload supplied %d URL annotations; minimum %d.",
+                             annotationCount,MathMax(1,InpWebIntelMinAnnotationURLs));
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_ANNOTATIONS");
+      return false;
+   }
+   bool highRisk=(riskScore>=InpWebIntelRiskWatchScore || verdict=="WATCH" || verdict=="BLOCK");
+   if(InpRequirePrimarySourceForHighRisk && highRisk && !hasPrimary)
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true;
+      errorText="PROVENANCE_HARD_FAIL: high-risk intelligence lacks an authoritative/primary-source URL annotation.";
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_PRIMARY");
+      return false;
+   }
+   WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"PASS");
+   GVWrite(SysKey("MODEL_LAST_OK"),(double)TimeTradeServer());
+
+   answer=StringFormat("VERDICT: %s; RISK_SCORE: %d; AS_OF_UTC: %s; EVENTS: %s; BREAKING_NEWS: %s; INVALIDATION_CHANNEL: %s; INTERMARKET: %s; SOURCES: %s; RESPONSE_URL_ANNOTATIONS: %s",
+                       verdict,riskScore,asof,events,breaking,invalidation,intermarket,sources,annotationURLs);
    return true;
 }
 
@@ -155,7 +320,17 @@ bool GetLiveWebIntelHardened(const string sym,const TradeSetup &s,const Strategy
 
    if(!ok)
    {
-      // Compatibility fallback retains current web-search behavior but is explicitly downgraded.
+      bool highQualityCandidate=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE || d.score>=InpMinStrategyScore);
+      if(g_lastWebIntelProvenanceHardFail && highQualityCandidate)
+      {
+         g_webHardFailCounts[fidx]++;
+         block=true; watch=false;
+         text="Structured web intelligence hard-failed freshness/provenance: "+errorText;
+         return false;
+      }
+
+      // Compatibility fallback is allowed only when the structured failure was
+      // not a hard provenance/freshness failure for a high-quality candidate.
       string fallback="",fallbackErr="";
       bool fallbackOK=CallOpenAIWebIntel(prompt,fallback,fallbackErr);
       if(fallbackOK)
@@ -169,7 +344,6 @@ bool GetLiveWebIntelHardened(const string sym,const TradeSetup &s,const Strategy
       {
          g_webHardFailCounts[fidx]++;
          errorText+=(errorText!=""?" | ":"")+fallbackErr;
-         bool highQualityCandidate=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE || d.score>=InpMinStrategyScore);
          block=(InpBlockIfWebIntelUnavailable || (InpFailClosedHighConfidenceNews && highQualityCandidate));
          watch=!block;
          text=StringFormat("Live web intelligence unavailable after structured/fallback attempts. Consecutive failures %d/%d. %s",

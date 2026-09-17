@@ -13,12 +13,32 @@ Complete one copy of this manifest for every candidate production build. A Git c
 - `.ex5` path:
 - `.ex5` SHA-256:
 - EA `.set` preset path:
-- EA `.set` SHA-256:
+- EA `.set` SHA-256, or `NONE` when no preset is used:
+- Compile evidence ID/reference:
 - Compile errors: **0 required**
-- Compile warnings: **0 preferred/required for production certification**
+- Compile warnings: **0 required for production certification**
 - Compile log evidence location:
 - Compile timestamp:
 - Validation date range:
+
+## Machine-readable evidence bundle
+
+Start from `RELEASE_EVIDENCE_TEMPLATE.json` and save the completed candidate as a separate release evidence JSON file.
+
+Run:
+
+```text
+python tools/validate_release_evidence.py path/to/release_evidence.json
+```
+
+Archive:
+
+- Completed release evidence JSON path:
+- `release-evidence-validation.txt` path:
+- Evidence JSON SHA-256 reported by validator:
+- Validator result: **PASS required**
+
+The values in the JSON must match the exact candidate and the concrete inputs later entered into MT5.
 
 ## Broker/account identity
 
@@ -57,16 +77,33 @@ Attach PASS/FAIL evidence for each applicable document:
 - [ ] `STOP_OBSERVABILITY_TEST_MATRIX.md`
 - [ ] `ANALYTICS_SCHEMA.md`
 - [ ] `DEMO_SOAK_ACCEPTANCE.md`
+- [ ] `RELEASE_EVIDENCE_VALIDATION.md`
 - [ ] `RELEASE_GO_NO_GO.md`
 
 ## Artifact identity evidence
 
 - [ ] Exact source Git SHA matches the compiled candidate.
 - [ ] EX5 SHA-256 archived.
-- [ ] SET SHA-256 archived when a preset is used.
+- [ ] SET SHA-256 archived when a preset is used, otherwise `NONE` explicitly recorded.
+- [ ] MetaEditor build recorded.
+- [ ] MT5 build recorded.
+- [ ] Compile evidence ID/reference recorded.
 - [ ] No executable source changed after the certified compile without a new compile/hash.
 - [ ] Demo soak used the same EX5/SET candidate being proposed for release.
+- [ ] Machine-readable evidence validator recomputed/verified available artifact hashes.
+- [ ] `InpReleaseMetaEditorCompilePassed=true` will be set only after compile evidence passes.
 - [ ] `InpReleaseArtifactIdentityArchived=true` will be set only after this section is complete.
+
+### Concrete MT5 artifact-identity inputs
+
+Record the exact values that will be entered locally:
+
+- `InpReleaseSourceCommitSha=`
+- `InpReleaseEx5Sha256=`
+- `InpReleaseSetSha256=`
+- `InpReleaseCompileEvidenceId=`
+- `InpReleaseMetaEditorBuild=`
+- `InpReleaseMT5Build=`
 
 ## R5 adaptive execution evidence
 
@@ -217,29 +254,45 @@ Verify:
 
 Follow `DEMO_SOAK_ACCEPTANCE.md`.
 
+- Soak evidence ID/reference:
 - Soak start:
 - Soak end:
-- Consecutive trading days completed:
-- London sessions observed:
-- U.S. sessions observed:
-- London/New York overlap observed:
-- High-impact news day observed:
-- Rollover/spread expansion observed:
-- Restart observed:
-- Disconnect/reconnect observed:
+- Consecutive trading days completed: **>=5 required**
+- London sessions observed: **>=3 required**
+- U.S./New York sessions observed: **>=3 required**
+- London/New York overlap observed: **yes required**
+- High-impact news day observed: **yes required**
+- Rollover/spread expansion observed: **yes required**
+- Restart observed: **yes required**
+- Disconnect/reconnect observed: **yes required**
 - Weekend session observed if applicable:
 - Unexpected EA errors:
 - Unexplained broker retcodes:
 - Duplicate orders/partials: **must be none**
-- Unresolved critical stop/recovery states at end: **must be none**
+- Zero-tolerance failures: **must be 0**
+- Unresolved critical stop/recovery states at end: **must be 0**
 - Release/dashboard mismatch observed: **must be none**
 - Adaptive strategy status/execution mismatch observed: **must be none**
 - Secrets exposed in logs: **must be none**
 - Demo-soak report evidence location:
 
+### Concrete MT5 soak inputs
+
+- `InpReleaseSoakEvidenceId=`
+- `InpReleaseSoakTradingDays=`
+- `InpReleaseSoakLondonSessions=`
+- `InpReleaseSoakNYSessions=`
+- `InpReleaseSoakOverlapObserved=`
+- `InpReleaseSoakNewsDayObserved=`
+- `InpReleaseSoakRolloverObserved=`
+- `InpReleaseSoakRestartObserved=`
+- `InpReleaseSoakReconnectObserved=`
+- `InpReleaseSoakZeroToleranceFailures=0`
+- `InpReleaseSoakUnresolvedCriticalStates=0`
+
 ## Live certification inputs
 
-The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS only after the matching evidence above exists and has been reviewed.
+The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS only after the matching evidence above exists, the concrete artifact/soak fields match the archived bundle, and `tools/validate_release_evidence.py` returns PASS.
 
 Current required validation ID is defined in source by `GPT_EA_REQUIRED_RELEASE_VALIDATION_ID`; do not guess or reuse an old release ID after the contract changes.
 
@@ -251,6 +304,8 @@ Complete `RELEASE_GO_NO_GO.md`.
 
 - [ ] All applicable HIGH/release-blocking tests passed.
 - [ ] Exact artifact identity archived.
+- [ ] Machine-readable evidence validator PASS archived.
+- [ ] Evidence JSON SHA-256 archived.
 - [ ] Deployment profile validated.
 - [ ] All four R5 adaptive attestation groups passed.
 - [ ] Human approval remains enabled for initial live deployment.
@@ -259,6 +314,8 @@ Complete `RELEASE_GO_NO_GO.md`.
 - [ ] Optional DOM/ONNX components are enabled only if separately validated on this broker.
 
 Release reviewer:
+
+Evidence JSON SHA-256:
 
 Decision: GO / NO-GO / HOLD
 

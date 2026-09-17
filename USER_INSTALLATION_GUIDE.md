@@ -2,6 +2,11 @@
 
 This guide is for a new GPT_EA user installing the Expert Advisor on MetaTrader 5 for the first time.
 
+Use these companion checklists during setup:
+
+- `FIRST_RUN_CHECKLIST.md` — first-launch PASS/FAIL checklist.
+- `API_KEY_TROUBLESHOOTING.md` — safe API/WebRequest troubleshooting without exposing the user's secret key.
+
 ## Important: every user uses their own OpenAI API account
 
 GPT_EA is designed so that each user can enter their **own OpenAI API key** locally in MetaTrader 5.
@@ -180,6 +185,7 @@ Current OpenAI model choices documented for the Responses API include:
 - `gpt-5.6-luna` — lower-cost/high-volume option;
 - `gpt-5.6-terra` — balanced intelligence/cost;
 - `gpt-5.6-sol` — highest-quality GPT-5.6 option for complex reasoning.
+- `gpt-6-astra` — OpenAI's current flagship and **maximum-intelligence option** for the hardest end-to-end analysis; use when the higher API cost/latency is acceptable.
 
 Model availability, pricing and limits can change. Check the current OpenAI model/pricing documentation before changing the default.
 
@@ -278,8 +284,9 @@ Each user pays for their own API usage.
 Recommended approach:
 
 - begin with `gpt-5.6-luna` while setting up and demo testing;
-- use `gpt-5.6-terra` if you want a stronger intelligence/cost balance;
-- consider `gpt-5.6-sol` for maximum reasoning quality if the additional API cost/latency is acceptable and the model is available to your project.
+- use `gpt-5.6-terra` for a stronger intelligence/cost balance;
+- use `gpt-5.6-sol` for stronger complex professional reasoning;
+- consider `gpt-6-astra` for the **highest available reasoning capability** when the additional API cost/latency is acceptable and the model is available to your project.
 
 Do not judge performance from one trade. Validate API reliability and trading behavior over a meaningful demo period.
 
@@ -371,7 +378,9 @@ Therefore:
 - confirm the EA properties allow algorithmic trading;
 - confirm the trading account permits Expert Advisors.
 
-### `WebRequest` fails
+### `WebRequest` or OpenAI API fails
+
+For the complete safe procedure, use **`API_KEY_TROUBLESHOOTING.md`**. Never send your API key to support.
 
 - add `https://api.openai.com` to the allowed URL list;
 - confirm internet/TLS connectivity;

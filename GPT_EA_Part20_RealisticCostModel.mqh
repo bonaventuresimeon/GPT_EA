@@ -57,7 +57,6 @@ RealisticRRReport RealisticRiskReward(const TradeSetup &s)
    double entry=s.preferred;
    double spread=MathMax(0.0,t.ask-t.bid);
    double slip=DynamicSlippagePoints(s.symbol)*pt;
-   // Adverse entry deviation model: long fills higher, short fills lower.
    double modeledEntry=(s.bullish?entry+spread+slip:entry-spread-slip);
    double riskPnl=OneLotProfitBetween(s.symbol,s.bullish,modeledEntry,s.sl);
    r.grossRiskMoney=MathAbs(riskPnl);
@@ -81,6 +80,11 @@ RealisticRRReport RealisticRiskReward(const TradeSetup &s)
    r.detail=StringFormat("Realistic weighted R:R %.2f | 1-lot modeled risk %.2f | spread/slippage cost %.2f | commission %.2f | weighted reward %.2f | partial weights TP1 %.0f%% / TP2 %.0f%% / runner %.0f%%",
       r.rr,r.totalRiskMoney,r.modeledSpreadSlipMoney,r.commissionMoney,r.weightedRewardMoney,f1*100.0,f2*100.0,f3*100.0);
    return r;
+}
+
+double EffectiveRRFullRatio(const TradeSetup &s)
+{
+   return RealisticRiskReward(s).rr;
 }
 
 bool RealisticRRGate(const TradeSetup &s,double floor,string &why)

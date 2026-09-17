@@ -165,3 +165,22 @@ If GitHub billing/settings appear healthy but hosted jobs still fail before allo
 - screenshot of repository `Settings → Actions → General` if needed.
 
 The no-action probe is particularly useful because it demonstrates that the block occurs before any repository code or third-party action is involved.
+
+
+## R6 runner-recovery release evidence
+
+After hosted-runner allocation is restored, recovery is not considered release evidence merely because a workflow becomes green.
+
+Create `artifacts/runner-recovery-evidence.json` from `RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json` and follow `RUNNER_RECOVERY_EVIDENCE.md`. The record must preserve the original pre-runner signature and bind both:
+
+- a later successful `GPT_EA Runner Provisioning Probe` with `runner_id > 0` and executed steps; and
+- the exact release candidate's successful `static-release-gate` plus validated CI-bundle digest.
+
+Finalize with:
+
+```text
+python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evidence.json --finalize
+python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evidence.json
+```
+
+Archive `runner-recovery-evidence-validation.txt`. Until that evidence is validated, `InpReleaseRunnerRecoveryPassed` remains false and REAL trading stays blocked.

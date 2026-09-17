@@ -6,7 +6,7 @@ The authoritative R6 evidence flow is:
 
 `GPT_EA_Part36_DemoSoakEvidence.mqh` → `GPT_EA_DemoSoakSnapshot.json` → operator reconciliation/report → `tools/import_soak_snapshot.py` → `tools/validate_soak_evidence.py` → `tools/validate_release_evidence.py` → Part28 local release inputs.
 
-See `DEMO_SOAK_EVIDENCE.md`, `DEMO_SOAK_REPORT_TEMPLATE.md` and `SOAK_EVIDENCE_SCHEMA.json`.
+See `DEMO_SOAK_EVIDENCE.md`, `DEMO_SOAK_REPORT_TEMPLATE.md`, `SOAK_DAY_RECONCILIATION_CHECKLIST.md`, `FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json` and `SOAK_EVIDENCE_SCHEMA.json`.
 
 ## 1. Candidate and run identity
 
@@ -123,7 +123,20 @@ At soak end there must be no unexplained critical state, including:
 
 A deliberately induced safety pause may remain paused only if its cause, evidence, recovery status and operator decision are explicitly documented.
 
-## 8. Evidence report and reconciliation
+## 8. Per-day reconciliation
+
+The five-day acceptance record uses `five_day_soak_acceptance_v2`. Every accepted day must have a unique completed copy of `SOAK_DAY_RECONCILIATION_CHECKLIST.md` containing the day date, frozen candidate Git SHA and literal `Decision: **ACCEPT DAY**`.
+
+The matching machine day row must set:
+
+- `reconciliation_checklist_path`;
+- `day_reconciled=true`;
+- `reconciled_by`;
+- `reconciled_at`.
+
+A missing, duplicated, HOLD, wrong-date or wrong-candidate checklist prevents the day from counting.
+
+## 9. Evidence report and reconciliation
 
 Copy `DEMO_SOAK_REPORT_TEMPLATE.md` to the report path referenced by the snapshot and complete every applicable section. Archive:
 
@@ -147,15 +160,18 @@ Copy `DEMO_SOAK_REPORT_TEMPLATE.md` to the report path referenced by the snapsho
 
 Performance metrics—win rate, realized R, MAE/MFE, slippage, spread and strategy/session performance—are recorded for research but are **not by themselves the engineering PASS criterion** for a five-day soak.
 
-## 9. Finalize the soak JSON and digest
+## 10. Finalize the soak JSON and digest
 
 Part36's live snapshot is intentionally not release-ready because its digest is blank. After the report is complete and the counters have been reconciled, import it into a copy of the release evidence:
 
 ```text
-python tools/import_soak_snapshot.py path/to/GPT_EA_DemoSoakSnapshot.json path/to/release_evidence.json
+python tools/import_soak_snapshot.py \
+  path/to/GPT_EA_DemoSoakSnapshot.json \
+  artifacts/five-day-soak-acceptance.json \
+  path/to/release_evidence.json
 ```
 
-The importer refuses an incomplete/invalid snapshot, verifies the report exists, calculates the canonical SHA-256 excluding the `evidence_digest` field, inserts the digest and updates the `demo_soak` object.
+The importer refuses an incomplete/invalid snapshot or five-day record, verifies all five per-day reconciliation files and the report, copies `acceptance_record_schema_version=five_day_soak_acceptance_v2`, calculates the canonical SHA-256 excluding `evidence_digest`, and updates the `demo_soak` object.
 
 Then run:
 
@@ -166,7 +182,7 @@ python tools/validate_release_evidence.py path/to/release_evidence.json
 
 Both must PASS. Archive `soak-evidence-validation.txt`, `release-evidence-validation.txt` and the completed evidence JSON.
 
-## 10. Part28 promotion rule
+## 11. Part28 promotion rule
 
 `InpReleaseDemoSoakPassed=true` may be set locally only after all of the following are true:
 

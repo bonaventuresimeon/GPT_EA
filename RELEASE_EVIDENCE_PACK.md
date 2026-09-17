@@ -48,6 +48,7 @@ GPT_EA_RELEASE_<RELEASE_ID>/
 └── 99_manifest/
     ├── release-evidence-validation.txt
     ├── evidence-pack-manifest.sha256
+    ├── release-truth-dashboard.md
     └── archive-index.txt
 ```
 
@@ -166,6 +167,7 @@ Then hash the completed manifest itself.
 - [ ] Mandatory validators pass.
 - [ ] Secret scan clean.
 - [ ] Archive manifest hashed.
+- [ ] Candidate release-truth dashboard generated from the same evidence JSON.
 - [ ] Pack stored in immutable/versioned archive.
 
 ## 🤖 Pack generator
@@ -182,6 +184,7 @@ python tools/validate_final_release_review_r10.py release_evidence.json final_re
 Use `RELEASE_EVIDENCE_PACK_TEMPLATE.json` as the input manifest and run:
 
 ```text
+python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md
 python tools/build_release_evidence_pack.py RELEASE_EVIDENCE_PACK_TEMPLATE.json
 ```
 

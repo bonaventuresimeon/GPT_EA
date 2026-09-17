@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `BROKER_STOP_RELEASE_EVIDENCE.md`
+
+---
+
 # GPT_EA Broker Stop Release Evidence
 
 This file is the release-evidence template for broker-specific protective-stop behavior. It complements `STOP_UPDATE_FAILURE_POLICY.md`, `STOP_FAILURE_OBSERVABILITY.md`, `STOP_MANAGEMENT_TEST_MATRIX.md`, and `PARTIAL_PROTECTION_RELEASE_TEST.md`.

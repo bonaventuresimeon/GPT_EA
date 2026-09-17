@@ -6,6 +6,9 @@ Use these companion checklists during setup:
 
 - `FIRST_RUN_CHECKLIST.md` — first-launch PASS/FAIL checklist.
 - `API_KEY_TROUBLESHOOTING.md` — safe API/WebRequest troubleshooting without exposing the user's secret key.
+- `TRADING_RISK_DISCLOSURE.md` — no-profit guarantee and trading-risk disclosure.
+- `TERMS_AND_CONDITIONS.md` / `COMMERCIAL_LICENSE.md` — legal and license terms.
+- `ANTI_PIRACY_LICENSE_ENFORCEMENT.md` — anti-copying/anti-circumvention policy.
 
 ## Important: every user uses their own OpenAI API account
 
@@ -328,6 +331,18 @@ Do not use a real account simply because:
 Real-account arming is intentionally stricter than demo operation.
 
 ## 16. Real-account activation
+
+Before live arming, read the legal package. The R8 legal gate requires the customer to personally acknowledge the current terms and trading risk; a vendor preset should never pre-accept these fields.
+
+Required live acknowledgement inputs:
+
+    InpAcceptGPTCommercialTerms = true
+    InpAcceptGPTTradingRisk = true
+    InpGPTTermsAcceptancePhrase = I ACCEPT GPT_EA TERMS AND TRADING RISK
+    InpCustomerLicenseReference = <YOUR ISSUED LICENSE REFERENCE>
+
+A customer must not set these merely to bypass a block without actually reading/accepting the terms.
+
 
 GPT_EA contains explicit real-account release gates.
 

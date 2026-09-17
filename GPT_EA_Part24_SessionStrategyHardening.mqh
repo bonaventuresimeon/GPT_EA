@@ -76,6 +76,14 @@ bool AccurateSessionEvidenceAllows(const string sym,StrategyClass c,string &deta
                               "ACCURATE SESSION "+session,detail);
 }
 
+void PersistStrategyPlanForExecutionAccurate(const TradeSetup &s)
+{
+   PersistStrategyPlanForExecutionFull(s);
+   string session=AccurateSessionBucket();
+   GVWrite(SymKey(s.symbol,"PLAN_SESSION_CODE"),StrategySessionCode(session));
+   GVWrite(SymKey(s.symbol,"PLAN_SESSION_HASH"),(double)StringLen(session));
+}
+
 void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
 {
    SelectDynamicStrategyResearch(sym,pb,br,d);

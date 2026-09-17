@@ -54,6 +54,18 @@ string APITransportAllowListURL()
    return "https://api.openai.com";
 }
 
+// Active legacy request builders check InpOpenAIAPIKey before calling WebRequest.
+// The entry file macro-rewrites those references to this helper while the files
+// are included. DIRECT returns the real local key. PROXY returns only a harmless
+// non-secret marker when a proxy credential is configured. The resulting legacy
+// Authorization header is discarded by GPTAPIWebRequest before the proxy call.
+string APITransportLegacyCredential()
+{
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY)
+      return StringLen(Trim(InpAPIProxyToken))>=12 ? "PROXY_TRANSPORT_ACTIVE" : "";
+   return InpOpenAIAPIKey;
+}
+
 bool APITransportConfigurationAllows(string &why)
 {
    why="";
@@ -162,8 +174,9 @@ void APIWriteHealthEvent(const string trace,const int code,const int mqlError,co
    if(FileSize(h)==0)
       FileWrite(h,"time","transport","trace_id","http_code","mql_error","consecutive_failures","next_retry","request_id","outcome");
    FileSeek(h,0,SEEK_END);
+   string retryText=(g_apiTransportNextRetry>0?TimeToString(g_apiTransportNextRetry,TIME_DATE|TIME_SECONDS):"");
    FileWrite(h,TimeToString(TimeLocal(),TIME_DATE|TIME_SECONDS),APITransportModeText(),trace,(string)code,(string)mqlError,
-      (string)g_apiTransportFailures,TimeToString(g_apiTransportNextRetry,TIME_DATE|TIME_SECONDS),requestId,outcome);
+      (string)g_apiTransportFailures,retryText,requestId,outcome);
    FileFlush(h);
    FileClose(h);
 }
@@ -184,15 +197,16 @@ void APITransportRecordOutcome(const string trace,const int code,const int mqlEr
 
    g_apiTransportWasFailing=true;
    g_apiTransportFailures++;
-   int threshold=MathMax(1,InpAPITransportFailureThreshold);
-   int retrySeconds=MathMax(5,InpAPITransportBackoffSeconds);
+   int threshold=(InpAPITransportFailureThreshold<1?1:InpAPITransportFailureThreshold);
+   int retrySeconds=(InpAPITransportBackoffSeconds<5?5:InpAPITransportBackoffSeconds);
+   int authBackoff=(InpAPIAuthBackoffSeconds<retrySeconds?retrySeconds:InpAPIAuthBackoffSeconds);
    bool authFailure=(code==401 || code==403);
    bool rateLimited=(code==429);
    bool transportFailure=(code==598 || code==599);
    bool serverFailure=(code>=500 && code<=599);
 
    if(authFailure)
-      g_apiTransportNextRetry=TimeLocal()+MathMax(retrySeconds,InpAPIAuthBackoffSeconds);
+      g_apiTransportNextRetry=TimeLocal()+authBackoff;
    else if(rateLimited || g_apiTransportFailures>=threshold || transportFailure || serverFailure)
       g_apiTransportNextRetry=TimeLocal()+retrySeconds;
 
@@ -228,17 +242,23 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
       target=Trim(InpAPIProxyEndpoint);
       // Deliberately discard the caller's OpenAI Authorization header. The
       // proxy injects its server-side OpenAI credential instead.
-      outgoingHeaders="Content-Type: application/json\r\nAccept: application/json\r\n"
-                      "X-GPT-EA-Token: "+InpAPIProxyToken+"\r\n"
-                      "X-GPT-EA-Request-Id: "+trace+"\r\n"
-                      "X-GPT-EA-Upstream: openai-responses\r\n";
+      outgoingHeaders="Content-Type: application/json\r\n";
+      outgoingHeaders+="Accept: application/json\r\n";
+      outgoingHeaders+="X-GPT-EA-Token: "+InpAPIProxyToken+"\r\n";
+      outgoingHeaders+="X-GPT-EA-Request-Id: "+trace+"\r\n";
+      outgoingHeaders+="X-GPT-EA-Upstream: openai-responses\r\n";
    }
    else
    {
+      int hlen=StringLen(outgoingHeaders);
+      if(hlen>=2 && StringSubstr(outgoingHeaders,hlen-2,2)!="\r\n") outgoingHeaders+="\r\n";
       outgoingHeaders+="X-Client-Request-Id: "+trace+"\r\n";
    }
 
-   int effectiveTimeout=MathMax(1000,MathMin(timeout,MathMax(1000,InpAPITransportMaxTimeoutMs)));
+   int maxTimeout=(InpAPITransportMaxTimeoutMs<1000?1000:InpAPITransportMaxTimeoutMs);
+   int effectiveTimeout=(timeout<1000?1000:timeout);
+   if(effectiveTimeout>maxTimeout) effectiveTimeout=maxTimeout;
+
    ResetLastError();
    int code=WebRequest(method,target,outgoingHeaders,effectiveTimeout,data,result,result_headers);
    int mqlError=(code==-1?GetLastError():0);

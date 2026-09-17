@@ -28,7 +28,25 @@ Concrete Part28 inputs:
 - `InpReleaseMetaEditorBuild=`
 - `InpReleaseMT5Build=`
 
-## 2. Executed GitHub Actions CI evidence bundle
+## 2. Hosted-runner recovery evidence
+
+Follow `RUNNER_RECOVERY_EVIDENCE.md`.
+
+- [ ] original pre-runner incident retained (`runner_id=0`, zero executed steps);
+- [ ] later runner provisioning probe PASS with `runner_id > 0`;
+- [ ] exact candidate static run PASS on a real runner;
+- [ ] release-static run identity matches accepted CI bundle;
+- [ ] `tools/validate_runner_recovery_evidence.py` PASS;
+- [ ] runner-recovery evidence ID/digest archived.
+
+Concrete Part28B inputs:
+
+- `InpReleaseRunnerRecoveryPassed=true`
+- `InpReleaseRunnerRecoverySchemaVersion=runner_recovery_evidence_v1`
+- `InpReleaseRunnerRecoveryEvidenceId=`
+- `InpReleaseRunnerRecoveryDigest=`
+
+## 3. Executed GitHub Actions CI evidence bundle
 
 Follow `CI_EVIDENCE_CONTRACT.md`.
 
@@ -97,7 +115,7 @@ Concrete Part28B inputs:
 
 Set these only from the accepted bundle.
 
-## 3. Broker/deployment identity
+## 4. Broker/deployment identity
 
 - Broker company:
 - Trade server:
@@ -111,7 +129,7 @@ Set these only from the accepted bundle.
 
 Verify stable-environment PASS, controlled structural-drift block and continued position management during a new-entry block.
 
-## 4. API/WebRequest transport evidence
+## 5. API/WebRequest transport evidence
 
 Follow `API_TRANSPORT_ARCHITECTURE.md`, `MT5_WEBREQUEST_REQUIREMENTS.md` and `API_TRANSPORT_TEST_MATRIX.md`.
 
@@ -134,7 +152,7 @@ Required:
 - [ ] `gates.api_transport=true` only after matching evidence.
 - [ ] `InpReleaseAPITransportPassed=true` only for the tested mode/endpoint.
 
-## 5. Adaptive/intelligence evidence
+## 6. Adaptive/intelligence evidence
 
 Complete and archive evidence for:
 
@@ -157,7 +175,7 @@ Complete and archive evidence for:
 
 Auto-promotion remains disabled unless separately validated.
 
-## 6. Broker/recovery/stop evidence
+## 7. Broker/recovery/stop evidence
 
 Archive PASS evidence for:
 
@@ -336,3 +354,24 @@ Final evidence JSON SHA-256:
 Decision: **GO / NO-GO / HOLD**
 
 Notes:
+
+
+## Five-day per-day reconciliation
+
+Acceptance schema: `five_day_soak_acceptance_v2`.
+
+For each of the five accepted days archive a dated copy of `SOAK_DAY_RECONCILIATION_CHECKLIST.md` showing:
+
+- exact candidate/date identity;
+- broker/order/deal vs EA authorization reconciliation;
+- stop/protection state;
+- lifecycle/pending-approval state;
+- recovery/checkpoint state;
+- GPT/API fail-closed integrity;
+- risk/dashboard consistency;
+- required logs;
+- all daily zero-tolerance values = 0;
+- literal `Decision: **ACCEPT DAY**`;
+- reconciler and timestamp.
+
+The machine day's `reconciliation_checklist_path`, `day_reconciled`, `reconciled_by` and `reconciled_at` must match the retained artifact.

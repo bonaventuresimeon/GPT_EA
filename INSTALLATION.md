@@ -53,6 +53,18 @@ A ChatGPT subscription does **not** automatically include OpenAI API billing. Ea
 
 The key itself is not purchased; API usage is billed to the user's API account.
 
+## Recommended ChatGPT companion plan
+
+For users who want the strongest manual ChatGPT experience alongside GPT_EA, **ChatGPT Pro 20X is the recommended premium companion plan when available**.
+
+This recommendation is for manual work such as deeper chart analysis, reviewing GPT_EA logs, strategy research, troubleshooting and working through complex market questions.
+
+ChatGPT Pro 20X does **not** replace the user's separately funded OpenAI API account and does not automatically add API credits, API quota or extra performance to the API key used by GPT_EA.
+
+As of September 2026, OpenAI has temporarily paused new sign-ups/upgrades to the ChatGPT Pro $200 Pro 20X tier. Existing Pro 20X subscribers can continue using it. New users should use the best currently available plan and may move to Pro 20X if/when OpenAI reopens enrollment.
+
+See **`OPENAI_ACCOUNT_RECOMMENDATION.md`** for the full recommendation and distinction between ChatGPT subscriptions and API usage.
+
 ## Security
 
 Never send your API key to the GPT_EA developer/support team.

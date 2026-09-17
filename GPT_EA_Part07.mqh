@@ -113,6 +113,13 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
       why="Broker execution validation failed: "+brokerWhy;
       return false;
    }
+
+   string serverWhy="";
+   if(!ServerOrderCheckAllows(live,lots,DynamicSlippagePoints(live.symbol),serverWhy))
+   {
+      why="Server OrderCheck failed: "+serverWhy;
+      return false;
+   }
    return true;
 }
 
@@ -238,9 +245,16 @@ void ScanSymbol(const string sym,const string scanReason)
    bool brokerAllows=(previewLots>0 && BrokerExecutionAllows(primary,previewLots,brokerWhy));
    if(previewLots<=0) brokerWhy="Preview lot calculation returned zero.";
 
+   string serverWhy="";
+   bool serverAllows=false;
+   if(brokerAllows)
+      serverAllows=ServerOrderCheckAllows(primary,previewLots,DynamicSlippagePoints(sym),serverWhy);
+   else
+      serverWhy="Skipped because broker execution gate did not pass.";
+
    bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
    bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
-                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows && brokerAllows);
+                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows && brokerAllows && serverAllows);
    bool approvalReady=(hardValid && readyNow);
 
    string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
@@ -248,6 +262,7 @@ void ScanSymbol(const string sym,const string scanReason)
    card+="AI execution gate: "+aiGateWhy+"\n";
    card+="Portfolio/risk gate: "+riskWhy+"\n";
    card+="Broker execution gate: "+brokerWhy+"\n";
+   card+="MT5 OrderCheck gate: "+serverWhy+"\n";
    card+=StringFormat("Current GPT_EA portfolio risk: %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
                       CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),ConsecutiveLosses());
    card+=StringFormat("Dynamic slippage ceiling: %d points | dynamic effective R:R: %.2f\n",
@@ -302,6 +317,7 @@ int OnInit()
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();
    UniversalRecoveryInit();
+   RecoverySafetyAudit();
 
    Print("GPT_EA Advanced initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",

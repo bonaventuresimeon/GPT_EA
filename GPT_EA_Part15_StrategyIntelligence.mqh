@@ -638,6 +638,21 @@ void FinalizeStrategyHistory()
       if(PositionIdStillOpenStrategy(pid) || GVRead(PosKey(pid,"STRAT_FINAL"),0)>0.5) continue;
       StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0);
       if(c==STRATEGY_NO_TRADE) continue;
+
+      bool quarantined=(GVRead(PosKey(pid,"LEARN_QUARANTINE"),0)>0.5 ||
+                        GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)>0.5 ||
+                        GVRead(PosKey(pid,"BROKER_ANOMALY"),0)>0.5 ||
+                        GVRead(PosKey(pid,"CONNECTION_ANOMALY"),0)>0.5 ||
+                        GVRead(PosKey(pid,"CHAOS_SAMPLE"),0)>0.5 ||
+                        GVRead(PosKey(pid,"STORAGE_ANOMALY"),0)>0.5);
+      int storedCfg=(int)GVRead(PosKey(pid,"CONFIG_HASH"),0);
+      if(storedCfg>0 && storedCfg!=IntegrityTextHash(CurrentSensitiveConfigText())) quarantined=true;
+      if(quarantined)
+      {
+         GVWrite(PosKey(pid,"STRAT_FINAL"),2);
+         continue;
+      }
+
       double risk=GVRead(PosKey(pid,"RISK"),0);
       double realized=StrategyPositionRealized(pid);
       double R=(risk>0?realized/risk:0);

@@ -1,7 +1,7 @@
 // ============================================================================
 // GPT_EA Part 35 - Adaptive stack integration wrappers
 // ============================================================================
-// These wrappers preserve the proven legacy paths and insert Parts 30-34 at
+// These wrappers preserve the proven legacy paths and insert Parts 30-36 at
 // selector, authorization, AI-veto, telemetry and runtime lifecycle boundaries.
 
 TradeSetup       g_r5Primary;
@@ -128,18 +128,29 @@ void RefreshAdaptiveLifecycleFromDecision(const string decision)
    int cur=(int)GVRead(SymKey(sym,"LIFECYCLE_STATE"),LIFE_NONE);
    if(cur==LIFE_REJECTED || cur==LIFE_INVALIDATED || cur==LIFE_CLOSED || cur==LIFE_NONE)
       SetSymbolLifecycle(sym,LIFE_CANDIDATE,"fresh adaptive scan candidate");
+
    if(decision=="HIGH_CONFIDENCE" && InpRequireApproval)
-      SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"high-confidence setup awaiting human approval");
+   {
+      if(SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"high-confidence setup awaiting human approval"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_HUMAN_APPROVAL);
+   }
    else if(decision=="WAIT_REANALYZE")
-      SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"strategy valid but confirmation/reanalysis still required");
+   {
+      if(SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"strategy valid but market confirmation/reanalysis still required"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_MARKET_CONFIRMATION);
+   }
    else if(decision=="NO_TRADE")
-      SetSymbolLifecycle(sym,LIFE_INVALIDATED,"fresh scan classified NO TRADE");
+   {
+      if(SetSymbolLifecycle(sym,LIFE_INVALIDATED,"fresh scan classified NO TRADE"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+   }
 }
 
 void NotifyCardR5(const string card)
 {
    if(!g_r5ContextReady)
    {
+      ObserveDemoSoakScanCard(card);
       NotifyCardObserved(card);
       return;
    }
@@ -150,10 +161,12 @@ void NotifyCardR5(const string card)
    enriched+="Confidence calibration: "+g_r5CalibrationNote+"\n";
    enriched+="Learned candle expiry: "+g_r5ExpiryNote+"\n";
    enriched+="Final sizing: "+FinalAdaptiveSizingText(g_r5Primary)+"\n";
+   if(InpEnableDemoSoakEvidence) enriched+=DemoSoakEvidenceSummary()+"\n";
 
    ChampionChallengerScanHook(g_r5Primary,g_r5Pullback,g_r5BreakoutRetest,g_r5Decision,liveReady,decision);
    WriteDecisionSnapshot(g_r5Primary,g_r5Decision,decision,"scanner hard filters and news/web state are retained in the emitted card","",g_r5AIAnswer,decision);
    RefreshAdaptiveLifecycleFromDecision(decision);
+   ObserveDemoSoakScanCard(card);
    NotifyCardObserved(enriched);
 }
 
@@ -161,7 +174,10 @@ void MarkSignalCooldownR5(const string sym)
 {
    MarkSignalCooldown(sym);
    if(!AdaptiveOpenPositionForSymbol(sym))
+   {
       SetSymbolLifecycle(sym,LIFE_INVALIDATED,"approval denied/expired; cooldown activated");
+      GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+   }
 }
 
 void NewsIntermarketInitR5()
@@ -171,6 +187,7 @@ void NewsIntermarketInitR5()
    ExecutionLearningInitR5();
    ChampionChallengerInit();
    LifecycleIntegrityInit();
+   DemoSoakEvidenceInit();
    StrategyHealthDashboardInit();
 }
 
@@ -181,11 +198,13 @@ void NewsIntermarketTimerR5()
    ExecutionLearningTimerR5();
    ChampionChallengerTimer();
    LifecycleIntegrityTimer();
+   DemoSoakEvidenceTimer();
    StrategyHealthDashboardTimer();
 }
 
 void DeleteAdvancedDashboardR5()
 {
+   DemoSoakEvidenceShutdown();
    DeleteAdvancedDashboard();
    DeleteStrategyHealthDashboard();
 }

@@ -27,6 +27,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part20_RealisticCostModel.mqh",
     "GPT_EA_Part21_ResearchValidation.mqh",
     "GPT_EA_Part22A_IntermarketForward.mqh",
+    "GPT_EA_Part22P_ResponseParser.mqh",
     "GPT_EA_Part22_IntelligenceFreshness.mqh",
     "GPT_EA_Part23_IntelligenceObservability.mqh",
     "GPT_EA_Part24_SessionStrategyHardening.mqh",
@@ -35,6 +36,7 @@ REQUIRED_FILES = [
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
+    "OPENAI_INTELLIGENCE_POLICY.md",
     "STOP_MANAGEMENT_TEST_MATRIX.md",
     "PARTIAL_PROTECTION_RELEASE_TEST.md",
     "STOP_FAILURE_OBSERVABILITY.md",
@@ -55,6 +57,9 @@ REQUIRED_TOKENS = {
         "StrategyWalkForwardEvidence", "CurrentStrategyContextEvidence",
         "RetracementIntelligenceText", "RetracementDestinationText",
         "ChaseRiskDetected", "ExtremeRegimeDetected",
+    ],
+    "GPT_EA_Part22P_ResponseParser.mqh": [
+        "ExtractOpenAITextWide", "InpIntelligenceResponseMaxChars",
     ],
     "GPT_EA_Part22_IntelligenceFreshness.mqh": [
         "CallOpenAIWebIntelStructured", "json_schema",
@@ -78,6 +83,7 @@ REQUIRED_TOKENS = {
 REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part21_ResearchValidation.mqh"',
     '#include "GPT_EA_Part22A_IntermarketForward.mqh"',
+    '#include "GPT_EA_Part22P_ResponseParser.mqh"',
     '#include "GPT_EA_Part22_IntelligenceFreshness.mqh"',
     '#include "GPT_EA_Part23_IntelligenceObservability.mqh"',
     '#include "GPT_EA_Part24_SessionStrategyHardening.mqh"',
@@ -89,6 +95,7 @@ REQUIRED_MAIN_WIRING = [
     "#define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict",
     "#define EffectiveRRDynamic EffectiveRRFullRatio",
     "#define ScheduledScanDue ScheduledOrContinuousScanDue",
+    "#define ExtractOpenAIText ExtractOpenAITextWide",
     "#define CallOpenAI CallOpenAIDeep",
     "#define NotifyCard NotifyCardObserved",
     "#define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal",
@@ -197,6 +204,7 @@ def main() -> int:
         "GPT_EA_Part24_SessionStrategyHardening.mqh",
         "GPT_EA_Part16_NewsIntermarket.mqh",
         "GPT_EA_Part22A_IntermarketForward.mqh",
+        "GPT_EA_Part22P_ResponseParser.mqh",
         "GPT_EA_Part22_IntelligenceFreshness.mqh",
         "GPT_EA_Part16A_StrictRevalidation.mqh",
         "GPT_EA_Part17_ThesisEngine.mqh",
@@ -207,6 +215,9 @@ def main() -> int:
     positions = [main_text.find(f'#include "{x}"') for x in order]
     if any(p < 0 for p in positions) or positions != sorted(positions):
         errors.append("critical intelligence include order is invalid")
+
+    if main_text.count("#define ExtractOpenAIText ExtractOpenAITextWide") < 2:
+        errors.append("wide intelligence response parser must cover both structured news and deep GPT review")
 
     if 'input string InpOpenAIAPIKey            = ""' not in (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8"):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")

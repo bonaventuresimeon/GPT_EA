@@ -83,7 +83,7 @@ for token in [
 
 docs = [
     "RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
-    "CI_EVIDENCE_CONTRACT.md", "RUNNER_RECOVERY_EVIDENCE.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "SOAK_DAY_RECONCILIATION_CHECKLIST.md",
+    "CI_EVIDENCE_CONTRACT.md", "RUNNER_RECOVERY_EVIDENCE.md", "RUNNER_RECOVERY_TEST_MATRIX.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "SOAK_DAY_RECONCILIATION_CHECKLIST.md",
     "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md", "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md",
     "RELEASE_EVIDENCE_MANIFEST.md", "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md",
 ]
@@ -183,6 +183,7 @@ for path_name, tokens in {
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],
     "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
+    "tools/build_runner_recovery_evidence.py": ["GITHUB_TOKEN", "runner-probe", "static-release-gate", "ci_bundle_manifest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
     "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"runner_recovery":data.get("runner_recovery",{})', '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})', "runner_recovery_pass", "soak_day_reconciliation_pass"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],

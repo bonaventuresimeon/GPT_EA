@@ -40,8 +40,9 @@
 #define ScheduledScanDue ScheduledOrContinuousScanDue
 
 // Route all active OpenAI/news WebRequest calls through the R7 transport layer.
-// Part37 was parsed before this macro, so its GPTAPIWebRequest() implementation
-// still calls the native MQL5 WebRequest function without recursion.
+// In PROXY mode the legacy key check receives only a harmless local marker; the
+// generated bearer header is then discarded before the proxy network request.
+#define InpOpenAIAPIKey APITransportLegacyCredential()
 #define WebRequest GPTAPIWebRequest
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
 #include "GPT_EA_Part22A_IntermarketForward.mqh"
@@ -59,6 +60,7 @@
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
 #undef ExtractOpenAIText
 #undef WebRequest
+#undef InpOpenAIAPIKey
 
 // Adaptive execution, portfolio risk, shadow validation, lifecycle, demo-soak evidence and dashboard stack.
 #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"

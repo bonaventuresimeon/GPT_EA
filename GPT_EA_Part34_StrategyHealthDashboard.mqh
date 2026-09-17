@@ -5,7 +5,7 @@
 
 input bool   InpShowStrategyHealthDashboard       = true;
 input bool   InpWriteStrategyHealthJournal        = true;
-input string InpStrategyHealthJournalFile         = "GPT_EA_StrategyHealth.csv";
+input string InpStrategyHealthJournalFile         = "GPT_EA_StrategyHealthV2.csv";
 input int    InpStrategyHealthJournalMinutes      = 15;
 
 string STRATEGY_HEALTH_PANEL="GPT_EA_STRATEGY_HEALTH_PANEL";
@@ -19,7 +19,8 @@ void EnsureStrategyHealthHeader()
    if(!exists || FileSize(h)==0)
       FileWrite(h,"schema_version","time","strategy","status","sample_n","win_rate","avg_r","profit_factor","max_dd_r","max_loss_run",
          "recent_n","recent_avg_r","recent_pf","avg_realized_win_loss_rr","strategy_slippage_pts","current_regime","regime_n","regime_avg_r","regime_pf",
-         "champion_challenger","risk_multiplier");
+         "champion_challenger","risk_multiplier","release_id","strategy_engine","model_policy",
+         "config_fingerprint","symbol_fingerprint","strategy_config");
    FileClose(h);
 }
 
@@ -111,10 +112,12 @@ void WriteStrategyHealthSnapshot()
       double realRR=0,aw=0,al=0; StrategyRealizedWinLossRR(c,realRR,aw,al);
       double slip=GVRead(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",ci)),0);
       double regN=0,regAvg=0,regPF=0; string regime=CurrentRegimeEvidenceText(c,ref,regN,regAvg,regPF);
-      FileWrite(h,"strategy_health_v1",TimeToString(now,TIME_DATE|TIME_SECONDS),StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),
+      FileWrite(h,"strategy_health_v2",TimeToString(now,TIME_DATE|TIME_SECONDS),StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),
          n,DoubleToString(wr,1),DoubleToString(avg,3),DoubleToString(pf,3),DoubleToString(dd,3),ml,
          rn,DoubleToString(ravg,3),DoubleToString(rpf,3),DoubleToString(realRR,3),DoubleToString(slip,1),regime,
-         regN,DoubleToString(regAvg,3),DoubleToString(regPF,3),SnapshotText(ChampionChallengerSummary(c)),DoubleToString(StrategyHealthRiskMultiplier(c),2));
+         regN,DoubleToString(regAvg,3),DoubleToString(regPF,3),SnapshotText(ChampionChallengerSummary(c)),DoubleToString(StrategyHealthRiskMultiplier(c),2),
+         GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+         SymbolContractFingerprint(ref),StrategyConfigVersion(c));
    }
    FileFlush(h); FileClose(h);
    GVWrite(SysKey("HEALTH_JOURNAL_TIME"),(double)now);

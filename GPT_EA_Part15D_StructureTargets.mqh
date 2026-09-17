@@ -2,11 +2,12 @@
 // GPT_EA Part 15D - Structure/liquidity-aware target refinement
 // ============================================================================
 
-void AddObjective(double &arr[],double v,double entry,bool bull)
+void AddObjective(double &arr[],const string sym,double v,double entry,bool bull)
 {
    if(v<=0) return;
    if((bull && v<=entry) || (!bull && v>=entry)) return;
-   for(int i=0;i<ArraySize(arr);i++) if(MathAbs(arr[i]-v)<=PointFor(_Symbol)*2.0) return;
+   double tol=MathMax(PointFor(sym)*2.0,SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE));
+   for(int i=0;i<ArraySize(arr);i++) if(MathAbs(arr[i]-v)<=tol) return;
    int n=ArraySize(arr); ArrayResize(arr,n+1); arr[n]=v;
 }
 
@@ -26,12 +27,12 @@ void RefineTargetsToStructure(TradeSetup &s)
    StrategySnapshot x; BuildStrategySnapshot(s.symbol,x);
    double R=MathAbs(s.preferred-s.sl); if(R<=0) return;
    double objs[];
-   AddObjective(objs,x.priorHigh,s.preferred,s.bullish);
-   AddObjective(objs,x.priorLow,s.preferred,s.bullish);
-   AddObjective(objs,x.previousDayHigh,s.preferred,s.bullish);
-   AddObjective(objs,x.previousDayLow,s.preferred,s.bullish);
-   AddObjective(objs,x.asianHigh,s.preferred,s.bullish);
-   AddObjective(objs,x.asianLow,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.priorHigh,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.priorLow,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.previousDayHigh,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.previousDayLow,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.asianHigh,s.preferred,s.bullish);
+   AddObjective(objs,s.symbol,x.asianLow,s.preferred,s.bullish);
    SortObjectives(objs,s.bullish);
 
    double fallback1=(s.bullish?s.preferred+R:s.preferred-R);
@@ -49,7 +50,6 @@ void RefineTargetsToStructure(TradeSetup &s)
    if(chosen2==0) chosen2=fallback2;
    if(chosen3==0) chosen3=fallback3;
 
-   // Counter-trend candidates keep their intentionally conservative targets if structure objectives lie farther away.
    bool counter=(StringFind(s.name,"COUNTER-TREND")>=0 || StringFind(s.name,"POTENTIAL REVERSAL")>=0);
    if(counter)
    {

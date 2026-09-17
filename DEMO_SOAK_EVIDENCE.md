@@ -106,17 +106,24 @@ This machine-ready state is necessary but not sufficient for release.
 
 ## Evidence schema and digest
 
-The authoritative schema is `SOAK_EVIDENCE_SCHEMA.json` and the required version is:
+The authoritative machine-soak schema is `SOAK_EVIDENCE_SCHEMA.json` and the required version is:
 
 `demo_soak_evidence_v1`
 
+The bound five-day acceptance sub-schema is:
+
+`five_day_soak_acceptance_v2`
+
+Each accepted day requires a completed `SOAK_DAY_RECONCILIATION_CHECKLIST.md` copy with `ACCEPT DAY`, matching date/Git SHA, reviewer and timestamp.
+
 The final `demo_soak` object must contain a SHA-256 digest calculated over the canonical JSON object **excluding** the `evidence_digest` field. `tools/validate_soak_evidence.py` verifies both schema and digest.
 
-Use `tools/import_soak_snapshot.py` to copy a completed Part36 snapshot into a release-evidence JSON and calculate the digest automatically.
+Use `tools/import_soak_snapshot.py` with the completed Part36 snapshot, finalized five-day v2 acceptance JSON, and release-evidence JSON. The importer binds the acceptance schema/ID/digest and calculates the soak digest automatically.
 
 Then run:
 
 ```text
+python tools/import_soak_snapshot.py path/to/GPT_EA_DemoSoakSnapshot.json artifacts/five-day-soak-acceptance.json path/to/release_evidence.json
 python tools/validate_soak_evidence.py path/to/release_evidence.json
 python tools/validate_release_evidence.py path/to/release_evidence.json
 ```

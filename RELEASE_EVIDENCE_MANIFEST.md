@@ -1,6 +1,6 @@
-# GPT_EA Release Evidence Manifest
+# GPT_EA Release Evidence Manifest — R6
 
-Complete one copy of this manifest for every candidate production build. A Git commit, input checkbox or profitable demo result alone is not evidence that a release gate passed.
+Complete one copy for every production candidate. A Git commit, checkbox or profitable demo result alone is not evidence that a release gate passed.
 
 ## Build identity
 
@@ -9,36 +9,36 @@ Complete one copy of this manifest for every candidate production build. A Git c
 - Release tag/version:
 - MetaTrader build:
 - MetaEditor build:
-- Windows build/architecture used for compilation:
+- Windows build/architecture:
 - `.ex5` path:
 - `.ex5` SHA-256:
-- EA `.set` preset path:
-- EA `.set` SHA-256, or `NONE` when no preset is used:
-- Compile evidence ID/reference:
+- `.set` path:
+- `.set` SHA-256 or `NONE`:
+- Compile evidence ID:
 - Compile errors: **0 required**
 - Compile warnings: **0 required for production certification**
-- Compile log evidence location:
+- Compile log path:
 - Compile timestamp:
-- Validation date range:
 
-## Machine-readable evidence bundle
+## Machine-readable release evidence
 
-Start from `RELEASE_EVIDENCE_TEMPLATE.json` and save the completed candidate as a separate release evidence JSON file.
+Start from `RELEASE_EVIDENCE_TEMPLATE.json`.
 
-Run:
+Working file:
 
-```text
-python tools/validate_release_evidence.py path/to/release_evidence.json
-```
+- `release_evidence.json` path:
 
-Archive:
+Required validators/artifacts:
 
-- Completed release evidence JSON path:
-- `release-evidence-validation.txt` path:
-- Evidence JSON SHA-256 reported by validator:
-- Validator result: **PASS required**
-
-The values in the JSON must match the exact candidate and the concrete inputs later entered into MT5.
+- [ ] `python tools/validate_soak_evidence.py release_evidence.json` → PASS
+- [ ] `soak-evidence-validation.txt` archived
+- [ ] soak evidence SHA-256 archived
+- [ ] `python tools/validate_final_release_review.py release_evidence.json final_release_review.json` → PASS
+- [ ] `final-release-review-validation.txt` archived
+- [ ] final review SHA-256 archived
+- [ ] `python tools/validate_release_evidence.py release_evidence.json` → PASS after final review is incorporated
+- [ ] `release-evidence-validation.txt` archived
+- [ ] final evidence JSON SHA-256 archived
 
 ## Broker/account identity
 
@@ -48,14 +48,13 @@ The values in the JSON must match the exact candidate and the concrete inputs la
 - Margin mode: hedging / netting / exchange
 - Account currency:
 - Account leverage:
-- Symbols validated:
-- Broker symbol-profile evidence location:
-- Deployment-drift test evidence location:
-- Expected deployment identity inputs, if used:
+- Resolved symbols:
+- Broker symbol-profile evidence:
+- Deployment-drift evidence:
 
 ## Required release contracts
 
-Attach PASS/FAIL evidence for each applicable document:
+Attach PASS/FAIL evidence for applicable contracts:
 
 - [ ] `METAEDITOR_COMPILE_GATE.md`
 - [ ] `COMPILE_TEST_CHECKLIST.md`
@@ -77,26 +76,23 @@ Attach PASS/FAIL evidence for each applicable document:
 - [ ] `STOP_OBSERVABILITY_TEST_MATRIX.md`
 - [ ] `ANALYTICS_SCHEMA.md`
 - [ ] `DEMO_SOAK_ACCEPTANCE.md`
+- [ ] `SOAK_EVIDENCE_SCHEMA.json`
 - [ ] `RELEASE_EVIDENCE_VALIDATION.md`
+- [ ] `FINAL_GO_NO_GO_REVIEW.md`
 - [ ] `RELEASE_GO_NO_GO.md`
 
 ## Artifact identity evidence
 
-- [ ] Exact source Git SHA matches the compiled candidate.
+- [ ] Source Git SHA matches compiled candidate.
 - [ ] EX5 SHA-256 archived.
-- [ ] SET SHA-256 archived when a preset is used, otherwise `NONE` explicitly recorded.
-- [ ] MetaEditor build recorded.
-- [ ] MT5 build recorded.
-- [ ] Compile evidence ID/reference recorded.
-- [ ] No executable source changed after the certified compile without a new compile/hash.
-- [ ] Demo soak used the same EX5/SET candidate being proposed for release.
-- [ ] Machine-readable evidence validator recomputed/verified available artifact hashes.
-- [ ] `InpReleaseMetaEditorCompilePassed=true` will be set only after compile evidence passes.
-- [ ] `InpReleaseArtifactIdentityArchived=true` will be set only after this section is complete.
+- [ ] SET SHA-256 archived or `NONE` explicitly recorded.
+- [ ] MetaEditor/MT5 builds recorded.
+- [ ] Compile evidence ID recorded.
+- [ ] No executable source changed after certified compile without new compile/hash.
+- [ ] Demo soak used the exact candidate EX5/SET.
+- [ ] Artifact hashes recomputed/verified by validator.
 
-### Concrete MT5 artifact-identity inputs
-
-Record the exact values that will be entered locally:
+Concrete MT5 inputs:
 
 - `InpReleaseSourceCommitSha=`
 - `InpReleaseEx5Sha256=`
@@ -105,92 +101,81 @@ Record the exact values that will be entered locally:
 - `InpReleaseMetaEditorBuild=`
 - `InpReleaseMT5Build=`
 
-## R5 adaptive execution evidence
+## R5 adaptive trading-stack evidence carried into R6 release certification
 
-Complete `ADAPTIVE_EXECUTION_TEST_MATRIX.md` and archive evidence for all applicable cases.
+R6 retains the R5 adaptive runtime stack. Complete `ADAPTIVE_EXECUTION_TEST_MATRIX.md` and archive evidence for:
 
 ### Portfolio/risk supervisor
 
-- [ ] rolling-correlation same-theme risk tested;
-- [ ] opposite-direction/hedge behavior tested;
-- [ ] USD/risk-on macro concentration tested;
-- [ ] per-strategy daily and weekly budgets tested;
-- [ ] base-risk ceiling never exceeded by adaptive sizing;
-- [ ] market-condition kill switch tested;
-- [ ] broker-health blocking tested;
-- [ ] drawdown-acceleration block tested;
-- [ ] independent supervisor shown to outrank GPT approval;
-- [ ] `InpReleaseAdaptivePortfolioPassed=true` will be set only after this section is complete.
+- [ ] rolling-correlation same-theme risk;
+- [ ] opposite-direction/hedge behavior;
+- [ ] USD/risk-on concentration;
+- [ ] per-strategy daily/weekly budgets;
+- [ ] base-risk ceiling;
+- [ ] market-condition kill switch;
+- [ ] broker-health blocking;
+- [ ] drawdown-acceleration block;
+- [ ] deterministic supervisor outranks GPT approval.
 
-### Execution learning / adaptation
+### Execution learning
 
-- [ ] expected/request/fill price capture verified;
-- [ ] spread/slippage/latency/commission capture verified;
-- [ ] confidence calibration developing and mature samples tested;
-- [ ] strategy degradation states ACTIVE/REDUCED_RISK/SHADOW/DISABLED tested;
-- [ ] MAE/MFE capture/finalization tested;
-- [ ] CPI/PPI/NFP/FOMC/ECB/BoE/GDP/PMI/retail/speech event classes tested where available;
-- [ ] negative event/strategy evidence block tested;
-- [ ] learned slippage forecast and R:R rejection tested;
-- [ ] learned time-to-TP1 expiry tested;
-- [ ] regime-transition final sizing reduction tested;
-- [ ] `InpReleaseExecutionLearningPassed=true` will be set only after this section is complete.
+- [ ] request/fill capture;
+- [ ] spread/slippage/latency/commission capture;
+- [ ] confidence calibration;
+- [ ] ACTIVE/REDUCED_RISK/SHADOW/DISABLED degradation;
+- [ ] MAE/MFE;
+- [ ] event-specific evidence;
+- [ ] learned slippage/R:R rejection;
+- [ ] learned TP1 expiry;
+- [ ] regime-transition sizing reduction.
 
-### Champion/challenger / counterfactuals
+### Champion/challenger
 
-- [ ] champion, pullback challenger and breakout-retest challenger shadow paths tested;
-- [ ] rejected/WAIT counterfactuals tracked without broker orders;
-- [ ] same-bar SL/target ambiguity uses conservative outcome;
-- [ ] minimum sample requirement enforced;
-- [ ] average-R, PF, DD and stability promotion requirements enforced;
-- [ ] `InpAutoPromoteChallenger=false` cannot silently promote;
-- [ ] explicit promotion still passes every downstream risk/news/release/broker gate;
-- [ ] `InpReleaseChampionChallengerPassed=true` will be set only after this section is complete.
+- [ ] champion and challenger shadow paths;
+- [ ] WAIT/rejected counterfactuals without broker orders;
+- [ ] conservative same-bar ambiguity;
+- [ ] minimum sample and promotion rules;
+- [ ] auto-promotion disabled unless explicitly certified;
+- [ ] promoted candidate still passes all downstream gates.
 
-### Lifecycle / GPT integrity / replay
+### Lifecycle/GPT integrity/replay
 
-- [ ] normal lifecycle transitions tested;
-- [ ] invalid transition rejection tested;
-- [ ] denial/timeout/restart reconstruction tested;
-- [ ] GPT strong disagreement downgrades/blocks rather than reverses deterministic direction;
-- [ ] malformed/short/parser-fallback/credential-like model output tested;
-- [ ] stale GPT review requires reanalysis;
-- [ ] contradictory price geometry blocks before order;
-- [ ] `GPT_EA_DecisionSnapshots.csv` matches archived decisions;
-- [ ] `InpReleaseLifecycleIntegrityPassed=true` will be set only after this section is complete.
+- [ ] normal lifecycle transitions;
+- [ ] invalid transition rejection;
+- [ ] denial/timeout/restart reconstruction;
+- [ ] GPT disagreement cannot reverse deterministic direction;
+- [ ] malformed/model-integrity cases;
+- [ ] stale GPT reanalysis;
+- [ ] contradictory geometry block;
+- [ ] decision snapshot replay.
 
-## Deployment profile / drift evidence
+## Deployment profile/drift evidence
 
-- [ ] Intended broker company recorded.
-- [ ] Intended server recorded.
-- [ ] Account currency/leverage/margin mode recorded.
-- [ ] Resolved broker symbol names recorded.
-- [ ] digits/point/tick size/contract size/volume step recorded.
-- [ ] calculation/execution/filling modes recorded.
-- [ ] stable session causes no drift block.
-- [ ] controlled structural-drift cases block new entries.
-- [ ] spread/stops/freeze changes remain handled by live gates rather than false structural-drift classification.
-- [ ] existing positions remain managed during a deployment-drift block.
-- [ ] `InpReleaseDeploymentProfilePassed=true` will be set only after this section is complete.
+- [ ] broker/server/currency/leverage/margin mode recorded;
+- [ ] resolved symbol names recorded;
+- [ ] digits/point/tick/contract/volume step recorded;
+- [ ] calculation/execution/filling modes recorded;
+- [ ] stable environment does not drift-block;
+- [ ] controlled structural drift blocks new entries;
+- [ ] spread/stops/freeze changes do not cause false structural drift;
+- [ ] existing positions remain managed during drift block.
 
 ## Stop-management evidence
 
-- [ ] Normal BUY TP1 → BE → profit lock → strong lock → trail lifecycle.
-- [ ] Normal SELL lifecycle.
-- [ ] TP1 partial/BE failure without duplicate partial.
-- [ ] Partial-protection start/completion observed.
-- [ ] Partial-protection hazard blocks new entries.
-- [ ] Partial-protection recovery observed.
-- [ ] Stop/freeze-distance failure observed.
-- [ ] Requote/fresh-price retry observed.
-- [ ] Disconnect/reconnect behavior observed.
-- [ ] Market-closed behavior observed where applicable.
-- [ ] Rate-limit/trade-context backoff observed or equivalent controlled test documented.
-- [ ] Operator-required stop state blocks new entries.
-- [ ] Missing-SL restore path tested.
-- [ ] Emergency unprotected-position path tested.
-- [ ] Restart with active stop failure tested.
-- [ ] Ticket-change/position-identifier reconciliation tested.
+- [ ] BUY initial SL → TP1 → BE → profit lock → strong lock → trail lifecycle;
+- [ ] SELL lifecycle;
+- [ ] TP1 partial/BE failure without duplicate partial;
+- [ ] partial-protection start/completion/hazard/recovery;
+- [ ] stop/freeze rejection;
+- [ ] requote/fresh-price retry;
+- [ ] disconnect/reconnect;
+- [ ] market-closed behavior where applicable;
+- [ ] backoff/rate-limit behavior;
+- [ ] operator-required state blocks entries;
+- [ ] missing-SL restore;
+- [ ] emergency unprotected-position path;
+- [ ] restart with active stop failure;
+- [ ] ticket-change/position-identifier reconciliation.
 
 ## Observability artifacts
 
@@ -208,115 +193,143 @@ Archive:
 - Experts log
 - Journal log
 - broker order/deal history
-- screenshots for HIGH-priority stop/adaptive cases
-- recovery checkpoint and `.bak` where relevant
-- intelligence/news observations where relevant
+- recovery checkpoint + `.bak`
+- material screenshots/exports
 
 Verify:
 
-- [ ] stop CSV schema = `stop_failure_observability_v2`.
-- [ ] stable class/action codes are present.
-- [ ] stop lifecycles join by `POSITION_IDENTIFIER`.
-- [ ] adaptive execution-learning rows join fills/closed results correctly.
-- [ ] lifecycle rows do not contain illegal accepted transitions.
-- [ ] shadow rows never correspond to broker orders merely because they are shadow candidates.
-- [ ] current SL in evidence agrees with broker state.
-- [ ] no duplicate TP1/TP2 partials.
-- [ ] no accepted stop regression.
-- [ ] recovery events preserve the failure class/action being recovered.
+- [ ] stop schema = `stop_failure_observability_v2`;
+- [ ] stable class/action codes present;
+- [ ] stop lifecycle joins by `POSITION_IDENTIFIER`;
+- [ ] execution-learning rows reconcile fills/closed results;
+- [ ] no illegal lifecycle transitions;
+- [ ] shadow candidates do not create orders merely for being shadow candidates;
+- [ ] current SL agrees with broker state;
+- [ ] no duplicate TP1/TP2 partials;
+- [ ] no accepted stop regression;
+- [ ] recovery preserves failure class/action.
 
 ## Intelligence evidence
 
-- [ ] market-state taxonomy exercised.
-- [ ] strategy classifications exercised where feasible.
-- [ ] WAIT and NO TRADE examples archived.
-- [ ] counter-trend stricter gate demonstrated.
-- [ ] live news/intermarket stale-approval cancellation demonstrated.
-- [ ] OpenAI/WebRequest failure-injection behavior demonstrated.
-- [ ] realistic R:R cost model verified.
-- [ ] continuous/scheduled scanning verified.
-- [ ] 25-point thesis/adversarial validation reviewed.
-- [ ] GPT disagreement cannot override deterministic risk or reverse the underlying setup.
+- [ ] market-state taxonomy exercised;
+- [ ] strategy classifications exercised where feasible;
+- [ ] WAIT and NO TRADE examples archived;
+- [ ] counter-trend stricter gate demonstrated;
+- [ ] live-news/intermarket stale-approval cancellation;
+- [ ] WebRequest/OpenAI failure behavior;
+- [ ] realistic R:R costs;
+- [ ] continuous + scheduled scanning;
+- [ ] 25-point thesis/adversarial validation;
+- [ ] GPT cannot override deterministic risk/direction.
 
 ## Recovery evidence
 
-- [ ] clean restart.
-- [ ] pending approval restart.
-- [ ] TP1 partial before BE restart.
-- [ ] profit-lock/trailing restart.
-- [ ] stop-failure restart.
-- [ ] lifecycle reconstruction restart.
-- [ ] active shadow/counterfactual restart.
-- [ ] completed backup fallback.
+- [ ] clean restart;
+- [ ] pending approval restart;
+- [ ] TP1 partial-before-BE restart;
+- [ ] profit-lock/trailing restart;
+- [ ] stop-failure restart;
+- [ ] lifecycle reconstruction;
+- [ ] shadow/counterfactual restart;
+- [ ] completed backup fallback;
 - [ ] netting reversal safety where applicable.
 
-## Demo-soak acceptance
+## Versioned demo-soak evidence
 
-Follow `DEMO_SOAK_ACCEPTANCE.md`.
+Follow `DEMO_SOAK_ACCEPTANCE.md` and `SOAK_EVIDENCE_SCHEMA.json`.
 
-- Soak evidence ID/reference:
-- Soak start:
-- Soak end:
-- Consecutive trading days completed: **>=5 required**
-- London sessions observed: **>=3 required**
-- U.S./New York sessions observed: **>=3 required**
-- London/New York overlap observed: **yes required**
-- High-impact news day observed: **yes required**
-- Rollover/spread expansion observed: **yes required**
-- Restart observed: **yes required**
-- Disconnect/reconnect observed: **yes required**
-- Weekend session observed if applicable:
-- Unexpected EA errors:
-- Unexplained broker retcodes:
-- Duplicate orders/partials: **must be none**
-- Zero-tolerance failures: **must be 0**
-- Unresolved critical stop/recovery states at end: **must be 0**
-- Release/dashboard mismatch observed: **must be none**
-- Adaptive strategy status/execution mismatch observed: **must be none**
-- Secrets exposed in logs: **must be none**
-- Demo-soak report evidence location:
+Record:
 
-### Concrete MT5 soak inputs
+- schema version: `demo_soak_evidence_v1`
+- soak evidence ID:
+- soak evidence SHA-256:
+- soak start/end:
+- trading days: **>=5**
+- London sessions: **>=3**
+- New York sessions: **>=3**
+- overlap observed: **yes**
+- high-impact news day: **yes**
+- rollover/spread expansion: **yes**
+- restart: **yes**
+- reconnect: **yes**
+- scheduled scans: **>=1**
+- continuous scans: **>=1**
+- checkpoint updates: **>=1**
+- backup checkpoint updates: **>=1**
+- zero-tolerance failures: **0**
+- unresolved critical states: **0**
+- duplicate orders: **0**
+- duplicate partials: **0**
+- SL regressions: **0**
+- unprotected new authorizations: **0**
+- release-gate bypasses: **0**
+- duplicate analytics finalizations: **0**
+- stop-join failures: **0**
+- dashboard/gate mismatches: **0**
+- runtime critical errors: **0**
+- secrets exposed: **0**
+- execution log present: **yes**
+- stop log present: **yes**
+- release evidence log present: **yes**
+- demo-soak report path:
 
-- `InpReleaseSoakEvidenceId=`
-- `InpReleaseSoakTradingDays=`
-- `InpReleaseSoakLondonSessions=`
-- `InpReleaseSoakNYSessions=`
-- `InpReleaseSoakOverlapObserved=`
-- `InpReleaseSoakNewsDayObserved=`
-- `InpReleaseSoakRolloverObserved=`
-- `InpReleaseSoakRestartObserved=`
-- `InpReleaseSoakReconnectObserved=`
-- `InpReleaseSoakZeroToleranceFailures=0`
-- `InpReleaseSoakUnresolvedCriticalStates=0`
+Concrete MT5 soak inputs must exactly match this validated evidence.
 
-## Live certification inputs
+## Final GO/NO-GO review
 
-The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS only after the matching evidence above exists, the concrete artifact/soak fields match the archived bundle, and `tools/validate_release_evidence.py` returns PASS.
+Follow `FINAL_GO_NO_GO_REVIEW.md` and start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`.
 
-Current required validation ID is defined in source by `GPT_EA_REQUIRED_RELEASE_VALIDATION_ID`; do not guess or reuse an old release ID after the contract changes.
+Record/archive:
 
-Required R5 evidence includes compile, artifact identity, Strategy Tester, intelligence matrix, adaptive portfolio, execution learning, champion/challenger, lifecycle/integrity/replay, broker matrix, deployment profile/drift, recovery, stop matrix, broker stop policy, partial protection, stop observability, live-news/intermarket, WebRequest failure injection, demo soak and final operator review.
+- final review evidence ID:
+- reviewer:
+- review timestamp:
+- stable release-evidence basis SHA-256:
+- final review SHA-256:
+- decision: **GO / HOLD / NO-GO**
+- known limitations:
+- open noncritical issues:
 
-## Final release decision
+Requirements:
 
-Complete `RELEASE_GO_NO_GO.md`.
+- [ ] final review validator PASS;
+- [ ] candidate Git/EX5/SET identities match release evidence;
+- [ ] deployment identity matches;
+- [ ] all mandatory non-review gates PASS;
+- [ ] all zero-tolerance counts are zero;
+- [ ] no unresolved critical state;
+- [ ] initial live risk is conservative;
+- [ ] approval remains required for initial live deployment;
+- [ ] decision is literal `GO` before real arming.
 
-- [ ] All applicable HIGH/release-blocking tests passed.
-- [ ] Exact artifact identity archived.
-- [ ] Machine-readable evidence validator PASS archived.
-- [ ] Evidence JSON SHA-256 archived.
-- [ ] Deployment profile validated.
-- [ ] All four R5 adaptive attestation groups passed.
-- [ ] Human approval remains enabled for initial live deployment.
-- [ ] Conservative initial risk selected.
-- [ ] Live arm phrase will be entered locally only after final review.
-- [ ] Optional DOM/ONNX components are enabled only if separately validated on this broker.
+Concrete MT5 final-review inputs:
+
+- `InpReleaseFinalReviewEvidenceId=`
+- `InpReleaseFinalReviewDigest=`
+- `InpReleaseFinalDecision=GO`
+- `InpReleaseFinalReviewer=`
+- `InpReleaseFinalReviewTimestamp=`
+- `InpReleaseOperatorReviewPassed=true`
+
+## Final R6 release decision
+
+- [ ] soak schema validator PASS;
+- [ ] final GO/NO-GO validator PASS;
+- [ ] final release evidence validator PASS;
+- [ ] exact artifact identity archived;
+- [ ] deployment profile validated;
+- [ ] all R6 release flags/evidence fields match archived evidence;
+- [ ] live arm phrase will be entered locally only after GO;
+- [ ] optional DOM/ONNX enabled only when separately validated.
 
 Release reviewer:
 
-Evidence JSON SHA-256:
+Soak SHA-256:
 
-Decision: GO / NO-GO / HOLD
+Final review SHA-256:
+
+Final evidence JSON SHA-256:
+
+Decision: **GO / NO-GO / HOLD**
 
 Notes:

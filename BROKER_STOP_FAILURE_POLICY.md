@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `BROKER_STOP_FAILURE_POLICY.md`
+
+---
+
 # GPT_EA Broker-Specific Stop Failure Policy
 
 This document is the release contract for how GPT_EA reacts when a broker or terminal refuses, delays or cannot process a protective-stop update.

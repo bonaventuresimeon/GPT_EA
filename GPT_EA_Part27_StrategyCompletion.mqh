@@ -12,7 +12,7 @@ TradeSetup BuildDirectBreakoutCandidate(const StrategySnapshot &x,int score)
 {
    bool bull=(x.breakoutUp && !x.breakoutDown ? true :
               (!x.breakoutUp && x.breakoutDown ? false : x.dominantBull));
-   TradeSetup s; InitSetup(s,x.symbol,SETUP_BREAKOUT_RETEST,bull);
+   TradeSetup s; InitSetup(s,x.symbol,SETUP_BREAKOUT,bull);
    if(x.atr<=0) return s;
 
    double level=(bull?x.priorHigh:x.priorLow);

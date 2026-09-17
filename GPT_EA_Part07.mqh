@@ -7,6 +7,9 @@ void DeletePending(const int idx,const string reason)
    if(idx<0 || idx>=ArraySize(g_pending) || !g_pending[idx].active) return;
    string sym=g_pending[idx].setup.symbol;
    g_pending[idx].active=false;
+   if(StringFind(reason,"denied")>=0 || StringFind(reason,"timeout")>=0)
+      MarkSignalCooldown(sym);
+   PersistPendingApprovals();
    PrintFormat("%s pending setup deleted: %s",sym,reason);
    if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
       SendNotification(StringFormat("%s pending setup deleted: %s",sym,reason));
@@ -31,6 +34,7 @@ void QueueForApproval(const TradeSetup &s,const string card,const string scanRea
    g_pending[idx].scanReason=scanReason;
    g_pending[idx].createdAt=now;
    g_pending[idx].expiresAt=now+timeout;
+   PersistPendingApprovals();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -57,14 +61,22 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
    if(!PriceInsideZone(s)){ why="Price left the approved entry zone."; return false; }
    if(!M5Trigger(s)){ why="M5 execution trigger is no longer present."; return false; }
 
-   ConfluenceReport fresh=EvaluateConfluence(s);
+   TradeSetup live=s;
+   ConfluenceReport fresh=EvaluateConfluence(live);
    if(InpUseAdvancedConfluence && !fresh.valid)
    {
       why=StringFormat("Advanced confluence fell to %d/100.",fresh.score);
       return false;
    }
+   string institutional="";
+   EnhanceSetupWithInstitutionalFilters(live,fresh,institutional);
+   if(!live.valid)
+   {
+      why="Institutional/regime validation failed: "+institutional;
+      return false;
+   }
 
-   double liveRR=EffectiveRR(s.symbol,s.bullish,s.preferred,s.sl,s.tp2);
+   double liveRR=EffectiveRRDynamic(live);
    if(liveRR<InpMinEffectiveRR)
    {
       why=StringFormat("Effective R:R deteriorated to %.2f below minimum %.2f.",liveRR,InpMinEffectiveRR);
@@ -76,6 +88,13 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
    if(SessionConditionInvalidates(s.symbol,s.preferred,atr,sessionText))
    {
       why=sessionText;
+      return false;
+   }
+
+   string riskWhy="";
+   if(!PreAuthorizationRiskAllows(live,riskWhy))
+   {
+      why="Risk authorization failed: "+riskWhy;
       return false;
    }
    return true;
@@ -91,7 +110,8 @@ void ApprovePending(const int idx)
    }
 
    TradeSetup s=g_pending[idx].setup;
-   g_pending[idx].active=false; // one-shot authorization; never leave dormant authorization
+   g_pending[idx].active=false;
+   PersistPendingApprovals();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -111,9 +131,9 @@ void ApprovePending(const int idx)
    }
    else
    {
-      Print(s.symbol,": APPROVED but broker/filter revalidation failed. No order opened.");
+      Print(s.symbol,": APPROVED but broker/filter/risk revalidation failed. No order opened.");
       if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
-         SendNotification(s.symbol+": approved, but final broker/filter validation failed; no trade opened.");
+         SendNotification(s.symbol+": approved, but final execution validation failed; no trade opened.");
    }
 }
 
@@ -144,10 +164,15 @@ void ScanSymbol(const string sym,const string scanReason)
    ApplyAdvancedConfluence(pb,pbReport);
    ApplyAdvancedConfluence(br,brReport);
 
+   string pbInstitutional="",brInstitutional="";
+   EnhanceSetupWithInstitutionalFilters(pb,pbReport,pbInstitutional);
+   EnhanceSetupWithInstitutionalFilters(br,brReport,brInstitutional);
+
    TradeSetup primary=ChoosePrimary(pb,br);
    ConfluenceReport primaryReport;
-   if(primary.kind==SETUP_BREAKOUT_RETEST) primaryReport=brReport;
-   else primaryReport=pbReport;
+   string primaryInstitutional="";
+   if(primary.kind==SETUP_BREAKOUT_RETEST){ primaryReport=brReport; primaryInstitutional=brInstitutional; }
+   else { primaryReport=pbReport; primaryInstitutional=pbInstitutional; }
 
    string newsText="",yieldText="",spreadText="",sessionText="";
    bool newsBlock=CalendarBlock(sym,newsText);
@@ -162,6 +187,9 @@ void ScanSymbol(const string sym,const string scanReason)
    string card=BuildCard(primary,pb,br,scanReason,newsBlock,newsText,spreadText,spreadOk,yieldBlock,yieldText,sessionBlock,sessionText);
    card+=ConfluenceCardBlock(primaryReport,upcoming,readyNow);
    card+=StringFormat("Pullback confluence: %d/100 | Breakout-retest confluence: %d/100\n",pbReport.score,brReport.score);
+   card+="Institutional validation: "+primaryInstitutional+"\n";
+   card+="Pullback institutional: "+pbInstitutional+"\n";
+   card+="Breakout institutional: "+brInstitutional+"\n";
 
    bool aiAvailable=false;
    string aiAnswer="",aiError="";
@@ -183,18 +211,26 @@ void ScanSymbol(const string sym,const string scanReason)
       aiGateWhy="AI review not requested for this scan.";
    }
 
+   string riskWhy="";
+   bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
    bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
    bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
-                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows);
+                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows);
    bool approvalReady=(hardValid && readyNow);
 
    string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
    card+="\n"+filterState+"\n";
    card+="AI execution gate: "+aiGateWhy+"\n";
+   card+="Portfolio/risk gate: "+riskWhy+"\n";
+   card+=StringFormat("Current GPT_EA portfolio risk: %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
+                      CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),ConsecutiveLosses());
+   card+=StringFormat("Dynamic slippage ceiling: %d points | dynamic effective R:R: %.2f\n",
+                      DynamicSlippagePoints(sym),EffectiveRRDynamic(primary));
    card+=StringFormat("Approval status: %s\n",approvalReady?"✅ READY - APPROVE / DENY PROMPT ACTIVE":"⏳ NOT READY - NO ORDER AUTHORIZATION");
 
    NotifyCard(card);
    RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
+   UpdateRiskAnalyticsPanel();
 
    int existing=ActivePendingForSymbol(sym);
    if(approvalReady)
@@ -232,10 +268,12 @@ int OnInit()
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
    EventSetTimer(MathMax(1,InpTimerSeconds));
+   RiskRecoveryInit();
 
    Print("GPT_EA Advanced initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
          ", Min confluence=",InpMinAdvancedConfluence,
+         ", Portfolio cap=",DoubleToString(InpMaxPortfolioRiskPercent,2),"%",
          ", ApprovedExecution=",InpEnableApprovedExecution?"ON":"OFF");
 
    if(InpUseOpenAI && StringLen(Trim(InpOpenAIAPIKey))<20)
@@ -243,13 +281,17 @@ int OnInit()
    if(InpUseOpenAI)
       Print("MT5 WebRequest allow-list must include: https://api.openai.com");
 
-   ScanAll("EA startup scan");
+   ScanAll("EA startup / restart recovery scan");
+   RenderApprovalPrompt();
+   StyleApprovalUI();
+   UpdateRiskAnalyticsPanel();
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   RiskRecoveryShutdown();
    DeleteApprovalObjects();
    DeleteAdvancedDashboard();
    Comment("");
@@ -259,6 +301,7 @@ void OnTimer()
 {
    ManagePositions();
    ProcessApprovalTimeouts();
+   RiskRecoveryTimer();
    StyleApprovalUI();
 
    string why="";
@@ -273,6 +316,17 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    {
       ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
       ScanAll("Manual SCAN NOW");
+      return;
+   }
+   if(sparam==BTN_PAUSE)
+   {
+      ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
+      ToggleTradingPause();
+      UpdateRiskAnalyticsPanel();
+      if(g_manualPaused)
+      {
+         for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
+      }
       return;
    }
 
@@ -291,5 +345,5 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
 
 void OnTick()
 {
-   // Multi-symbol scanning, approval expiry and position management are timer-driven.
+   // Multi-symbol scanning, approval expiry, recovery and position management are timer-driven.
 }

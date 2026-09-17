@@ -275,6 +275,9 @@ bool PrepareAtomicTradeIntent(const TradeSetup &s,double lots,double riskMoney,s
    nonce=GenerateExecutionNonce(s);
    int nh=IntentNonceHash(nonce);
    GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_PREPARED);
+   GVWrite(SymKey(s.symbol,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(s.symbol,"CAND_TIME"),(double)TimeTradeServer()));
+   GVWrite(SymKey(s.symbol,"EXEC_APPROVAL_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"EXEC_MODEL_LATENCY_MS"),GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0));
    GVWrite(SymKey(s.symbol,"INTENT_NONCE_HASH"),nh);
    GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
    GVWrite(SymKey(s.symbol,"INTENT_DECISION_HASH"),IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
@@ -302,6 +305,7 @@ bool MarkTradeIntentSent(const TradeSetup &s,const string nonce,double lots,doub
    { why="intent nonce mismatch before SENT transition"; return false; }
    GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_SENT);
    GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"EXEC_SENT_TIME"),(double)TimeTradeServer());
    if(!WriteIntentLedgerRow("SENT",nonce,s,lots,riskMoney,0,0,0,"SENT persisted before network order call"))
    {
       GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_UNCERTAIN);

@@ -21,6 +21,8 @@ This is the final production decision contract. A candidate is **GO** only when 
 ## GO requires all of the following
 
 - MetaEditor compile gate PASS with 0 errors and 0 production warnings.
+- Machine-readable compile-evidence record validates for the exact source/EX5/SET candidate.
+- R10 privacy sign-off validates for the exact customer jurisdiction with zero unresolved critical findings.
 - Exact Git SHA recorded.
 - Exact EX5 SHA-256 archived.
 - Exact SET SHA-256 archived, or explicit `NONE`.
@@ -55,9 +57,21 @@ This is the final production decision contract. A candidate is **GO** only when 
 - final decision is literal `GO`.
 - `tools/validate_release_evidence.py` returns PASS.
 - `tools/validate_release_evidence_r7.py` returns PASS for the current API transport wrapper.
+- `tools/validate_release_evidence_r10.py` returns PASS for compile/privacy evidence.
+- `tools/validate_final_release_review_r10.py` returns PASS.
 - all release-validation outputs and final evidence hashes are archived.
 
 ## Automatic NO-GO conditions
+
+R10/compile automatic NO-GO also includes:
+
+- compile-evidence validator failure or digest mismatch;
+- compile evidence bound to a different Git/EX5/SET candidate;
+- privacy sign-off missing, stale, unvalidated or digest-mismatched;
+- privacy jurisdiction mismatch;
+- unapproved telemetry state;
+- any unresolved critical privacy finding;
+- missing privacy data-inventory/retention/customer-notice/secret-handling/cross-border/deletion/incident approval;
 
 The release is **NO-GO** for any of the following:
 

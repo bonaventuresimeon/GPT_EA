@@ -13,6 +13,14 @@
     "compile_evidence_id": "",
     "compile_log_path": "artifacts/metaeditor-compile.log"
   },
+  "runner_recovery": {
+    "schema_version": "runner_recovery_evidence_v1",
+    "evidence_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_path": "artifacts/runner-recovery-evidence.json",
+    "validated": false,
+    "validation_path": "artifacts/runner-recovery-evidence-validation.txt"
+  },
   "ci_static": {
     "schema_version": "github_actions_static_evidence_v1",
     "run_id": 0,
@@ -65,6 +73,7 @@
     "schema_version": "demo_soak_evidence_v1",
     "evidence_id": "",
     "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "acceptance_record_schema_version": "five_day_soak_acceptance_v2",
     "acceptance_record_id": "",
     "acceptance_record_digest": "0000000000000000000000000000000000000000000000000000000000000000",
     "acceptance_record_path": "artifacts/five-day-soak-acceptance.json",
@@ -102,6 +111,7 @@
   "gates": {
     "metaeditor_compile": false,
     "artifact_identity": false,
+    "runner_recovery": false,
     "ci_static": false,
     "strategy_tester": false,
     "intelligence_matrix": false,

@@ -30,7 +30,19 @@ These fields document remediation but do not replace executed-runner proof.
 
 ## Machine record
 
-Start from `RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json`, save a working copy at:
+Preferred path after runner recovery is to build the GitHub-derived sections automatically:
+
+```text
+GITHUB_TOKEN=<token> python tools/build_runner_recovery_evidence.py \
+  --probe-run-id <successful-probe-run> \
+  --static-run-id <successful-release-run> \
+  --candidate-sha <candidate-git-sha> \
+  --ci-bundle-manifest artifacts/ci-bundle-manifest.json
+```
+
+The builder reads exact run-attempt job metadata from GitHub and leaves remediation/operator fields fail-closed for manual completion.
+
+Alternatively start from `RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json`. Save the working copy at:
 
 `artifacts/runner-recovery-evidence.json`
 

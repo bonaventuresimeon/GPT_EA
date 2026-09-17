@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `STOP_UPDATE_FAILURE_POLICY.md`
+
+---
+
 # GPT_EA Stop-Update Failure Policy
 
 This document defines the mandatory runtime behavior when GPT_EA cannot create, restore, move, lock or trail a protective stop.

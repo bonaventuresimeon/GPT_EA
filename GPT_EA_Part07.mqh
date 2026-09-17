@@ -10,7 +10,7 @@ void DeletePending(const int idx,const string reason)
    if(StringFind(reason,"denied")>=0 || StringFind(reason,"timeout")>=0)
       MarkSignalCooldown(sym);
    PersistPendingApprovals();
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    PrintFormat("%s pending setup deleted: %s",sym,reason);
    if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
       SendNotification(StringFormat("%s pending setup deleted: %s",sym,reason));
@@ -36,7 +36,7 @@ void QueueForApproval(const TradeSetup &s,const string card,const string scanRea
    g_pending[idx].createdAt=now;
    g_pending[idx].expiresAt=now+timeout;
    PersistPendingApprovals();
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -135,7 +135,7 @@ void ApprovePending(const int idx)
    TradeSetup s=g_pending[idx].setup;
    g_pending[idx].active=false;
    PersistPendingApprovals();
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -316,6 +316,7 @@ int OnInit()
    ApplyChartPolish();
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();
+   PrepareRecoveryCheckpointFallback();
    UniversalRecoveryInit();
    RecoverySafetyAudit();
 
@@ -334,7 +335,7 @@ int OnInit()
    RenderApprovalPrompt();
    StyleApprovalUI();
    UpdateRiskAnalyticsPanel();
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    return INIT_SUCCEEDED;
 }
 
@@ -342,6 +343,7 @@ void OnDeinit(const int reason)
 {
    EventKillTimer();
    UniversalRecoveryShutdown();
+   BackupRecoveryCheckpointIfValid();
    RiskRecoveryShutdown();
    DeleteApprovalObjects();
    DeleteAdvancedDashboard();
@@ -353,7 +355,7 @@ void OnTimer()
    ManagePositions();
    ProcessApprovalTimeouts();
    RiskRecoveryTimer();
-   UniversalRecoveryTimer();
+   SafeUniversalRecoveryTimer();
    StyleApprovalUI();
 
    string why="";
@@ -374,7 +376,7 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    {
       ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
       ToggleTradingPause();
-      UniversalCheckpointNow();
+      SafeUniversalCheckpointNow();
       UpdateRiskAnalyticsPanel();
       if(g_manualPaused)
       {

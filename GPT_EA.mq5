@@ -27,14 +27,19 @@
 #define ScheduledScanDue ScheduledOrContinuousScanDue
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
 #include "GPT_EA_Part22A_IntermarketForward.mqh"
+#include "GPT_EA_Part22P_ResponseParser.mqh"
 #define AssessIntermarket AssessIntermarketHardened
+#define ExtractOpenAIText ExtractOpenAITextWide
 #include "GPT_EA_Part22_IntelligenceFreshness.mqh"
+#undef ExtractOpenAIText
 #define GetLiveWebIntel GetLiveWebIntelHardened
 #include "GPT_EA_Part16A_StrictRevalidation.mqh"
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
 #include "GPT_EA_Part25_ThesisHardening.mqh"
+#define ExtractOpenAIText ExtractOpenAITextWide
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
+#undef ExtractOpenAIText
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part23_IntelligenceObservability.mqh"
 #include "GPT_EA_Part06.mqh"

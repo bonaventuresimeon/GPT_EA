@@ -164,6 +164,7 @@ bool HandleTP2Partial(ulong &ticket,double px,double tp2,bool bull,double rNow)
 
 void ManagePositionsAdvanced()
 {
+   RefreshStopFailurePolicyConfigGate();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
 

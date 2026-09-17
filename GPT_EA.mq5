@@ -34,15 +34,18 @@
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
 #include "GPT_EA_Part25_ThesisHardening.mqh"
+#include "GPT_EA_Part26_DeepGPTPolicy.mqh"
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part23_IntelligenceObservability.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
+#define CallOpenAI CallOpenAIDeep
 #define NotifyCard NotifyCardObserved
 #define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal
 #include "GPT_EA_Part07.mqh"
 #undef BuildMandatory25PointThesis
 #undef NotifyCard
+#undef CallOpenAI
 #undef PreEntryIntelligenceRevalidation
 #undef GetLiveWebIntel
 #undef AssessIntermarket

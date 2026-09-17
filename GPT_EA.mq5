@@ -14,7 +14,10 @@
 #include "GPT_EA_Part28_ReleaseCertification.mqh"
 #include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
 #include "GPT_EA_Part28B_CIReleaseEvidence.mqh"
+#include "GPT_EA_Part37A_APICompat.mqh"
+#define Trim APITrim
 #include "GPT_EA_Part37_APITransport.mqh"
+#undef Trim
 #define ReleaseSafetyAllows ReleaseSafetyAllowsR7API
 #define ReleaseGateSummary ReleaseGateSummaryR7API
 #define StopFailureObservabilityInit StopFailureObservabilityInitR7API

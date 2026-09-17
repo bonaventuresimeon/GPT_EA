@@ -43,6 +43,16 @@ void FinalizeAdaptiveLearningHistoryR5()
       int cls=(int)GVRead(PosKey(pid,"STRATEGY"),0); if(cls<=0) continue;
       double risk=GVRead(PosKey(pid,"RISK"),0); if(risk<=0) continue;
       double pnl=StrategyPositionRealized(pid),R=pnl/risk;
+
+      string quarantine="";
+      if(LearningSampleShouldQuarantine(pid,syms[i],quarantine))
+      {
+         MarkLearningQuarantine(pid,syms[i],quarantine);
+         WriteExecutionLearningRow("QUARANTINED",syms[i],pid,"excluded from learning: "+quarantine,R);
+         GVWrite(PosKey(pid,"ADAPT_FINAL"),2);
+         continue;
+      }
+
       int raw=(int)GVRead(PosKey(pid,"RAW_CONF"),0);
       int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
       double tp1=GVRead(PosKey(pid,"TP1_M15"),0);

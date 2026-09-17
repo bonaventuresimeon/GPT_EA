@@ -256,6 +256,8 @@ void PersistAIIntegrityDecision(const string sym,bool integrityOK,bool disagreem
    GVWrite(SymKey(sym,"AI_REVIEW_AVAILABLE"),available?1:0);
    GVWrite(SymKey(sym,"AI_REVIEW_TIME"),(double)TimeTradeServer());
    GVWrite(SymKey(sym,"AI_REVIEW_CHECKSUM"),TextChecksum(answer));
+   if(requested && available && !disagreementOK)
+      GVWrite(SysKey("MODEL_CONTRADICTION"),GVRead(SysKey("MODEL_CONTRADICTION"),0)+1);
 }
 
 bool StoredAIIntegrityAllows(const string sym,string &why)

@@ -258,6 +258,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
    string comment=(intentNonce!=""?TradeIntentComment(intentNonce,cls):"GPT-"+StrategyCode(cls)+"-OK");
    bool ok=(x.bullish?trade.Buy(lots,x.symbol,0,x.sl,x.tp3,comment):trade.Sell(lots,x.symbol,0,x.sl,x.tp3,comment));
+   GVWrite(SymKey(x.symbol,"EXEC_ACK_TIME"),(double)TimeTradeServer());
    if(!ok)
    {
       RegisterAdaptiveExecutionFailure(x.symbol,trade.ResultRetcodeDescription());

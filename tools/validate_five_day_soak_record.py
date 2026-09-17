@@ -166,6 +166,16 @@ def validate_record(record: dict[str, Any], require_digest: bool = True) -> tupl
         if lifecycle.get(key) is not True:
             errors.append(f"lifecycle_checks.{key} must be true")
 
+    operator_record_path = str(record.get("operator_record_path", "")).strip()
+    if not operator_record_path:
+        errors.append("operator_record_path is required")
+    else:
+        p = resolve_path(operator_record_path)
+        if not p.exists():
+            errors.append(f"operator_record_path not found: {p}")
+        elif len(p.read_text(encoding="utf-8", errors="replace").strip()) < 200:
+            errors.append("operator_record_path is empty/too short to be a completed reconciliation record")
+
     report_path = str(record.get("report_path", "")).strip()
     if not report_path:
         errors.append("report_path is required")

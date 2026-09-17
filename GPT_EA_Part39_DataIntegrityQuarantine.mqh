@@ -53,7 +53,7 @@ string CurrentSensitiveConfigText()
       "fast=%d|slow=%d|rsi=%d|atr=%d|swing=%d|pbexp=%d|brexp=%d|tp1=%.2f|be=%d|"
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
       "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
-      "cc=%d|autopromote=%d|ccmin=%d|model=%s|policy=%s|symbols=%s",
+      "model=%s|policy=%s|symbols=%s",
       InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
       InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
       InpFastEMA,InpSlowEMA,InpRSIPeriod,InpATRPeriod,InpSwingBars,InpPullbackExpiryM15,InpBreakoutExpiryM15,
@@ -63,7 +63,6 @@ string CurrentSensitiveConfigText()
       InpDirectBreakoutMinADX,InpDirectBreakoutZoneATR,
       InpUseAdaptivePortfolioEngine?1:0,InpCorrelationRiskThreshold,InpMaxCorrelationWeightedRiskPercent,
       InpMaxMacroFactorRiskPercent,InpUseDynamicQualitySizing?1:0,InpMinAdaptiveRiskMultiplier,InpMaxAdaptiveRiskMultiplier,
-      InpUseChampionChallenger?1:0,InpAutoPromoteChallenger?1:0,InpChampionChallengerMinSamples,
       InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
 }
 

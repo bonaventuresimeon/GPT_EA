@@ -4,7 +4,7 @@ This is the final human release review for the **exact candidate artifact** afte
 
 Current review schema: `final_release_review_v1`.
 
-The review digest is calculated from a stable pre-review basis that includes the exact build identity, runner-recovery evidence, executed CI evidence, deployment identity, API transport evidence, demo-soak/five-day evidence and all non-operator release gates. Any material change to those objects invalidates the review digest.
+The review digest is calculated from a stable pre-review basis that includes the exact build identity, runner-recovery evidence, runner-recovery acceptance, executed CI evidence, MT5 validation evidence, deployment identity, API transport evidence, demo-soak/five-day evidence and all non-operator release gates. Any material change to those objects invalidates the review digest.
 
 ## 1. Inputs required before review
 
@@ -15,7 +15,10 @@ The reviewer must have:
 - EX5 SHA-256 and SET SHA-256/`NONE`;
 - MetaEditor compile evidence and full log;
 - completed `release_evidence.json` for the exact candidate;
-- validated runner-recovery evidence and validation output;\n- final executed CI evidence artifact;
+- validated runner-recovery evidence and validation output;
+- completed runner-recovery acceptance matrix/JSON and validation output;
+- completed MT5 validation evidence JSON, matrix and validator PASS;
+- final executed CI evidence artifact;
 - `ci-job-metadata.json` proving job/runner/steps execution;
 - `ci-evidence-validation.txt` PASS;
 - `ci-attestation-verify.txt` PASS;
@@ -53,7 +56,10 @@ Any unexplained mismatch is automatic **NO-GO**.
 The reviewer must confirm PASS for:
 
 - compile/artifact identity;
-- runner recovery from the known pre-runner failure;\n- executed CI static checks;
+- runner recovery from the known pre-runner failure;
+- runner-recovery production acceptance RA-001 through RA-022;
+- MT5/MetaEditor validation evidence M5-001 through M5-034;
+- executed CI static checks;
 - CI provenance attestation and final bundle validation;
 - Strategy Tester;
 - full intelligence matrix;
@@ -71,19 +77,24 @@ The reviewer must confirm PASS for:
 - live news/intermarket;
 - WebRequest/OpenAI failure injection;
 - selected API transport matrix/evidence;
-- five-day machine acceptance record using `five_day_soak_acceptance_v2`;\n- all five dated soak-day reconciliation checklists with `ACCEPT DAY`;
+- five-day machine acceptance record using `five_day_soak_acceptance_v2`;
+- all five dated soak-day reconciliation checklists with `ACCEPT DAY`;
 - five-day operator reconciliation record;
 - demo-soak schema/digest.
 
 No PASS may be inferred from profitability alone.
 
-## 4. Runner-recovery and CI review
+## 4. Runner-recovery acceptance review
+
+Confirm both `runner_recovery_evidence_v1` and `runner_recovery_acceptance_v1` validate, the acceptance record binds the same candidate Git SHA and CI-bundle digest, every RA row is PASS, and `gates.runner_recovery_acceptance=true`.
+
+## 5. Runner-recovery and CI review
 
 Confirm runner-recovery evidence preserves the original `runner_id=0 / steps=0` incident, then proves a successful later runner probe and the exact candidate's static run/CI bundle. The runner-recovery evidence ID/digest must validate and `gates.runner_recovery=true`.
 
 Then confirm the CI evidence below.
 
-## 5. CI-specific review
+## 6. CI-specific review
 
 Confirm:
 
@@ -101,11 +112,16 @@ Confirm:
 
 `runner_id=0`, blank runner name or `steps=[]` is HOLD, not CI evidence.
 
-## 6. Five-day/operator review
+## 7. MT5 validation review
+
+Confirm `mt5_validation_evidence_v1` validates for the exact Git/EX5/SET candidate and matches the intended MetaEditor/MT5 builds plus deployment broker/server/account identity. Review the hashed compile log, Strategy Tester report, Experts/Journal, broker history and completed M5 matrix. All required compile, tester, recovery, protection and live-demo API/news checks must be PASS.
+
+## 8. Five-day/operator review
 
 Confirm:
 
-- exactly five accepted trading-day rows under `five_day_soak_acceptance_v2`;\n- every day has a completed reconciliation checklist and `ACCEPT DAY` decision;
+- exactly five accepted trading-day rows under `five_day_soak_acceptance_v2`;
+- every day has a completed reconciliation checklist and `ACCEPT DAY` decision;
 - session/news/rollover/restart/reconnect/scan/checkpoint coverage meets the contract;
 - operator worksheet exists and contains per-day evidence references;
 - demo-soak report exists;
@@ -114,7 +130,7 @@ Confirm:
 - acceptance record ID/digest matches `demo_soak`;
 - acceptance candidate identity matches the build.
 
-## 7. API transport review
+## 9. API transport review
 
 For DIRECT_OPENAI:
 
@@ -131,7 +147,7 @@ For SECURE_PROXY:
 
 In either mode, the high-priority matrix, live deep-review path, web-search path, failure/recovery, request tracing and zero secret leaks must pass.
 
-## 8. Zero-tolerance review
+## 10. Zero-tolerance review
 
 GO requires zero/unobserved:
 
@@ -150,7 +166,7 @@ GO requires zero/unobserved:
 
 Any non-zero hard item is **NO-GO** until corrected and revalidated.
 
-## 9. Initial live-deployment controls
+## 11. Initial live-deployment controls
 
 Confirm:
 
@@ -162,7 +178,7 @@ Confirm:
 - stop/release/risk/API gates remain enabled;
 - no evidence flag was set merely to make the EA start trading.
 
-## 9. Decision definitions
+## 12. Decision definitions
 
 **GO** — every mandatory gate/evidence identity passes and all hard counters are zero.
 
@@ -170,12 +186,15 @@ Confirm:
 
 **NO-GO** — failed hard gate, identity/digest mismatch, protection/recovery/CI/API integrity failure, zero-tolerance finding, or source/config change requiring revalidation.
 
-## 10. Machine-readable final review
+## 13. Machine-readable final review
 
 Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`. Every review boolean must be true, including:
 
 - `compile_contract_pass`;
+- `runner_recovery_pass`;
+- `runner_recovery_acceptance_pass`;
 - `ci_bundle_pass`;
+- `mt5_validation_pass`;
 - `ci_attestation_verified`;
 - `api_transport_pass`;
 - `five_day_acceptance_pass`;
@@ -183,7 +202,7 @@ Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`. Every review boolean must be tr
 - `soak_schema_pass`;
 - all remaining identity, gate, zero-tolerance and deployment checks.
 
-The stable release-evidence basis digest now binds `build`, `ci_static`, `deployment`, `api_transport`, `demo_soak` and all gates except the final operator-review transition.
+The stable release-evidence basis digest binds `build`, `runner_recovery`, `runner_recovery_acceptance`, `ci_static`, `mt5_validation`, `deployment`, `api_transport`, `demo_soak` and all gates except the final operator-review transition.
 
 Run:
 
@@ -193,13 +212,13 @@ python tools/validate_final_release_review.py release_evidence.json final_releas
 
 GO is valid only if this command returns PASS. Archive `final-release-review-validation.txt` and `FINAL_REVIEW_SHA256`.
 
-## 11. Runtime attestation
+## 14. Runtime attestation
 
 Only after the final review validator passes may the operator set the corresponding Part28 review fields, including `InpReleaseOperatorReviewPassed=true` and `InpReleaseFinalDecision=GO`.
 
-Part28B CI/five-day fields and Part37 API transport PASS fields must already correspond exactly to the archived evidence.
+Part28B runner/acceptance/CI/MT5/five-day fields and Part37 API transport PASS fields must already correspond exactly to the archived evidence.
 
-## 12. Certification invalidation
+## 15. Certification invalidation
 
 GO becomes stale when executable source, EX5/SET/material risk preset, release evidence contract, CI candidate identity, selected API transport/endpoint, or intended broker/server/account/symbol environment changes materially, or when a post-review discovery invalidates a hard assumption.
 

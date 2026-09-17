@@ -24,14 +24,16 @@ def current_release_id()->str:
     return m.group(1)
 
 def release_basis(data:dict[str,Any])->dict[str,Any]:
-    """Stable pre-review basis. CI, runner recovery, API and soak changes invalidate review."""
+    """Stable pre-review basis. Material runner/CI/MT5/API/soak changes invalidate review."""
     gates=dict(data.get("gates",{}))
     gates.pop("operator_review",None)
     return {
         "release_validation_id":data.get("release_validation_id"),
         "build":data.get("build",{}),
         "runner_recovery":data.get("runner_recovery",{}),
+        "runner_recovery_acceptance":data.get("runner_recovery_acceptance",{}),
         "ci_static":data.get("ci_static",{}),
+        "mt5_validation":data.get("mt5_validation",{}),
         "deployment":data.get("deployment",{}),
         "api_transport":data.get("api_transport",{}),
         "demo_soak":data.get("demo_soak",{}),
@@ -86,11 +88,13 @@ def main()->int:
 
     checks=review.get("review",{})
     required_checks=[
-        "compile_contract_pass","runner_recovery_pass","ci_bundle_pass","ci_attestation_verified","api_transport_pass",
-        "five_day_acceptance_pass","soak_day_reconciliation_pass","five_day_operator_record_complete","soak_schema_pass",
+        "compile_contract_pass","runner_recovery_pass","runner_recovery_acceptance_pass","ci_bundle_pass",
+        "ci_attestation_verified","mt5_validation_pass","api_transport_pass","five_day_acceptance_pass",
+        "soak_day_reconciliation_pass","five_day_operator_record_complete","soak_schema_pass",
         "release_evidence_validator_pass","all_release_gates_pass","zero_unresolved_critical_states",
         "zero_zero_tolerance_failures","artifact_identity_match","deployment_identity_match",
-        "no_source_change_after_validation","no_unreviewed_known_issue","initial_live_risk_conservative","approval_required_initially",
+        "no_source_change_after_validation","no_unreviewed_known_issue","initial_live_risk_conservative",
+        "approval_required_initially",
     ]
     for key in required_checks: require(errors,checks.get(key) is True,f"review.{key} must be true")
 
@@ -102,6 +106,14 @@ def main()->int:
         require(errors,bool(HEX64.fullmatch(str(rr.get("evidence_digest","")))),"runner recovery digest must be valid")
         require(errors,len(str(rr.get("evidence_id","")).strip())>=8,"runner recovery evidence ID is required")
 
+    ra=evidence.get("runner_recovery_acceptance",{})
+    require(errors,isinstance(ra,dict),"release evidence runner_recovery_acceptance must be an object")
+    if isinstance(ra,dict):
+        require(errors,ra.get("schema_version")=="runner_recovery_acceptance_v1","runner recovery acceptance schema must be current")
+        require(errors,ra.get("validated") is True,"runner recovery acceptance must be validated before final review")
+        require(errors,bool(HEX64.fullmatch(str(ra.get("acceptance_digest","")))),"runner recovery acceptance digest must be valid")
+        require(errors,len(str(ra.get("acceptance_id","")).strip())>=8,"runner recovery acceptance ID is required")
+
     ci=evidence.get("ci_static",{})
     require(errors,isinstance(ci,dict),"release evidence ci_static must be an object")
     if isinstance(ci,dict):
@@ -109,6 +121,14 @@ def main()->int:
         require(errors,ci.get("attestation_verified") is True,"release evidence CI attestation must be verified before final review")
         require(errors,bool(HEX64.fullmatch(str(ci.get("bundle_digest","")))),"release evidence CI bundle digest must be valid")
         require(errors,str(ci.get("head_sha","")).lower()==str(build.get("git_sha","")).lower(),"release evidence CI head SHA must match build Git SHA")
+
+    mt5=evidence.get("mt5_validation",{})
+    require(errors,isinstance(mt5,dict),"release evidence mt5_validation must be an object")
+    if isinstance(mt5,dict):
+        require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v1","MT5 validation schema must be current")
+        require(errors,mt5.get("validated") is True,"MT5 validation evidence must be validated before final review")
+        require(errors,bool(HEX64.fullmatch(str(mt5.get("evidence_digest","")))),"MT5 validation digest must be valid")
+        require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"MT5 validation evidence ID is required")
 
     api=evidence.get("api_transport",{})
     require(errors,isinstance(api,dict),"release evidence api_transport must be an object")

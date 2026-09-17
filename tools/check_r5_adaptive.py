@@ -42,7 +42,7 @@ main_tokens=[
  '#define NotifyCard NotifyCardR5',
  '#define NewsIntermarketInit NewsIntermarketInitR5',
  '#define NewsIntermarketTimer NewsIntermarketTimerR5',
- '#define ReleaseSafetyAllows ReleaseSafetyAllowsR6',
+ '#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API',
 ]
 for t in main_tokens:
  if t not in MAIN: errors.append(f"missing adaptive main wiring: {t}")
@@ -95,7 +95,7 @@ for prefix in ["AR-001","AR-020","AR-030","AR-040","AR-060","AR-080","AR-110","A
  if prefix not in tests: errors.append(f"adaptive release matrix missing {prefix}")
 
 if errors:
- print("ADAPTIVE R6 STATIC CHECK: FAILED")
+ print("ADAPTIVE CURRENT RELEASE STATIC CHECK: FAILED")
  for e in errors: print("ERROR:",e)
  sys.exit(1)
-print("ADAPTIVE R6 STATIC CHECK: PASS")
+print("ADAPTIVE CURRENT RELEASE STATIC CHECK: PASS")

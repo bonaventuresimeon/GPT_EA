@@ -174,3 +174,12 @@ Executable-source changes, different EX5/SET or material risk preset, release-co
 REAL trading is eligible only when ordinary safety, stop health, base R6 certification, deployment stability, executed CI/five-day supplemental evidence, API transport certification, final GO review and all live broker/risk/news/execution gates pass simultaneously.
 
 This certification is an engineering/release assurance process; it does not guarantee profitability.
+
+
+## Supplemental runner-recovery and soak-day reconciliation
+
+For the current R6 candidate, Part28B additionally requires `runner_recovery_evidence_v1` because hosted Actions previously exhibited the pre-runner `runner_id=0 / steps=[]` failure. The accepted recovery record must prove a later successful runner probe and the exact candidate's executed CI bundle.
+
+The five-day acceptance sub-schema is now `five_day_soak_acceptance_v2`. Each of the five accepted days must have its own completed `SOAK_DAY_RECONCILIATION_CHECKLIST.md` artifact, `day_reconciled=true`, reviewer identity and reconciliation timestamp.
+
+These are additive fail-closed requirements; the base release ID remains `GPT_EA_FULL_INTELLIGENCE_R6_20260917` and the active API safety wrapper remains Part37.

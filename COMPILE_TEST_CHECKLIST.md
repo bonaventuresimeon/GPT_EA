@@ -16,6 +16,7 @@ Open `GPT_EA.mq5` in the same MT5 installation that will run the EA.
   - `GPT_EA_Part08_Advanced.mqh`
   - `GPT_EA_Part09_RiskRecoveryAnalytics.mqh`
   - `GPT_EA_Part10_BrokerUniversalRecovery.mqh`
+  - `GPT_EA_Part11_PreflightRecoveryGuard.mqh`
   - `GPT_EA_Part05.mqh`
   - `GPT_EA_Part06.mqh`
   - `GPT_EA_Part07.mqh`
@@ -65,6 +66,7 @@ For every resolved symbol verify the printed runtime profile:
 - [ ] stops level
 - [ ] freeze level
 - [ ] trade mode
+- [ ] execution mode
 - [ ] filling mode
 - [ ] margin currency
 - [ ] buy/sell 1-lot margin estimate
@@ -84,7 +86,7 @@ Use a fixed risk percentage and manually compare the loss at SL with the intende
 
 Pass criterion: `OrderCalcProfit()`-based stop loss for the calculated volume is acceptably close to configured risk after broker volume-step rounding.
 
-## 5. Broker execution-rule tests
+## 5. Broker execution-rule and OrderCheck tests
 
 - [ ] Minimum volume rejection works.
 - [ ] Maximum volume rejection works.
@@ -97,7 +99,14 @@ Pass criterion: `OrderCalcProfit()`-based stop loss for the calculated volume is
 - [ ] SL/TP are normalized to broker tick size.
 - [ ] Insufficient free margin is rejected.
 - [ ] `InpMaxNewTradeMarginPctFree` cap is enforced.
-- [ ] Broker filling mode is selected through `SetTypeFillingBySymbol()`.
+- [ ] Broker-compatible filling policy is selected.
+- [ ] `OrderCheck()` succeeds for a valid proposed order.
+- [ ] `OrderCheck()` rejection prevents the APPROVE prompt from becoming executable.
+- [ ] `OrderCheck()` is run again immediately before actual order send.
+- [ ] Projected negative free margin is rejected.
+- [ ] `InpMinPostTradeMarginLevelPct` floor is enforced when MT5 returns a projected margin level.
+- [ ] Request/Instant/Exchange execution can use RETURN where permitted.
+- [ ] Market Execution uses an allowed FOK/IOC policy and never forces RETURN.
 
 ## 6. Spread/slippage/R:R tests
 
@@ -144,11 +153,12 @@ Run in a terminal that provides the native economic calendar.
 
 ## 9. APPROVE / DENY tests
 
-- [ ] No APPROVE prompt appears unless hard filters pass and entry trigger is ready.
+- [ ] No APPROVE prompt appears unless hard filters, broker gate, `OrderCheck()` and entry trigger pass.
 - [ ] APPROVE executes only after fresh validation.
 - [ ] Price leaving entry zone after prompt causes approval to fail safely.
 - [ ] Spread widening after prompt causes approval to fail safely.
 - [ ] News/yield/risk change after prompt causes approval to fail safely.
+- [ ] Margin/filling/broker-rule change after prompt causes approval to fail safely.
 - [ ] DENY removes setup.
 - [ ] Timeout removes setup.
 - [ ] DENY/timeout starts cooldown.
@@ -188,23 +198,27 @@ Repeat these tests by removing/re-attaching EA and by restarting MT5 on demo.
 - [ ] Restart with no open trade/no pending approval.
 - [ ] Restart with a pending approval still inside timeout.
 - [ ] Restart after pending approval expired while terminal was offline.
+- [ ] Restart immediately before order send/checkpoint.
 - [ ] Restart immediately after order fill.
 - [ ] Restart before TP1.
 - [ ] Restart immediately after TP1 partial close.
 - [ ] Restart after BE movement.
 - [ ] Restart with multiple GPT_EA positions.
 - [ ] Restart when position ticket changed but `POSITION_IDENTIFIER` is unchanged.
+- [ ] On a netting account, deliberately reverse a test position and verify recovery detects original/current direction mismatch and PAUSES when configured.
 - [ ] Restart after a symbol suffix/prefix changed on a migrated demo server.
 - [ ] Recovery file from a different account login is ignored.
 - [ ] Recovery file from a different server is ignored when mismatch rejection is enabled.
+- [ ] Recovery file with a different magic number is ignored.
 - [ ] Missing terminal Global Variables are rebuilt from disk/history where possible.
 - [ ] Missing disk checkpoint falls back to terminal globals/history.
 - [ ] Recovered pending setup is re-scanned and cannot bypass fresh validation.
 - [ ] Recovered position with moved SL does not reconstruct original risk from BE if historical initial SL is available.
 - [ ] Partial exit history is recognized so TP1 is not taken twice.
 - [ ] Finalized trade analytics are not duplicated after restart.
+- [ ] A recovered GPT_EA position with no recoverable original SL causes the recovery consistency guard to PAUSE when configured.
 
-Note: terminal Global Variables are not permanent storage; the EA therefore uses both terminal globals and an account/magic-specific common-files checkpoint.
+Note: terminal Global Variables are not permanent storage; the EA therefore uses broker history/current positions, terminal globals and an account/magic-specific Common Files checkpoint.
 
 ## 13. Analytics validation
 
@@ -221,6 +235,7 @@ Follow `ANALYTICS_SCHEMA.md`.
 - [ ] Pullback and breakout-retest statistics remain separate.
 - [ ] Profit factor uses positive-R / absolute-negative-R totals.
 - [ ] Consecutive-loss count resets on a profitable completed trade.
+- [ ] `FINAL=1` prevents duplicate setup-stat updates after restart.
 
 ## 14. OpenAI integration test
 
@@ -273,11 +288,14 @@ Minimum release recommendation before live funds:
 - [ ] Verify recovery checkpoint and execution CSV continue writing.
 - [ ] Review every rejected order and every broker retcode.
 - [ ] Confirm no unexplained duplicate orders.
+- [ ] Compare demo/live broker profiles before migrating settings between account types.
 
 ## 18. Live release gate
 
 - [ ] Compile gate passed.
 - [ ] Broker/symbol matrix passed on intended live account.
+- [ ] `OrderCheck()` and margin-floor tests passed on intended live account type.
+- [ ] Restart/netting-reversal recovery tests passed where applicable.
 - [ ] Demo soak passed.
 - [ ] Start with approved execution and conservative risk.
 - [ ] Keep `InpRequireApproval=true` for initial live validation.

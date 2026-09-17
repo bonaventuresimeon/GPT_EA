@@ -1,14 +1,19 @@
 // ============================================================================
-// GPT_EA Part 28B - R6 GitHub Actions + runner recovery + five-day soak binding
+// GPT_EA Part 28B - R6 supplemental CI / runner / MT5 / soak evidence binding
 // ============================================================================
 // Supplemental fail-closed release evidence layered on top of Part28/Part29.
-// REAL arming requires recovered-runner proof, executed CI provenance and the
-// detailed five-day acceptance record in addition to the base R6 gates.
+// REAL arming requires runner recovery + acceptance, executed CI provenance,
+// MT5 validation evidence, and the five-day reconciled soak record.
 
 input bool   InpReleaseRunnerRecoveryPassed             = false;
 input string InpReleaseRunnerRecoverySchemaVersion      = "";
 input string InpReleaseRunnerRecoveryEvidenceId         = "";
 input string InpReleaseRunnerRecoveryDigest             = "";
+
+input bool   InpReleaseRunnerRecoveryAcceptancePassed        = false;
+input string InpReleaseRunnerRecoveryAcceptanceSchemaVersion = "";
+input string InpReleaseRunnerRecoveryAcceptanceId            = "";
+input string InpReleaseRunnerRecoveryAcceptanceDigest        = "";
 
 input bool   InpReleaseCIStaticEvidencePassed           = false;
 input string InpReleaseCISchemaVersion                  = "";
@@ -27,6 +32,11 @@ input string InpReleaseCIBundleSchemaVersion            = "";
 input string InpReleaseCIBundleDigest                   = "";
 input bool   InpReleaseCIBundleValidated                = false;
 
+input bool   InpReleaseMT5ValidationPassed              = false;
+input string InpReleaseMT5ValidationSchemaVersion       = "";
+input string InpReleaseMT5ValidationEvidenceId          = "";
+input string InpReleaseMT5ValidationDigest              = "";
+
 input string InpReleaseSoakAcceptanceSchemaVersion      = "";
 input string InpReleaseSoakAcceptanceRecordId           = "";
 input string InpReleaseSoakAcceptanceRecordDigest       = "";
@@ -34,10 +44,12 @@ input string InpReleaseSoakAcceptanceRecordDigest       = "";
 input bool   InpWriteR6SupplementalEvidenceSnapshot     = true;
 input string InpR6SupplementalEvidenceSnapshotFile      = "GPT_EA_R6SupplementalEvidence.csv";
 
-const string GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA = "runner_recovery_evidence_v1";
-const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION      = "github_actions_static_evidence_v1";
-const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA       = "ci_evidence_bundle_v1";
-const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA     = "five_day_soak_acceptance_v2";
+const string GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA       = "runner_recovery_evidence_v1";
+const string GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA     = "runner_recovery_acceptance_v1";
+const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION            = "github_actions_static_evidence_v1";
+const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA             = "ci_evidence_bundle_v1";
+const string GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA        = "mt5_validation_evidence_v1";
+const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA           = "five_day_soak_acceptance_v2";
 
 bool ReleaseRunnerRecoveryEvidenceAllows(string &why)
 {
@@ -63,6 +75,33 @@ bool ReleaseRunnerRecoveryEvidenceAllows(string &why)
       return false;
    }
    why="Hosted-runner recovery evidence PASS.";
+   return true;
+}
+
+bool ReleaseRunnerRecoveryAcceptanceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseRunnerRecoveryAcceptancePassed)
+   {
+      why="Runner-recovery production acceptance matrix has not been attested.";
+      return false;
+   }
+   if(InpReleaseRunnerRecoveryAcceptanceSchemaVersion!=GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA)
+   {
+      why="Runner-recovery acceptance schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseRunnerRecoveryAcceptanceId)<8)
+   {
+      why="Runner-recovery acceptance ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseRunnerRecoveryAcceptanceDigest,64))
+   {
+      why="Runner-recovery acceptance digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="Runner-recovery production acceptance matrix PASS.";
    return true;
 }
 
@@ -128,6 +167,33 @@ bool ReleaseCIStaticEvidenceAllows(string &why)
    return true;
 }
 
+bool ReleaseMT5ValidationEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseMT5ValidationPassed)
+   {
+      why="MT5/MetaEditor validation evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseMT5ValidationSchemaVersion!=GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA)
+   {
+      why="MT5 validation evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseMT5ValidationEvidenceId)<8)
+   {
+      why="MT5 validation evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseMT5ValidationDigest,64))
+   {
+      why="MT5 validation evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="MT5/MetaEditor compile, tester, broker-runtime, protection and live API evidence PASS.";
+   return true;
+}
+
 bool ReleaseFiveDaySoakRecordAllows(string &why)
 {
    why="";
@@ -171,10 +237,22 @@ bool ReleaseSupplementalR6EvidenceAllows(string &why)
       why="REAL account blocked: "+runner;
       return false;
    }
+   string runnerAcceptance="";
+   if(!ReleaseRunnerRecoveryAcceptanceAllows(runnerAcceptance))
+   {
+      why="REAL account blocked: "+runnerAcceptance;
+      return false;
+   }
    string ci="";
    if(!ReleaseCIStaticEvidenceAllows(ci))
    {
       why="REAL account blocked: "+ci;
+      return false;
+   }
+   string mt5="";
+   if(!ReleaseMT5ValidationEvidenceAllows(mt5))
+   {
+      why="REAL account blocked: "+mt5;
       return false;
    }
    string soak="";
@@ -183,7 +261,7 @@ bool ReleaseSupplementalR6EvidenceAllows(string &why)
       why="REAL account blocked: "+soak;
       return false;
    }
-   why=runner+" | "+ci+" | "+soak;
+   why=runner+" | "+runnerAcceptance+" | "+ci+" | "+mt5+" | "+soak;
    return true;
 }
 
@@ -233,17 +311,21 @@ void WriteR6SupplementalEvidenceSnapshot()
    if(FileSize(h)==0)
       FileWrite(h,"time","required_release_id","source_commit",
          "runner_recovery_passed","runner_recovery_schema","runner_recovery_id","runner_recovery_digest",
+         "runner_acceptance_passed","runner_acceptance_schema","runner_acceptance_id","runner_acceptance_digest",
          "ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id","ci_steps","ci_head_sha","ci_digest",
          "ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified","ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
+         "mt5_validation_passed","mt5_validation_schema","mt5_validation_id","mt5_validation_digest",
          "soak_acceptance_schema","soak_record_id","soak_record_digest","gate_result","reason");
    FileSeek(h,0,SEEK_END);
    string why=""; bool ok=ReleaseSafetyAllowsR6Evidence("",why);
    FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseSourceCommitSha,
       InpReleaseRunnerRecoveryPassed?"1":"0",InpReleaseRunnerRecoverySchemaVersion,InpReleaseRunnerRecoveryEvidenceId,InpReleaseRunnerRecoveryDigest,
+      InpReleaseRunnerRecoveryAcceptancePassed?"1":"0",InpReleaseRunnerRecoveryAcceptanceSchemaVersion,InpReleaseRunnerRecoveryAcceptanceId,InpReleaseRunnerRecoveryAcceptanceDigest,
       InpReleaseCIStaticEvidencePassed?"1":"0",InpReleaseCISchemaVersion,(string)InpReleaseCIRunId,(string)InpReleaseCIRunAttempt,
       (string)InpReleaseCIJobId,(string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,
       InpReleaseCIConclusion,InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
       InpReleaseCIBundleSchemaVersion,InpReleaseCIBundleDigest,InpReleaseCIBundleValidated?"1":"0",
+      InpReleaseMT5ValidationPassed?"1":"0",InpReleaseMT5ValidationSchemaVersion,InpReleaseMT5ValidationEvidenceId,InpReleaseMT5ValidationDigest,
       InpReleaseSoakAcceptanceSchemaVersion,InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,
       ok?"PASS":"BLOCK",why);
    FileFlush(h); FileClose(h);

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Repository-level static release checks for GPT_EA R5.
+"""Repository-level static release checks for GPT_EA R6.
 
-This is intentionally not a substitute for MetaEditor compilation, Strategy Tester,
-broker testing, WebRequest failure injection, or demo soak.
+This is not a substitute for MetaEditor compilation, Strategy Tester, broker
+validation, WebRequest failure injection or the required demo soak. It catches
+repository-level wiring regressions, missing modules, duplicate inputs,
+unbalanced source, stale release IDs and committed API secrets.
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "GPT_EA.mq5"
+RELEASE_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
 
 REQUIRED_FILES = [
     "GPT_EA_Part15_StrategyIntelligence.mqh",
@@ -38,10 +41,12 @@ REQUIRED_FILES = [
     "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
     "GPT_EA_Part31_ExecutionLearning.mqh",
     "GPT_EA_Part31A_RegimeSizing.mqh",
+    "GPT_EA_Part31B_ExecutionFinalizer.mqh",
     "GPT_EA_Part32_ChampionChallenger.mqh",
     "GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
     "GPT_EA_Part34_StrategyHealthDashboard.mqh",
     "GPT_EA_Part35_AdaptiveIntegration.mqh",
+    "GPT_EA_Part36_DemoSoakEvidence.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -53,71 +58,16 @@ REQUIRED_FILES = [
     "RELEASE_CERTIFICATION.md",
     "METAEDITOR_COMPILE_GATE.md",
     "DEMO_SOAK_ACCEPTANCE.md",
+    "DEMO_SOAK_EVIDENCE.md",
+    "DEMO_SOAK_REPORT_TEMPLATE.md",
+    "SOAK_EVIDENCE_SCHEMA.json",
     "DEPLOYMENT_DRIFT_TESTS.md",
     "RELEASE_GO_NO_GO.md",
     "RELEASE_EVIDENCE_MANIFEST.md",
     "ADAPTIVE_EXECUTION_ARCHITECTURE.md",
     "ADAPTIVE_EXECUTION_TEST_MATRIX.md",
+    "tools/import_soak_snapshot.py",
 ]
-
-REQUIRED_TOKENS = {
-    "GPT_EA_Part15_StrategyIntelligence.mqh": [
-        "STRATEGY_TREND_CONTINUATION", "STRATEGY_RETRACEMENT_ENTRY",
-        "STRATEGY_COUNTER_TREND_SCALP", "STRATEGY_COUNTER_TREND_SWING",
-        "STRATEGY_POTENTIAL_REVERSAL", "STRATEGY_BREAKOUT",
-        "STRATEGY_BREAKOUT_RETEST", "STRATEGY_RANGE_TRADE",
-        "STRATEGY_MEAN_REVERSION", "STATE_HEALTHY_RETRACEMENT",
-        "STATE_DEEP_RETRACEMENT", "STATE_TREND_FAILURE",
-        "STATE_FALSE_BREAKOUT", "STATE_LIQUIDITY_SWEEP",
-        "STATE_ACCUMULATION", "STATE_DISTRIBUTION",
-    ],
-    "GPT_EA_Part21_ResearchValidation.mqh": [
-        "StrategyWalkForwardEvidence", "CurrentStrategyContextEvidence",
-        "RetracementIntelligenceText", "ChaseRiskDetected", "ExtremeRegimeDetected",
-    ],
-    "GPT_EA_Part22_IntelligenceFreshness.mqh": [
-        "CallOpenAIWebIntelStructured", "json_schema", "GetLiveWebIntelHardened",
-        "AssessIntermarketHardened", "WEB-INTELLIGENCE CIRCUIT BREAKER OPEN",
-    ],
-    "GPT_EA_Part26_DeepGPTPolicy.mqh": ["gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep"],
-    "GPT_EA_Part27_StrategyCompletion.mqh": ["BuildDirectBreakoutCandidate", "SelectDynamicStrategyUltimate"],
-    "GPT_EA_Part28_ReleaseCertification.mqh": [
-        "GPT_EA_FULL_INTELLIGENCE_R5_20260917",
-        "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
-        "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
-    ],
-    "GPT_EA_Part29_DeploymentDriftGuard.mqh": [
-        "ReleaseSafetyAllowsR5", "ReleaseGateSummaryR5", "AdvancedSafetyInitR5",
-        "AdvancedSafetyTimerR5", "StopFailureObservabilityInitR5",
-    ],
-    "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh": [
-        "StrategyRiskBudgetAllows", "RollingM15Correlation", "MacroFactorBetas",
-        "AdvancedPortfolioRiskAllows", "AbnormalMarketConditionScore", "BrokerHealthScore",
-        "IndependentRiskSupervisorAllows", "AdaptiveRiskMultiplier", "AdaptivePreEntryAllows",
-    ],
-    "GPT_EA_Part31_ExecutionLearning.mqh": [
-        "CalibratedConfidenceValue", "ExecutionSlippageForecastPoints", "RegisterAdaptiveExecutionFill",
-        "UpdateOpenMAEMFE", "EventSpecificBehaviorAllows", "LearnedStrategyExpiryM15",
-        "RefreshStrategyHealthModes", "RefreshRegimeTransition", "GPT_EA_ExecutionLearning.csv",
-    ],
-    "GPT_EA_Part31A_RegimeSizing.mqh": ["AdaptiveLotSizeForRiskFinal", "REGIME_RISK_MULT"],
-    "GPT_EA_Part32_ChampionChallenger.mqh": [
-        "ChallengerEligibleForPromotion", "ChampionChallengerScanHook",
-        "SHADOW_REJECTED_COUNTERFACTUAL", "InpAutoPromoteChallenger", "GPT_EA_ShadowValidation.csv",
-    ],
-    "GPT_EA_Part33_LifecycleIntegrityReplay.mqh": [
-        "LIFE_CANDIDATE", "LIFE_WAIT_CONFIRMATION", "LIFE_APPROVED", "LIFE_SENT", "LIFE_FILLED",
-        "GPTDisagreementAllowsHighConfidence", "GPTReviewIntegrityAllows", "WriteDecisionSnapshot",
-        "GPT_EA_Lifecycle.csv", "GPT_EA_DecisionSnapshots.csv",
-    ],
-    "GPT_EA_Part34_StrategyHealthDashboard.mqh": [
-        "ACTIVE", "REDUCED_RISK", "SHADOW", "DISABLED", "GPT_EA_StrategyHealth.csv",
-    ],
-    "GPT_EA_Part35_AdaptiveIntegration.mqh": [
-        "SelectDynamicStrategyR5", "AdaptivePreAuthorizationRiskAllowsR5",
-        "AIReviewAllowsExecutionR5", "NotifyCardR5", "NewsIntermarketTimerR5",
-    ],
-}
 
 REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
@@ -125,15 +75,17 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
     '#include "GPT_EA_Part31_ExecutionLearning.mqh"',
     '#include "GPT_EA_Part31A_RegimeSizing.mqh"',
+    '#include "GPT_EA_Part31B_ExecutionFinalizer.mqh"',
     '#include "GPT_EA_Part32_ChampionChallenger.mqh"',
     '#include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"',
     '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
+    '#include "GPT_EA_Part36_DemoSoakEvidence.mqh"',
     '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
-    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR5",
-    "#define ReleaseGateSummary ReleaseGateSummaryR5",
-    "#define StopFailureObservabilityInit StopFailureObservabilityInitR5",
-    "#define AdvancedSafetyInit AdvancedSafetyInitR5",
-    "#define AdvancedSafetyTimer AdvancedSafetyTimerR5",
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR6",
+    "#define ReleaseGateSummary ReleaseGateSummaryR6",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitR6",
+    "#define AdvancedSafetyInit AdvancedSafetyInitR6",
+    "#define AdvancedSafetyTimer AdvancedSafetyTimerR6",
     "#define SelectDynamicStrategy SelectDynamicStrategyR5",
     "#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5",
     "#define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal",
@@ -150,22 +102,82 @@ REQUIRED_MAIN_WIRING = [
     "#define AssessIntermarket AssessIntermarketHardened",
 ]
 
+REQUIRED_TOKENS = {
+    "GPT_EA_Part15_StrategyIntelligence.mqh": [
+        "STRATEGY_TREND_CONTINUATION", "STRATEGY_RETRACEMENT_ENTRY", "STRATEGY_COUNTER_TREND_SCALP",
+        "STRATEGY_COUNTER_TREND_SWING", "STRATEGY_POTENTIAL_REVERSAL", "STRATEGY_BREAKOUT",
+        "STRATEGY_BREAKOUT_RETEST", "STRATEGY_RANGE_TRADE", "STRATEGY_MEAN_REVERSION",
+        "STATE_HEALTHY_RETRACEMENT", "STATE_DEEP_RETRACEMENT", "STATE_TREND_FAILURE",
+        "STATE_FALSE_BREAKOUT", "STATE_LIQUIDITY_SWEEP", "STATE_ACCUMULATION", "STATE_DISTRIBUTION",
+    ],
+    "GPT_EA_Part21_ResearchValidation.mqh": [
+        "StrategyWalkForwardEvidence", "CurrentStrategyContextEvidence", "RetracementIntelligenceText",
+        "ChaseRiskDetected", "ExtremeRegimeDetected",
+    ],
+    "GPT_EA_Part22_IntelligenceFreshness.mqh": [
+        "CallOpenAIWebIntelStructured", "json_schema", "GetLiveWebIntelHardened",
+        "AssessIntermarketHardened", "WEB-INTELLIGENCE CIRCUIT BREAKER OPEN",
+    ],
+    "GPT_EA_Part26_DeepGPTPolicy.mqh": ["gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep"],
+    "GPT_EA_Part27_StrategyCompletion.mqh": ["BuildDirectBreakoutCandidate", "SelectDynamicStrategyUltimate"],
+    "GPT_EA_Part28_ReleaseCertification.mqh": [
+        RELEASE_ID, "GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION", "InpReleaseSoakEvidenceDigest",
+        "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
+        "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
+    ],
+    "GPT_EA_Part29_DeploymentDriftGuard.mqh": [
+        "ReleaseSafetyAllowsR6", "ReleaseGateSummaryR6", "AdvancedSafetyInitR6",
+        "AdvancedSafetyTimerR6", "StopFailureObservabilityInitR6",
+    ],
+    "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh": [
+        "StrategyRiskBudgetAllows", "RollingM15Correlation", "AdvancedPortfolioRiskAllows",
+        "AbnormalMarketConditionScore", "BrokerHealthScore", "IndependentRiskSupervisorAllows",
+        "AdaptiveRiskMultiplier", "AdaptivePreEntryAllows",
+    ],
+    "GPT_EA_Part31_ExecutionLearning.mqh": [
+        "CalibratedConfidenceValue", "ExecutionSlippageForecastPoints", "RegisterAdaptiveExecutionFill",
+        "UpdateOpenMAEMFE", "EventSpecificBehaviorAllows", "LearnedStrategyExpiryM15",
+        "RefreshStrategyHealthModes", "RefreshRegimeTransition", "GPT_EA_ExecutionLearning.csv",
+    ],
+    "GPT_EA_Part31A_RegimeSizing.mqh": ["AdaptiveLotSizeForRiskFinal", "REGIME_RISK_MULT"],
+    "GPT_EA_Part31B_ExecutionFinalizer.mqh": ["FinalizeAdaptiveLearningHistoryR5", "ExecutionLearningTimerR5"],
+    "GPT_EA_Part32_ChampionChallenger.mqh": [
+        "ChallengerEligibleForPromotion", "ChampionChallengerScanHook", "SHADOW_REJECTED_COUNTERFACTUAL",
+        "InpAutoPromoteChallenger", "GPT_EA_ShadowValidation.csv",
+    ],
+    "GPT_EA_Part33_LifecycleIntegrityReplay.mqh": [
+        "LIFE_CANDIDATE", "LIFE_WAIT_CONFIRMATION", "LIFE_APPROVED", "LIFE_SENT", "LIFE_FILLED",
+        "GPTDisagreementAllowsHighConfidence", "GPTReviewIntegrityAllows", "WriteDecisionSnapshot",
+    ],
+    "GPT_EA_Part34_StrategyHealthDashboard.mqh": ["REDUCED_RISK", "SHADOW", "DISABLED", "GPT_EA_StrategyHealth.csv"],
+    "GPT_EA_Part35_AdaptiveIntegration.mqh": [
+        "LIFECYCLE_WAIT_HUMAN_APPROVAL", "LIFECYCLE_WAIT_MARKET_CONFIRMATION",
+        "SelectDynamicStrategyR5", "AdaptivePreAuthorizationRiskAllowsR5", "AIReviewAllowsExecutionR5",
+        "NotifyCardR5", "DemoSoakEvidenceInit", "DemoSoakEvidenceTimer", "DemoSoakEvidenceShutdown",
+    ],
+    "GPT_EA_Part36_DemoSoakEvidence.mqh": [
+        "demo_soak_evidence_v1", "ReconcileStaleApprovalWaitStates", "WriteDemoSoakJsonSnapshot",
+        "SCHEDULED_SCANS", "CONTINUOUS_SCANS", "CHECKPOINT_UPDATES", "BACKUP_CHECKPOINT_UPDATES",
+        "RecordDemoSoakIncident", "InpExecutionJournalFile", "InpStopFailureObservabilityFile",
+        "InpReleaseEvidenceSnapshotFile",
+    ],
+}
+
 RELEASE_FLAGS = [
-    "InpReleaseMetaEditorCompilePassed", "InpReleaseArtifactIdentityArchived",
-    "InpReleaseStrategyTesterPassed", "InpReleaseIntelligenceMatrixPassed",
-    "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
-    "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
-    "InpReleaseBrokerMatrixPassed", "InpReleaseDeploymentProfilePassed",
-    "InpReleaseRecoveryTestsPassed", "InpReleaseStopMatrixPassed",
-    "InpReleaseBrokerStopPolicyPassed", "InpReleasePartialProtectionPassed",
-    "InpReleaseStopObservabilityPassed", "InpReleaseLiveNewsIntermarketPassed",
-    "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
+    "InpReleaseMetaEditorCompilePassed", "InpReleaseArtifactIdentityArchived", "InpReleaseStrategyTesterPassed",
+    "InpReleaseIntelligenceMatrixPassed", "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
+    "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed", "InpReleaseBrokerMatrixPassed",
+    "InpReleaseDeploymentProfilePassed", "InpReleaseRecoveryTestsPassed", "InpReleaseStopMatrixPassed",
+    "InpReleaseBrokerStopPolicyPassed", "InpReleasePartialProtectionPassed", "InpReleaseStopObservabilityPassed",
+    "InpReleaseLiveNewsIntermarketPassed", "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
     "InpReleaseOperatorReviewPassed",
 ]
 
 
 def strip_comments_and_strings(text: str) -> str:
-    out, i, state = [], 0, "code"
+    out: list[str] = []
+    i = 0
+    state = "code"
     while i < len(text):
         ch = text[i]
         nxt = text[i + 1] if i + 1 < len(text) else ""
@@ -189,7 +201,7 @@ def strip_comments_and_strings(text: str) -> str:
     return "".join(out)
 
 
-def balanced(path: Path, errors: list[str]) -> None:
+def check_balanced(path: Path, errors: list[str]) -> None:
     text = strip_comments_and_strings(path.read_text(encoding="utf-8"))
     pairs = {"{": "}", "(": ")", "[": "]"}
     reverse = {v: k for k, v in pairs.items()}
@@ -212,7 +224,7 @@ def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     if not MAIN.exists():
-        print("ERROR: GPT_EA.mq5 missing")
+        print("STATIC R6 RELEASE CHECK: FAILED\nERROR: GPT_EA.mq5 missing")
         return 1
 
     main_text = MAIN.read_text(encoding="utf-8")
@@ -225,12 +237,12 @@ def main() -> int:
     for inc in includes:
         if not (ROOT / inc).exists(): errors.append(f"local include missing: {inc}")
 
-    source_files = [MAIN] + [ROOT / i for i in includes if (ROOT / i).exists()]
-    input_re = re.compile(r'^\s*input\s+[A-Za-z_][\w<>]*\s+([A-Za-z_]\w*)', re.M)
+    source_files = [MAIN] + [ROOT / inc for inc in includes if (ROOT / inc).exists()]
     seen_inputs: dict[str, str] = {}
+    input_re = re.compile(r'^\s*input\s+[A-Za-z_][\w<>]*\s+([A-Za-z_]\w*)', re.M)
     for path in source_files:
         text = path.read_text(encoding="utf-8")
-        balanced(path, errors)
+        check_balanced(path, errors)
         for name in input_re.findall(text):
             if name in seen_inputs: errors.append(f"duplicate input {name}: {seen_inputs[name]} and {path.name}")
             else: seen_inputs[name] = path.name
@@ -258,12 +270,13 @@ def main() -> int:
         "GPT_EA_Part17_ThesisEngine.mqh", "GPT_EA_Part25_ThesisHardening.mqh",
         "GPT_EA_Part26_DeepGPTPolicy.mqh", "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
         "GPT_EA_Part31_ExecutionLearning.mqh", "GPT_EA_Part31A_RegimeSizing.mqh",
-        "GPT_EA_Part32_ChampionChallenger.mqh", "GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
-        "GPT_EA_Part34_StrategyHealthDashboard.mqh", "GPT_EA_Part35_AdaptiveIntegration.mqh",
-        "GPT_EA_Part05.mqh", "GPT_EA_Part23_IntelligenceObservability.mqh", "GPT_EA_Part13_AdvancedPositionManager.mqh",
-        "GPT_EA_Part07.mqh",
+        "GPT_EA_Part31B_ExecutionFinalizer.mqh", "GPT_EA_Part32_ChampionChallenger.mqh",
+        "GPT_EA_Part33_LifecycleIntegrityReplay.mqh", "GPT_EA_Part34_StrategyHealthDashboard.mqh",
+        "GPT_EA_Part36_DemoSoakEvidence.mqh", "GPT_EA_Part35_AdaptiveIntegration.mqh",
+        "GPT_EA_Part05.mqh", "GPT_EA_Part23_IntelligenceObservability.mqh",
+        "GPT_EA_Part13_AdvancedPositionManager.mqh", "GPT_EA_Part07.mqh",
     ]
-    positions = [main_text.find(f'#include "{x}"') for x in critical_order]
+    positions = [main_text.find(f'#include "{name}"') for name in critical_order]
     if any(p < 0 for p in positions) or positions != sorted(positions):
         errors.append("critical include order is invalid")
 
@@ -275,26 +288,30 @@ def main() -> int:
         if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release):
             errors.append(f"release attestation must default false: {flag}")
     m = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', release)
-    if not m or m.group(1) != "GPT_EA_FULL_INTELLIGENCE_R5_20260917":
-        errors.append("release validation ID must be GPT_EA_FULL_INTELLIGENCE_R5_20260917")
+    if not m or m.group(1) != RELEASE_ID:
+        errors.append(f"release validation ID must be {RELEASE_ID}")
+    if 'GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1"' not in release:
+        errors.append("R6 soak schema version contract is missing")
 
-    if "InpAutoPromoteChallenger             = false" not in (ROOT / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8"):
+    p32 = (ROOT / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
+    if not re.search(r'InpAutoPromoteChallenger\s*=\s*false\s*;', p32):
         errors.append("champion/challenger auto-promotion must default false")
 
     part05 = (ROOT / "GPT_EA_Part05.mqh").read_text(encoding="utf-8")
     for token in ["AdaptivePreEntryAllows", "RegisterAdaptiveExecutionRequest", "RegisterAdaptiveExecutionFill", "StoredAIIntegrityAllows"]:
         if token not in part05: errors.append(f"Part05 execution wiring missing: {token}")
 
-    if 'input string InpOpenAIAPIKey            = ""' not in (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8"):
+    part01 = (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8")
+    if not re.search(r'input\s+string\s+InpOpenAIAPIKey\s*=\s*""\s*;', part01):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")
 
     if errors:
-        print("STATIC R5 RELEASE CHECK: FAILED")
+        print("STATIC R6 RELEASE CHECK: FAILED")
         for e in errors: print("ERROR:", e)
         for w in warnings: print("WARNING:", w)
         return 1
 
-    print("STATIC R5 RELEASE CHECK: PASS")
+    print("STATIC R6 RELEASE CHECK: PASS")
     print(f"Checked {len(source_files)} directly included MQL files and {len(seen_inputs)} unique inputs.")
     for w in warnings: print("WARNING:", w)
     print("MetaEditor compile, Strategy Tester, adaptive matrix, broker tests, WebRequest failure injection and demo soak remain external hard gates.")

@@ -64,6 +64,9 @@ This checked-in dashboard is the repository **baseline generated from the intent
 
 ```text
 python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md
+
+# Final release consistency gate (fails unless overall state is PASS)
+python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md --require-pass
 ```
 
 For the repository baseline:

@@ -21,21 +21,25 @@ errors: list[str] = []
 required_main = [
     '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
     '#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"',
-    '#define ReleaseSafetyAllows ReleaseSafetyAllowsR4',
-    '#define ReleaseGateSummary ReleaseGateSummaryR4',
-    '#define StopFailureObservabilityInit StopFailureObservabilityInitR4',
-    '#define AdvancedSafetyInit AdvancedSafetyInitR4',
-    '#define AdvancedSafetyTimer AdvancedSafetyTimerR4',
+    '#define ReleaseSafetyAllows ReleaseSafetyAllowsR5',
+    '#define ReleaseGateSummary ReleaseGateSummaryR5',
+    '#define StopFailureObservabilityInit StopFailureObservabilityInitR5',
+    '#define AdvancedSafetyInit AdvancedSafetyInitR5',
+    '#define AdvancedSafetyTimer AdvancedSafetyTimerR5',
 ]
 for token in required_main:
     if token not in MAIN:
-        errors.append(f"missing R4 release wiring: {token}")
+        errors.append(f"missing R5 release wiring: {token}")
 
 required_false_flags = [
     "InpReleaseMetaEditorCompilePassed",
     "InpReleaseArtifactIdentityArchived",
     "InpReleaseStrategyTesterPassed",
     "InpReleaseIntelligenceMatrixPassed",
+    "InpReleaseAdaptivePortfolioPassed",
+    "InpReleaseExecutionLearningPassed",
+    "InpReleaseChampionChallengerPassed",
+    "InpReleaseLifecycleIntegrityPassed",
     "InpReleaseBrokerMatrixPassed",
     "InpReleaseDeploymentProfilePassed",
     "InpReleaseRecoveryTestsPassed",
@@ -57,33 +61,38 @@ if not m:
     errors.append("required release validation ID not found")
 else:
     release_id = m.group(1)
-    if "R4" not in release_id:
-        errors.append("current release validation ID is not R4")
+    if "R5" not in release_id:
+        errors.append("current release validation ID is not R5")
     if release_id not in DOC:
-        errors.append("RELEASE_CERTIFICATION.md is not synchronized with current release validation ID")
+        errors.append("RELEASE_CERTIFICATION.md is not synchronized with current R5 release validation ID")
 
 for token in [
     "StopObservabilityAllowsNewEntries",
     "RefreshCertifiedReleaseState",
     "ReleaseSafetyAllowsCertified",
     "InpReleaseArtifactIdentityArchived",
+    "InpReleaseAdaptivePortfolioPassed",
+    "InpReleaseExecutionLearningPassed",
+    "InpReleaseChampionChallengerPassed",
+    "InpReleaseLifecycleIntegrityPassed",
     "InpReleaseDeploymentProfilePassed",
     "GPT_EA_ReleaseEvidence.csv",
 ]:
     if token not in PART28:
-        errors.append(f"Part28 missing release contract token: {token}")
+        errors.append(f"Part28 missing R5 release contract token: {token}")
 
 for token in [
     "CaptureDeploymentBaseline",
     "StructuralSymbolDriftAllows",
     "DeploymentDriftAllows",
-    "ReleaseSafetyAllowsR4",
-    "AdvancedSafetyInitR4",
-    "AdvancedSafetyTimerR4",
-    "StopFailureObservabilityInitR4",
+    "ReleaseSafetyAllowsR5",
+    "RefreshR5ReleaseState",
+    "AdvancedSafetyInitR5",
+    "AdvancedSafetyTimerR5",
+    "StopFailureObservabilityInitR5",
 ]:
     if token not in PART29:
-        errors.append(f"Part29 missing deployment-drift token: {token}")
+        errors.append(f"Part29 missing R5 deployment-drift token: {token}")
 
 required_docs = {
     "METAEDITOR_COMPILE_GATE.md": COMPILE_DOC,
@@ -101,9 +110,12 @@ for token in [
     "SHA-256",
     "5 consecutive trading days",
     "zero",
+    "adaptive portfolio",
+    "champion/challenger",
+    "lifecycle",
 ]:
-    if token.lower() not in (COMPILE_DOC + "\n" + SOAK_DOC + "\n" + GO_NO_GO).lower():
-        errors.append(f"release contracts missing expected evidence concept: {token}")
+    if token.lower() not in (COMPILE_DOC + "\n" + SOAK_DOC + "\n" + GO_NO_GO + "\n" + MANIFEST).lower():
+        errors.append(f"R5 release contracts missing expected evidence concept: {token}")
 
 if errors:
     print("RELEASE CERTIFICATION STATIC CHECK: FAILED")

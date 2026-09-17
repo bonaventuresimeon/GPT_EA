@@ -72,6 +72,16 @@
     "validated": false,
     "validation_path": "artifacts/resilience-hardening-evidence-validation.txt"
   },
+  "rollback_package": {
+    "mode": "UNSET",
+    "previous_release_validation_id": "",
+    "previous_git_sha": "",
+    "package_path": "",
+    "package_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "validated": false,
+    "validation_path": "artifacts/rollback-package-validation.txt",
+    "first_release_justification": ""
+  },
   "deployment": {
     "broker_company": "",
     "trade_server": "",
@@ -158,7 +168,8 @@
     "api_transport": false,
     "demo_soak": false,
     "operator_review": false,
-    "resilience_hardening": false
+    "resilience_hardening": false,
+    "rollback_package": false
   },
   "final_review": {
     "schema_version": "final_release_review_v1",

@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `COMPILE_TEST_CHECKLIST.md`
+
+---
+
 # GPT_EA Compile & Release Test Checklist
 
 This is the master release gate for `GPT_EA.mq5`. Do not promote a build development → demo → live until every applicable HIGH/release-blocking item passes.

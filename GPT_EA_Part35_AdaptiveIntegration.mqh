@@ -27,8 +27,8 @@ bool AdaptiveOpenPositionForSymbol(const string sym)
 void SelectDynamicStrategyR5(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
 {
    string pbCal="",brCal="";
-   ApplyConfidenceCalibration(pb,pbCal);
-   ApplyConfidenceCalibration(br,brCal);
+   CalibratedConfidenceValue(pb.confidence,pbCal);
+   CalibratedConfidenceValue(br.confidence,brCal);
 
    SelectDynamicStrategyUltimate(sym,pb,br,d);
    TradeSetup primary=d.setup;
@@ -39,6 +39,8 @@ void SelectDynamicStrategyR5(const string sym,TradeSetup &pb,TradeSetup &br,Stra
 
    string selectedCal="";
    ApplyConfidenceCalibration(primary,selectedCal);
+   if(d.strategy!=STRATEGY_NO_TRADE && d.action==STRATEGY_ACTION_HIGH_CONFIDENCE && !primary.valid)
+      d.action=STRATEGY_ACTION_WAIT;
    d.setup=primary;
 
    string expiry="";

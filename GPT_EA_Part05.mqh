@@ -145,7 +145,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    }
 
    RegisterPlannedExecution(x,lots,riskMoney);
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(slipPts);
    trade.SetTypeFillingBySymbol(x.symbol);
@@ -166,7 +166,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       GVSet(newest,"INITSL",x.sl); GVSet(newest,"TP1",x.tp1); GVSet(newest,"TP2",x.tp2);
       GVSet(newest,"TP3",x.tp3); GVSet(newest,"EXP",x.expiryM15); GVSet(newest,"TP1DONE",0);
    }
-   UniversalCheckpointNow();
+   SafeUniversalCheckpointNow();
    PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | %s | %s",
                x.symbol,Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy,serverWhy);
    return true;

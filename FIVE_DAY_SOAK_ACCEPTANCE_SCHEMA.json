@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bonaventuresimeon/GPT_EA/FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
+  "title": "GPT_EA R6 Five-Day Soak Acceptance Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "release_validation_id",
+    "record_id",
+    "evidence_id",
+    "record_digest",
+    "candidate",
+    "days",
+    "reconciliation",
+    "lifecycle_checks",
+    "report_path",
+    "operator_review"
+  ],
+  "properties": {
+    "schema_version": {"const": "five_day_soak_acceptance_v1"},
+    "release_validation_id": {"const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"},
+    "record_id": {"type": "string", "minLength": 8},
+    "evidence_id": {"type": "string", "minLength": 8},
+    "record_digest": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+    "candidate": {"type": "object"},
+    "days": {"type": "array", "minItems": 5, "maxItems": 5},
+    "reconciliation": {"type": "object"},
+    "lifecycle_checks": {"type": "object"},
+    "report_path": {"type": "string", "minLength": 1},
+    "operator_review": {"type": "object"}
+  }
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ SOAK_DOC = (ROOT / "DEMO_SOAK_ACCEPTANCE.md").read_text(encoding="utf-8")
 GO_NO_GO = (ROOT / "RELEASE_GO_NO_GO.md").read_text(encoding="utf-8")
 DRIFT_DOC = (ROOT / "DEPLOYMENT_DRIFT_TESTS.md").read_text(encoding="utf-8")
 MANIFEST = (ROOT / "RELEASE_EVIDENCE_MANIFEST.md").read_text(encoding="utf-8")
+TEMPLATE_PATH = ROOT / "RELEASE_EVIDENCE_TEMPLATE.json"
+VALIDATOR_PATH = ROOT / "tools" / "validate_release_evidence.py"
 
 errors: list[str] = []
 
@@ -56,7 +59,35 @@ for name in required_false_flags:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28):
         errors.append(f"release evidence flag must exist and default false: {name}")
 
+required_concrete_inputs = [
+    "InpReleaseSourceCommitSha",
+    "InpReleaseEx5Sha256",
+    "InpReleaseSetSha256",
+    "InpReleaseCompileEvidenceId",
+    "InpReleaseMetaEditorBuild",
+    "InpReleaseMT5Build",
+    "InpReleaseSoakEvidenceId",
+    "InpReleaseSoakTradingDays",
+    "InpReleaseSoakLondonSessions",
+    "InpReleaseSoakNYSessions",
+    "InpReleaseSoakOverlapObserved",
+    "InpReleaseSoakNewsDayObserved",
+    "InpReleaseSoakRolloverObserved",
+    "InpReleaseSoakRestartObserved",
+    "InpReleaseSoakReconnectObserved",
+    "InpReleaseSoakZeroToleranceFailures",
+    "InpReleaseSoakUnresolvedCriticalStates",
+]
+for name in required_concrete_inputs:
+    if name not in PART28:
+        errors.append(f"Part28 missing concrete release-evidence input: {name}")
+
+for token in ["ReleaseArtifactIdentityAllows", "ReleaseDemoSoakEvidenceAllows", "ReleaseHexString"]:
+    if token not in PART28:
+        errors.append(f"Part28 missing concrete evidence validator: {token}")
+
 m = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', PART28)
+release_id = ""
 if not m:
     errors.append("required release validation ID not found")
 else:
@@ -105,6 +136,24 @@ for name, text in required_docs.items():
         errors.append(f"release contract document missing/too small: {name}")
     if name not in MANIFEST:
         errors.append(f"RELEASE_EVIDENCE_MANIFEST.md does not reference {name}")
+
+if not TEMPLATE_PATH.exists():
+    errors.append("RELEASE_EVIDENCE_TEMPLATE.json is missing")
+else:
+    try:
+        template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+        if release_id and template.get("release_validation_id") != release_id:
+            errors.append("RELEASE_EVIDENCE_TEMPLATE.json release ID is not synchronized with Part28")
+    except Exception as exc:
+        errors.append(f"RELEASE_EVIDENCE_TEMPLATE.json is invalid JSON: {exc}")
+
+if not VALIDATOR_PATH.exists():
+    errors.append("tools/validate_release_evidence.py is missing")
+else:
+    validator = VALIDATOR_PATH.read_text(encoding="utf-8")
+    for token in ["compile_errors", "compile_warnings", "trading_days", "zero_tolerance_failures", "unresolved_critical_states", "sha256_file"]:
+        if token not in validator:
+            errors.append(f"release evidence validator missing required check: {token}")
 
 for token in [
     "SHA-256",

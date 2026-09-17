@@ -1,24 +1,174 @@
 <!-- GPT_EA_DOC_HEADER -->
 <div align="center">
 
-# 🧠⚡ GPT_EA
-### 📚 Engineering Documentation
+<img src="assets/gpt-ea-logo.svg" alt="GPT_EA — AI-Assisted MT5 Trading Intelligence" width="920">
 
-**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+<br>
 
-[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+[![Platform](https://img.shields.io/badge/Platform-MetaTrader%205-2f7ed8?style=for-the-badge)](#)
+[![AI](https://img.shields.io/badge/AI-OpenAI%20Responses%20API-7a7cff?style=for-the-badge)](#)
+[![Approval](https://img.shields.io/badge/Execution-Human%20Approval-34c6a3?style=for-the-badge)](#)
+[![Safety](https://img.shields.io/badge/Safety-Fail--Closed-e5a93d?style=for-the-badge)](#)
+[![Governance](https://img.shields.io/badge/Governance-R10%20Privacy%20Gate-c06cff?style=for-the-badge)](#)
+
+### 🧠 Multi-Timeframe Intelligence · 📰 News & Intermarket · 🛡️ Risk · ⚡ Execution · 💾 Recovery · 🔐 Release Governance
+
+[🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🚀 Installation](INSTALLATION.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md) · [⚖️ Terms](TERMS_AND_CONDITIONS.md)
 
 </div>
 
-> 📚 **Document:** `README.md`
-
 ---
 
-# GPT_EA
+# 🧠⚡ GPT_EA
 
-Standalone MetaTrader 5 GPT-assisted Expert Advisor with multi-timeframe market-state classification, regime-driven strategy selection, live news/intermarket intelligence, adversarial GPT validation, broker-aware execution, portfolio risk, restart recovery, setup analytics, advanced stop management and timed **APPROVE / DENY** authorization.
+**GPT_EA** is a standalone MetaTrader 5 Expert Advisor that combines deterministic trading logic with OpenAI-assisted market intelligence. It scans **D1 / H4 / H1 / M30 / M15 / M5**, classifies market regime and strategy, evaluates live news/intermarket risk, builds a mandatory trade thesis, challenges the setup with GPT, then routes any candidate through deterministic risk, broker, release, legal, customer-acknowledgement and privacy gates before human-approved execution.
 
-Repository: https://github.com/bonaventuresimeon/GPT_EA.git
+> 🛡️ **Core rule:** AI can assist analysis; it cannot override broker rules, release evidence, stop protection, recovery integrity, risk limits, legal acknowledgement or human approval.
+
+## ✨ Why GPT_EA is different
+
+| Layer | Capability |
+|---|---|
+| 🧭 **Market intelligence** | D1→M5 structure, regime, trend/retracement/reversal/breakout/range classification |
+| 🧠 **Strategy engine** | Continuation, retracement, counter-trend, reversal, breakout, breakout-retest, range, mean reversion |
+| 📰 **Live context** | Economic calendar, yields, intermarket signals and OpenAI web intelligence |
+| 🧾 **Trade thesis** | Mandatory 25-point thesis plus adversarial GPT review |
+| 🔁 **Freshness** | Strict pre-entry revalidation cancels stale approvals |
+| 🛡️ **Risk** | Portfolio, correlation, daily loss, drawdown, realistic R:R and broker-aware sizing |
+| ⚡ **Execution** | Human APPROVE / DENY, `OrderCheck()`, broker-specific filling/stops/margin |
+| 🛑 **Protection** | TP1/TP2, BE, profit lock, trailing, stop-failure policy and partial-protection hazard gate |
+| 💾 **Recovery** | Restart-safe checkpointing, broker reconciliation and lifecycle replay |
+| 🔐 **Governance** | R7 API → R8 Legal → R9 Customer Risk Ack → **R10 Privacy Sign-Off** |
+| 📦 **Evidence** | Compile, static, tester, broker, soak, legal/privacy and final GO/NO-GO evidence packs |
+
+## 🏗️ Architecture at a glance
+
+```mermaid
+flowchart TD
+    A[📡 D1/H4/H1/M30/M15/M5] --> B[🧭 Market State + Regime]
+    B --> C[🧠 Strategy Selection]
+    C --> D[📐 Structure / Liquidity / Momentum / Volatility]
+    D --> E[📰 Calendar + Yield + Intermarket + Web News]
+    E --> F[🧾 25-Point Thesis]
+    F --> G[🤖 Adversarial GPT Review]
+    G --> H[🔁 Strict Revalidation]
+    H --> I[🛡️ Portfolio / Risk / Stop Health]
+    I --> J[🔐 R7 API → R8 Legal → R9 Risk Ack → R10 Privacy]
+    J --> K[🏦 Broker Rules + OrderCheck]
+    K --> L{👤 Human APPROVE?}
+    L -- No --> M[⏸️ WAIT / NO TRADE]
+    L -- Yes --> N[⚡ Execute]
+    N --> O[🛑 TP / BE / Lock / Trail]
+    O --> P[💾 Recovery + Analytics + Observability]
+```
+
+Full architecture: **[ARCHITECTURE.md](ARCHITECTURE.md)**
+
+## 🔐 Trust & governance stack
+
+```mermaid
+flowchart LR
+    GPT[🤖 OpenAI Intelligence] --> DET[⚙️ Deterministic Decision Gates]
+    REL[📦 Release Evidence] --> DET
+    API[🌐 R7 API Transport] --> DET
+    LEG[⚖️ R8 Legal] --> DET
+    ACK[👤 R9 Customer Risk Ack] --> DET
+    PRI[🔐 R10 Privacy Sign-Off] --> DET
+    STP[🛑 Stop / Recovery Health] --> DET
+    DET --> HUM{✅ Human Approval}
+    HUM --> BRK[🏦 Broker + OrderCheck]
+    BRK --> MKT[💹 Market]
+```
+
+**No single AI response can force an order.** New-entry authorization remains fail-closed when a mandatory gate is missing or stale.
+
+## 🚦 Release truth
+
+| Item | Current contract |
+|---|---|
+| 🧬 Source identity | Exact Git SHA required |
+| 🛠️ Compile | Real MetaEditor compile evidence required: **0 errors / 0 production warnings** |
+| 🔏 Artifact identity | EX5 SHA-256 + SET SHA-256/NONE |
+| 🧪 Validation | Strategy Tester + intelligence/broker/recovery/stop matrices |
+| 🌐 API | DIRECT_OPENAI or validated proxy transport evidence |
+| 🌊 Demo soak | Minimum 5 trading days + required session/event coverage |
+| ⚖️ Legal | Versioned commercial/legal acknowledgement |
+| 👤 Customer risk | Versioned no-profit/loss/AI/broker responsibility acknowledgements |
+| 🔐 Privacy | **R10 jurisdiction-bound privacy sign-off** with zero critical findings |
+| ✅ Final review | Machine-bound GO / HOLD / NO-GO |
+| 📦 Archive | Hashed release-evidence pack |
+
+> ⚠️ **Repository source does not equal live certification.** The current executable source still needs a fresh MetaEditor compile and complete evidence cycle after executable changes.
+
+## 🚀 Start here
+
+```text
+Install MT5
+   ↓
+Install GPT_EA
+   ↓
+Use your own funded OpenAI API account/key
+   ↓
+Allow https://api.openai.com in MT5 WebRequest
+   ↓
+Attach GPT_EA to DEMO
+   ↓
+Run FIRST_RUN_CHECKLIST.md
+   ↓
+Complete release / broker / soak / legal / privacy evidence
+   ↓
+Final GO/NO-GO
+   ↓
+Controlled REAL deployment with human approval
+```
+
+New users: **[INSTALLATION.md](INSTALLATION.md)** · **[USER_INSTALLATION_GUIDE.md](USER_INSTALLATION_GUIDE.md)** · **[FIRST_RUN_CHECKLIST.md](FIRST_RUN_CHECKLIST.md)** · **[API_KEY_TROUBLESHOOTING.md](API_KEY_TROUBLESHOOTING.md)**
+
+## 🗺️ Roadmap snapshot
+
+```mermaid
+flowchart LR
+    F[✅ Foundation] --> I[✅ Intelligence]
+    I --> R[✅ Reliability]
+    R --> G[✅ Release Governance]
+    G --> C[✅ Customer Rollout]
+    C --> P[🔐 R10 Privacy + Evidence]
+    P --> L[🔜 Signed Licensing]
+    L --> O[🔜 Operational Scale]
+    O --> X[🧪 Shadow Research]
+```
+
+Full roadmap: **[ROADMAP.md](ROADMAP.md)**
+
+## 📦 Release evidence architecture
+
+```mermaid
+flowchart LR
+    SHA[🧬 Git SHA] --> CMP[🛠️ Compile Evidence]
+    CMP --> EX5[🔏 EX5 / SET Hashes]
+    EX5 --> MAT[🧪 Test Matrices]
+    MAT --> SOAK[🌊 Demo Soak]
+    SOAK --> DEP[🏦 Deployment Identity]
+    DEP --> PRI[🔐 Privacy Sign-Off]
+    PRI --> REV[✅ Final GO/NO-GO]
+    REV --> PACK[📦 Hashed Evidence Pack]
+```
+
+Key release documents:
+
+- 🛠️ [COMPILE_EVIDENCE_CHECKLIST.md](COMPILE_EVIDENCE_CHECKLIST.md)
+- 🔐 [PRIVACY_SIGN_OFF.md](PRIVACY_SIGN_OFF.md)
+- 📦 [RELEASE_EVIDENCE_PACK.md](RELEASE_EVIDENCE_PACK.md)
+- ✅ [FINAL_GO_NO_GO_REVIEW.md](FINAL_GO_NO_GO_REVIEW.md)
+- 🧪 [METAEDITOR_COMPILE_GATE.md](METAEDITOR_COMPILE_GATE.md)
+
+## ⚖️ Risk & legal notice
+
+GPT_EA does **not** guarantee profit, wealth, income, winning trades or capital preservation. Trading can produce substantial losses, including loss of all capital allocated to trading. AI, brokers, APIs, market data and software can fail or be wrong.
+
+Read: [TRADING_RISK_DISCLOSURE.md](TRADING_RISK_DISCLOSURE.md) · [TERMS_AND_CONDITIONS.md](TERMS_AND_CONDITIONS.md) · [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) · [DISCLAIMER.md](DISCLAIMER.md)
+
+---
 
 ## Main EA
 

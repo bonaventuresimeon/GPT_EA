@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧠 System Intelligence & Architecture
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧠 **Document:** `ADAPTIVE_EXECUTION_ARCHITECTURE.md`
+
+---
+
 # GPT_EA R5 Adaptive Execution Architecture
 
 This document maps the advanced adaptive-execution roadmap to executable modules. These features do not replace the existing strategy/news/stop/release architecture. They sit around it and may only reduce, delay, shadow or block exposure unless a separately validated champion/challenger promotion is explicitly enabled.

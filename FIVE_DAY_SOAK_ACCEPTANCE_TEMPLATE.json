@@ -1,0 +1,52 @@
+{
+  "schema_version": "five_day_soak_acceptance_v1",
+  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+  "record_id": "",
+  "evidence_id": "",
+  "record_digest": "",
+  "candidate": {
+    "git_sha": "",
+    "ex5_sha256": "",
+    "set_sha256": "NONE",
+    "broker_company": "",
+    "trade_server": "",
+    "account_mode": "DEMO",
+    "account_currency": "",
+    "margin_mode": "",
+    "mt5_build": "",
+    "metaeditor_build": ""
+  },
+  "days": [
+    {"date":"","gap_justification":"","fresh_quotes":false,"london_observed":false,"ny_observed":false,"overlap_observed":false,"high_impact_news_observed":false,"rollover_spread_expansion_observed":false,"scheduled_scans":0,"continuous_scans":0,"manual_scans":0,"checkpoint_updates":0,"backup_checkpoint_updates":0,"restarts":0,"reconnects":0,"high_confidence_decisions":0,"wait_reanalyze_decisions":0,"no_trade_decisions":0,"zero_tolerance_failures":0,"unresolved_critical_states_end":0,"execution_log_present":false,"stop_log_present":false,"release_log_present":false},
+    {"date":"","gap_justification":"","fresh_quotes":false,"london_observed":false,"ny_observed":false,"overlap_observed":false,"high_impact_news_observed":false,"rollover_spread_expansion_observed":false,"scheduled_scans":0,"continuous_scans":0,"manual_scans":0,"checkpoint_updates":0,"backup_checkpoint_updates":0,"restarts":0,"reconnects":0,"high_confidence_decisions":0,"wait_reanalyze_decisions":0,"no_trade_decisions":0,"zero_tolerance_failures":0,"unresolved_critical_states_end":0,"execution_log_present":false,"stop_log_present":false,"release_log_present":false},
+    {"date":"","gap_justification":"","fresh_quotes":false,"london_observed":false,"ny_observed":false,"overlap_observed":false,"high_impact_news_observed":false,"rollover_spread_expansion_observed":false,"scheduled_scans":0,"continuous_scans":0,"manual_scans":0,"checkpoint_updates":0,"backup_checkpoint_updates":0,"restarts":0,"reconnects":0,"high_confidence_decisions":0,"wait_reanalyze_decisions":0,"no_trade_decisions":0,"zero_tolerance_failures":0,"unresolved_critical_states_end":0,"execution_log_present":false,"stop_log_present":false,"release_log_present":false},
+    {"date":"","gap_justification":"","fresh_quotes":false,"london_observed":false,"ny_observed":false,"overlap_observed":false,"high_impact_news_observed":false,"rollover_spread_expansion_observed":false,"scheduled_scans":0,"continuous_scans":0,"manual_scans":0,"checkpoint_updates":0,"backup_checkpoint_updates":0,"restarts":0,"reconnects":0,"high_confidence_decisions":0,"wait_reanalyze_decisions":0,"no_trade_decisions":0,"zero_tolerance_failures":0,"unresolved_critical_states_end":0,"execution_log_present":false,"stop_log_present":false,"release_log_present":false},
+    {"date":"","gap_justification":"","fresh_quotes":false,"london_observed":false,"ny_observed":false,"overlap_observed":false,"high_impact_news_observed":false,"rollover_spread_expansion_observed":false,"scheduled_scans":0,"continuous_scans":0,"manual_scans":0,"checkpoint_updates":0,"backup_checkpoint_updates":0,"restarts":0,"reconnects":0,"high_confidence_decisions":0,"wait_reanalyze_decisions":0,"no_trade_decisions":0,"zero_tolerance_failures":0,"unresolved_critical_states_end":0,"execution_log_present":false,"stop_log_present":false,"release_log_present":false}
+  ],
+  "reconciliation": {
+    "duplicate_orders": 0,
+    "duplicate_partials": 0,
+    "sl_regressions": 0,
+    "unprotected_new_authorizations": 0,
+    "release_gate_bypasses": 0,
+    "analytics_duplicate_finalizations": 0,
+    "stop_failure_join_failures": 0,
+    "dashboard_gate_mismatches": 0,
+    "runtime_critical_errors": 0,
+    "secrets_exposed": 0
+  },
+  "lifecycle_checks": {
+    "stale_human_wait_closed": false,
+    "market_confirmation_wait_preserved": false,
+    "denial_timeout_terminal": false,
+    "restart_reconstruction_passed": false,
+    "no_illegal_transition_accepted": false
+  },
+  "report_path": "artifacts/demo-soak-report.md",
+  "operator_review": {
+    "decision": "HOLD",
+    "reviewer": "",
+    "timestamp": "",
+    "notes": ""
+  }
+}

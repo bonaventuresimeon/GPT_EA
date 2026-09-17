@@ -4,7 +4,7 @@
   "title": "GPT_EA R6 Five-Day Soak Acceptance Record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version","release_validation_id","record_id","evidence_id","record_digest","candidate","days","reconciliation","lifecycle_checks","report_path","operator_review"],
+  "required": ["schema_version","release_validation_id","record_id","evidence_id","record_digest","candidate","days","reconciliation","lifecycle_checks","operator_record_path","report_path","operator_review"],
   "properties": {
     "schema_version": {"const": "five_day_soak_acceptance_v1"},
     "release_validation_id": {"const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"},
@@ -52,6 +52,7 @@
       "required":["stale_human_wait_closed","market_confirmation_wait_preserved","denial_timeout_terminal","restart_reconstruction_passed","no_illegal_transition_accepted"],
       "properties":{"stale_human_wait_closed":{"const":true},"market_confirmation_wait_preserved":{"const":true},"denial_timeout_terminal":{"const":true},"restart_reconstruction_passed":{"const":true},"no_illegal_transition_accepted":{"const":true}}
     },
+    "operator_record_path":{"type":"string","minLength":1},
     "report_path":{"type":"string","minLength":1},
     "operator_review": {
       "type":"object","additionalProperties":false,"required":["decision","reviewer","timestamp","notes"],

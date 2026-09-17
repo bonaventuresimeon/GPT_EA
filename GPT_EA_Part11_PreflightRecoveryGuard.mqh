@@ -1,12 +1,14 @@
 // ============================================================================
-// GPT_EA Part 11 - Server preflight and netting recovery safety guard
+// GPT_EA Part 11 - Server preflight and hardened recovery safety guard
 // ============================================================================
 
 input bool   InpUseOrderCheckPreflight       = true;
 input double InpMinPostTradeMarginLevelPct   = 150.0;
 input bool   InpPauseOnNettingReversal       = true;
 input bool   InpPauseOnRecoveryInconsistency = true;
+input bool   InpKeepRecoveryBackup           = true;
 
+// ------------------------- MT5 server preflight -----------------------
 bool BrokerFillingMode(const string sym,ENUM_ORDER_TYPE_FILLING &out,string &why)
 {
    long exec=SymbolInfoInteger(sym,SYMBOL_TRADE_EXEMODE);
@@ -88,6 +90,7 @@ bool ServerOrderCheckAllows(const TradeSetup &s,double lots,int deviationPts,str
    return true;
 }
 
+// ------------------------ Netting recovery guard ----------------------
 bool FirstPositionDirectionFromHistory(ulong pid,bool &firstBull)
 {
    firstBull=true;
@@ -188,4 +191,70 @@ void RecoverySafetyAudit()
       if(InpEnableAlerts) Alert("GPT_EA paused: "+consistency);
    }
    GlobalVariablesFlush();
+}
+
+// ------------------- Validated checkpoint backup layer ----------------
+string RecoveryBackupFileName(){ return RecoveryStateFileName()+".bak"; }
+
+bool RecoveryCheckpointHeaderValid(const string fileName)
+{
+   if(!FileIsExist(fileName,FILE_COMMON)) return false;
+   int h=FileOpen(fileName,FILE_READ|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return false;
+   if(FileIsEnding(h)){ FileClose(h); return false; }
+
+   string tag=FileReadString(h);
+   int version=(int)StringToInteger(FileReadString(h));
+   long login=(long)StringToInteger(FileReadString(h));
+   string server=FileReadString(h);
+   long magic=(long)StringToInteger(FileReadString(h));
+   string snapshot=FileReadString(h);
+   FileClose(h);
+
+   bool ok=(tag=="META" && version>=2 && login==AccountInfoInteger(ACCOUNT_LOGIN) && magic==InpMagic);
+   if(InpRejectRecoveryServerMismatch && server!=AccountInfoString(ACCOUNT_SERVER)) ok=false;
+   snapshot=snapshot; // retained for schema-compatible header validation
+   return ok;
+}
+
+void BackupRecoveryCheckpointIfValid()
+{
+   if(!InpUseRecoveryFileCheckpoint || !InpKeepRecoveryBackup) return;
+   string main=RecoveryStateFileName();
+   if(!RecoveryCheckpointHeaderValid(main)) return;
+   ResetLastError();
+   if(!FileCopy(main,FILE_COMMON,RecoveryBackupFileName(),FILE_COMMON|FILE_REWRITE))
+      Print("GPT_EA recovery backup copy failed: ",GetLastError());
+}
+
+void PrepareRecoveryCheckpointFallback()
+{
+   if(!InpUseRecoveryFileCheckpoint || !InpKeepRecoveryBackup) return;
+   string main=RecoveryStateFileName();
+   if(RecoveryCheckpointHeaderValid(main)) return;
+   string backup=RecoveryBackupFileName();
+   if(!RecoveryCheckpointHeaderValid(backup))
+   {
+      if(FileIsExist(main,FILE_COMMON)) Print("GPT_EA recovery main checkpoint is invalid and no valid backup is available.");
+      return;
+   }
+   ResetLastError();
+   if(FileCopy(backup,FILE_COMMON,main,FILE_COMMON|FILE_REWRITE))
+      Print("GPT_EA restored recovery checkpoint from validated backup.");
+   else
+      Print("GPT_EA could not restore recovery backup: ",GetLastError());
+}
+
+void SafeUniversalCheckpointNow()
+{
+   UniversalCheckpointNow();
+   BackupRecoveryCheckpointIfValid();
+}
+
+void SafeUniversalRecoveryTimer()
+{
+   if(!InpUseRecoveryFileCheckpoint) return;
+   datetime now=TimeTradeServer();
+   if(g_lastUniversalCheckpoint==0 || now-g_lastUniversalCheckpoint>=MathMax(10,InpRecoveryCheckpointSeconds))
+      SafeUniversalCheckpointNow();
 }

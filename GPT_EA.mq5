@@ -22,6 +22,7 @@
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull
 #define EffectiveRRDynamic EffectiveRRFullRatio
+#define ScheduledScanDue ScheduledOrContinuousScanDue
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
 #include "GPT_EA_Part16A_StrictRevalidation.mqh"
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
@@ -31,6 +32,7 @@
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 #include "GPT_EA_Part07.mqh"
 #undef PreEntryIntelligenceRevalidation
+#undef ScheduledScanDue
 #undef EffectiveRRDynamic
 #undef StrategyIntelligenceTimer
 #undef StrategyIntelligenceInit

@@ -13,11 +13,11 @@
 #include "GPT_EA_Part18_StopBrokerObservability.mqh"
 #include "GPT_EA_Part28_ReleaseCertification.mqh"
 #include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
-#define ReleaseSafetyAllows ReleaseSafetyAllowsR5
-#define ReleaseGateSummary ReleaseGateSummaryR5
-#define StopFailureObservabilityInit StopFailureObservabilityInitR5
-#define AdvancedSafetyInit AdvancedSafetyInitR5
-#define AdvancedSafetyTimer AdvancedSafetyTimerR5
+#define ReleaseSafetyAllows ReleaseSafetyAllowsR6
+#define ReleaseGateSummary ReleaseGateSummaryR6
+#define StopFailureObservabilityInit StopFailureObservabilityInitR6
+#define AdvancedSafetyInit AdvancedSafetyInitR6
+#define AdvancedSafetyTimer AdvancedSafetyTimerR6
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
@@ -72,7 +72,7 @@
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 
-// Scanner/approval path uses R5 adaptive wrappers while older modules retain
+// Scanner/approval path uses the adaptive execution wrappers while older modules retain
 // their original deterministic functions.
 #undef SelectDynamicStrategy
 #define SelectDynamicStrategy SelectDynamicStrategyR5

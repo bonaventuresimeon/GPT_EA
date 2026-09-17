@@ -53,6 +53,7 @@ string CurrentSensitiveConfigText()
       "fast=%d|slow=%d|rsi=%d|atr=%d|swing=%d|pbexp=%d|brexp=%d|tp1=%.2f|be=%d|"
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
       "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
+      "trail=%.3f|lock1=%.3f:%.3f|lock2=%.3f:%.3f|api_mode=%d|proxy=%s|https=%d|"
       "model=%s|policy=%s|symbols=%s",
       InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
       InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
@@ -63,6 +64,8 @@ string CurrentSensitiveConfigText()
       InpDirectBreakoutMinADX,InpDirectBreakoutZoneATR,
       InpUseAdaptivePortfolioEngine?1:0,InpCorrelationRiskThreshold,InpMaxCorrelationWeightedRiskPercent,
       InpMaxMacroFactorRiskPercent,InpUseDynamicQualitySizing?1:0,InpMinAdaptiveRiskMultiplier,InpMaxAdaptiveRiskMultiplier,
+      InpTrailStartR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
+      (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
       InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
 }
 

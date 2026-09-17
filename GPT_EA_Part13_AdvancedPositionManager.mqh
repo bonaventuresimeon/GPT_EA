@@ -28,6 +28,12 @@ bool RestoreMissingProtectiveStop(ulong ticket)
       return false;
    }
    double tp=PositionGetDouble(POSITION_TP);
+   if(ChaosInjectStopModifyFailure())
+   {
+      GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
+      Print(sym,": CHAOS synthetic protective-stop restoration failure.");
+      return false;
+   }
    if(!trade.PositionModify(ticket,restoredSL,tp))
    {
       Print(sym,": failed to restore missing protective SL - ",trade.ResultRetcodeDescription());

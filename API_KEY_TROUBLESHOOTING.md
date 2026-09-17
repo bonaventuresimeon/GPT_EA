@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🌐 AI & API Operations
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🌐 **Document:** `API_KEY_TROUBLESHOOTING.md`
+
+---
+
 # GPT_EA Safe API-Key Troubleshooting
 
 Use this guide when GPT_EA cannot reach OpenAI, returns an authentication/quota error, or repeatedly enters API transport backoff.

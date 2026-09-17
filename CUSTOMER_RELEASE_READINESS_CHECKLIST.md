@@ -43,6 +43,9 @@ Use this checklist before distributing a customer build or authorizing a custome
 - [ ] Demo-soak acceptance complete.
 - [ ] Final GO/NO-GO review complete.
 - [ ] Machine-readable evidence validators PASS.
+- [ ] Compile evidence JSON validates for the exact source/EX5/SET candidate.
+- [ ] R10 privacy sign-off validates for the customer's jurisdiction.
+- [ ] Privacy review has zero unresolved critical findings.
 
 ## C. Customer package
 
@@ -121,6 +124,8 @@ Before live use:
 - [ ] Exact certified build still matches.
 - [ ] Deployment identity still matches.
 - [ ] Legal/risk acknowledgement still valid.
+- [ ] R10 privacy sign-off still matches `InpCustomerJurisdiction`.
+- [ ] Privacy telemetry state is `DISABLED` or counsel/owner-approved `APPROVED`.
 - [ ] Human approval remains enabled for initial rollout.
 - [ ] Conservative initial risk selected.
 - [ ] No unresolved critical defect/security issue.

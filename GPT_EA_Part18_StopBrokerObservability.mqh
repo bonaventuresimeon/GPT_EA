@@ -217,16 +217,21 @@ void RecordStopObservationEvent(ulong ticket,const string eventName,const string
    bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
    uint ret=(uint)trade.ResultRetcode();
    string desc=trade.ResultRetcodeDescription();
-   int cls=StopFailureClassCodeFrom(ret,desc,reason);
-   int action=StopFailureActionForClass(cls);
-   int count=StopFailureCount(pid);
-   int retry=StopFailureRetrySecondsForClassCode(cls,MathMax(1,count));
-   datetime next=(retry>0?TimeTradeServer()+retry:0);
 
-   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),cls);
-   GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),action);
-   GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),retry);
-   GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),(double)next);
+   bool recoveryEvent=(eventName=="STOP_PROTECTION_RECOVERED");
+   int cls=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_CLASS_CODE"),STOP_CLASS_NONE):StopFailureClassCodeFrom(ret,desc,reason));
+   int action=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_ACTION_CODE"),STOP_ACTION_NONE):StopFailureActionForClass(cls));
+   int count=StopFailureCount(pid);
+   int retry=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0):StopFailureRetrySecondsForClassCode(cls,MathMax(1,count)));
+   datetime next=(recoveryEvent?(datetime)GVRead(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0):(retry>0?TimeTradeServer()+retry:0));
+
+   if(!recoveryEvent)
+   {
+      GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),cls);
+      GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),action);
+      GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),retry);
+      GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),(double)next);
+   }
 
    double pt=PointFor(sym); MqlTick t={}; GetTickSafe(sym,t);
    double spread=(pt>0?(t.ask-t.bid)/pt:0);
@@ -250,7 +255,7 @@ void RecordStopObservationEvent(ulong ticket,const string eventName,const string
    if(InpStopObservabilityFlushEachEvent) FileFlush(h);
    FileClose(h);
 
-   if(StopFailureActionRequiresOperator(action) && InpBlockOnOperatorStopState)
+   if(!recoveryEvent && StopFailureActionRequiresOperator(action) && InpBlockOnOperatorStopState)
       StopFailurePauseNewEntries(sym+": broker stop state "+StopFailureClassText(cls)+" requires operator/broker condition change.");
 }
 
@@ -261,12 +266,24 @@ void RecordStopFailureObservation(ulong ticket,const string context,const string
 
 void RecordStopRecoveryObservation(ulong ticket,const string context,const string note)
 {
+   if(!PositionSelectByTicket(ticket)) return;
    RecordStopObservationEvent(ticket,"STOP_PROTECTION_RECOVERED",context,note,false,PositionGetDouble(POSITION_SL),0);
 }
 
 void RecordPartialProtectionObservation(ulong ticket,const string eventName,const string reason)
 {
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    RecordStopObservationEvent(ticket,eventName,"PARTIAL_PROTECTION",reason,eventName=="PARTIAL_PROTECTION_HAZARD",PositionGetDouble(POSITION_SL),0);
+
+   if((eventName=="PARTIAL_PROTECTION_COMPLETED" || eventName=="PARTIAL_PROTECTION_RECOVERED") &&
+      StopFailureCount(pid)<=0 && GVRead(PosKey(pid,"STOP_FAIL_CRITICAL"),0)<=0.5)
+   {
+      GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),STOP_CLASS_NONE);
+      GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),STOP_ACTION_NONE);
+      GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0);
+      GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0);
+   }
 }
 
 bool PartialProtectionHazardActive(string &why)

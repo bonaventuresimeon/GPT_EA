@@ -26,9 +26,10 @@
 #define EffectiveRRDynamic EffectiveRRFullRatio
 #define ScheduledScanDue ScheduledOrContinuousScanDue
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
+#include "GPT_EA_Part22A_IntermarketForward.mqh"
+#define AssessIntermarket AssessIntermarketHardened
 #include "GPT_EA_Part22_IntelligenceFreshness.mqh"
 #define GetLiveWebIntel GetLiveWebIntelHardened
-#define AssessIntermarket AssessIntermarketHardened
 #include "GPT_EA_Part16A_StrictRevalidation.mqh"
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
@@ -43,8 +44,8 @@
 #undef BuildMandatory25PointThesis
 #undef NotifyCard
 #undef PreEntryIntelligenceRevalidation
-#undef AssessIntermarket
 #undef GetLiveWebIntel
+#undef AssessIntermarket
 #undef ScheduledScanDue
 #undef EffectiveRRDynamic
 #undef StrategyIntelligenceTimer

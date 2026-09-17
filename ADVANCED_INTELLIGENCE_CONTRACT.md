@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧠 System Intelligence & Architecture
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧠 **Document:** `ADVANCED_INTELLIGENCE_CONTRACT.md`
+
+---
+
 # GPT_EA Advanced Intelligence Contract
 
 This document maps the full market-analysis contract implemented by the strategy/news intelligence modules.

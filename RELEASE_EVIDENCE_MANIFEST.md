@@ -46,7 +46,28 @@ Concrete Part28B inputs:
 - `InpReleaseRunnerRecoveryEvidenceId=`
 - `InpReleaseRunnerRecoveryDigest=`
 
-## 3. Executed GitHub Actions CI evidence bundle
+## 3. Runner-recovery production acceptance
+
+Complete `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md` and archive the working copy plus finalized `runner_recovery_acceptance_v1` JSON.
+
+Required:
+
+- [ ] RA-001 through RA-022 PASS.
+- [ ] acceptance ID recorded.
+- [ ] acceptance digest recorded.
+- [ ] recovery evidence ID/digest match.
+- [ ] candidate Git SHA matches release build.
+- [ ] CI bundle digest matches accepted CI bundle.
+- [ ] `tools/validate_runner_recovery_acceptance.py` PASS.
+
+Concrete Part28B inputs:
+
+- `InpReleaseRunnerRecoveryAcceptancePassed=true`
+- `InpReleaseRunnerRecoveryAcceptanceSchemaVersion=runner_recovery_acceptance_v1`
+- `InpReleaseRunnerRecoveryAcceptanceId=`
+- `InpReleaseRunnerRecoveryAcceptanceDigest=`
+
+## 4. Executed GitHub Actions CI evidence bundle
 
 Follow `CI_EVIDENCE_CONTRACT.md`.
 
@@ -115,7 +136,32 @@ Concrete Part28B inputs:
 
 Set these only from the accepted bundle.
 
-## 4. Broker/deployment identity
+## 5. MT5/MetaEditor validation evidence
+
+Complete `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` and `mt5_validation_evidence_v1` for the exact candidate.
+
+Record/verify:
+
+- compile log + SHA-256;
+- 0 errors / 0 production warnings;
+- load smoke PASS;
+- Strategy Tester report + SHA-256;
+- broker symbol/stop/freeze/tick/volume/filling/margin checks;
+- restart/reconnect/checkpoint recovery;
+- stop-management/broker-stop/partial-protection/observability;
+- BUY/SELL controlled lifecycle evidence;
+- live demo WebRequest/deep-review/web-search/failure-recovery;
+- Experts/Journal/broker-history/matrix-bundle hashes;
+- operator ACCEPT.
+
+Concrete Part28B inputs:
+
+- `InpReleaseMT5ValidationPassed=true`
+- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v1`
+- `InpReleaseMT5ValidationEvidenceId=`
+- `InpReleaseMT5ValidationDigest=`
+
+## 6. Broker/deployment identity
 
 - Broker company:
 - Trade server:
@@ -129,7 +175,7 @@ Set these only from the accepted bundle.
 
 Verify stable-environment PASS, controlled structural-drift block and continued position management during a new-entry block.
 
-## 5. API/WebRequest transport evidence
+## 7. API/WebRequest transport evidence
 
 Follow `API_TRANSPORT_ARCHITECTURE.md`, `MT5_WEBREQUEST_REQUIREMENTS.md` and `API_TRANSPORT_TEST_MATRIX.md`.
 
@@ -152,7 +198,7 @@ Required:
 - [ ] `gates.api_transport=true` only after matching evidence.
 - [ ] `InpReleaseAPITransportPassed=true` only for the tested mode/endpoint.
 
-## 6. Adaptive/intelligence evidence
+## 8. Adaptive/intelligence evidence
 
 Complete and archive evidence for:
 
@@ -175,7 +221,7 @@ Complete and archive evidence for:
 
 Auto-promotion remains disabled unless separately validated.
 
-## 7. Broker/recovery/stop evidence
+## 9. Broker/recovery/stop evidence
 
 Archive PASS evidence for:
 
@@ -308,7 +354,9 @@ Concrete Part28 inputs:
 Run and archive:
 
 ```text
+python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json
 python tools/validate_ci_evidence.py ...
+python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json
 python tools/validate_ci_bundle.py ...
 python tools/validate_five_day_soak_record.py ...
 python tools/validate_soak_evidence.py release_evidence.json
@@ -321,7 +369,9 @@ python tools/validate_release_evidence_r7.py release_evidence.json
 Final checklist:
 
 - [ ] exact candidate identity archived;
+- [ ] runner-recovery acceptance PASS;
 - [ ] executed CI bundle PASS;
+- [ ] MT5 validation evidence PASS;
 - [ ] compile PASS;
 - [ ] Strategy Tester/matrices PASS;
 - [ ] deployment/broker/recovery/stop PASS;

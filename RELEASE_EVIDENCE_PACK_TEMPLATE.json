@@ -6,6 +6,31 @@
   "output_directory": "GPT_EA_RELEASE_PACK",
   "artifacts": [
     {
+      "path": "artifacts/compile-evidence.json",
+      "evidence_type": "compile_evidence",
+      "required": true
+    },
+    {
+      "path": "artifacts/compile-evidence-validation.txt",
+      "evidence_type": "compile_evidence_validation",
+      "required": true
+    },
+    {
+      "path": "artifacts/metaeditor-compile.log",
+      "evidence_type": "metaeditor_compile_log",
+      "required": true
+    },
+    {
+      "path": "artifacts/privacy-signoff.json",
+      "evidence_type": "privacy_signoff",
+      "required": true
+    },
+    {
+      "path": "artifacts/privacy-signoff-validation.txt",
+      "evidence_type": "privacy_signoff_validation",
+      "required": true
+    },
+    {
       "path": "static-check.txt",
       "evidence_type": "static_ci",
       "required": true

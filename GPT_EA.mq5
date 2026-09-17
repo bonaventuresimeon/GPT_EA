@@ -16,14 +16,18 @@
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
 #include "GPT_EA_Part20_RealisticCostModel.mqh"
 #include "GPT_EA_Part15D_StructureTargets.mqh"
+#include "GPT_EA_Part21_ResearchValidation.mqh"
 #include "GPT_EA_Part19_ContinuousIntelligence.mqh"
-#define SelectDynamicStrategy SelectDynamicStrategyComplete
+#define SelectDynamicStrategy SelectDynamicStrategyResearch
 #define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionFull
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull
 #define EffectiveRRDynamic EffectiveRRFullRatio
 #define ScheduledScanDue ScheduledOrContinuousScanDue
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
+#include "GPT_EA_Part22_IntelligenceFreshness.mqh"
+#define GetLiveWebIntel GetLiveWebIntelHardened
+#define AssessIntermarket AssessIntermarketHardened
 #include "GPT_EA_Part16A_StrictRevalidation.mqh"
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
@@ -32,6 +36,8 @@
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 #include "GPT_EA_Part07.mqh"
 #undef PreEntryIntelligenceRevalidation
+#undef AssessIntermarket
+#undef GetLiveWebIntel
 #undef ScheduledScanDue
 #undef EffectiveRRDynamic
 #undef StrategyIntelligenceTimer

@@ -62,7 +62,7 @@ for token in ["ReleaseArtifactIdentityAllows", "ReleaseDemoSoakEvidenceAllows", 
 for token in ["CaptureDeploymentBaseline", "StructuralSymbolDriftAllows", "DeploymentDriftAllows", "ReleaseSafetyAllowsR6", "RefreshR6ReleaseState"]:
     if token not in PART29: errors.append(f"Part29 missing deployment-drift token: {token}")
 for token in [
-    "GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA", "GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA", "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
+    "GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA", "GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA", "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
     "ReleaseRunnerRecoveryEvidenceAllows", "ReleaseRunnerRecoveryAcceptanceAllows", "ReleaseCIStaticEvidenceAllows", "ReleaseMT5ValidationEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
     "InpReleaseRunnerRecoveryEvidenceId", "InpReleaseRunnerRecoveryDigest", "InpReleaseRunnerRecoveryAcceptanceId", "InpReleaseRunnerRecoveryAcceptanceDigest", "InpReleaseMT5ValidationEvidenceId", "InpReleaseMT5ValidationDigest", "InpReleaseSoakAcceptanceSchemaVersion",
     "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted", "InpReleaseCIAttestationVerified",
@@ -191,12 +191,13 @@ for path_name, tokens in {
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],
     "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
-    "tools/validate_runner_recovery_acceptance.py": ["runner_recovery_acceptance_v1", "validate_runner_recovery", "ci_bundle_digest", "RUNNER RECOVERY ACCEPTANCE"],
-    "tools/validate_mt5_validation_evidence.py": ["mt5_validation_evidence_v1", "compile_log_sha256", "report_sha256", "required_failure_fail_closed", "MT5 VALIDATION EVIDENCE"],
+    "tools/validate_runner_recovery_acceptance.py": ["runner_recovery_acceptance_v1", "validate_runner_recovery", "ci_bundle_digest", "matrix_sha256", "validate_matrix", "RUNNER RECOVERY ACCEPTANCE"],
+    "tools/build_runner_recovery_acceptance.py": ["--runner-recovery", "--matrix", "--candidate-sha", "--ci-bundle-digest"],
+    "tools/validate_mt5_validation_evidence.py": ["mt5_validation_evidence_v1", "compile_log_sha256", "report_sha256", "required_failure_fail_closed", "validate_matrix_bundle", "MT5 VALIDATION EVIDENCE"],
     "tools/build_mt5_validation_evidence.py": ["--git-sha", "--compile-log", "--tester-report", "--broker-history"],
     "tools/build_runner_recovery_evidence.py": ["GITHUB_TOKEN", "runner-probe", "static-release-gate", "ci_bundle_manifest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
-    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"runner_recovery":data.get("runner_recovery",{})', '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})', "runner_recovery_pass", "soak_day_reconciliation_pass"],
+    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"runner_recovery":data.get("runner_recovery",{})', '"runner_recovery_acceptance":data.get("runner_recovery_acceptance",{})', '"mt5_validation":data.get("mt5_validation",{})', '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})', "runner_recovery_acceptance_pass", "mt5_validation_pass", "soak_day_reconciliation_pass"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
 }.items():
     p = ROOT / path_name

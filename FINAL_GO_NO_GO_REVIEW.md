@@ -4,7 +4,7 @@ This is the final human release review for the **exact candidate artifact** afte
 
 Current review schema: `final_release_review_v1`.
 
-The review digest is calculated from a stable pre-review basis that now includes the exact build identity, executed CI evidence, deployment identity, API transport evidence, demo-soak/five-day evidence and all non-operator release gates. Any material change to those objects invalidates the review digest.
+The review digest is calculated from a stable pre-review basis that includes the exact build identity, runner-recovery evidence, executed CI evidence, deployment identity, API transport evidence, demo-soak/five-day evidence and all non-operator release gates. Any material change to those objects invalidates the review digest.
 
 ## 1. Inputs required before review
 
@@ -15,7 +15,7 @@ The reviewer must have:
 - EX5 SHA-256 and SET SHA-256/`NONE`;
 - MetaEditor compile evidence and full log;
 - completed `release_evidence.json` for the exact candidate;
-- final executed CI evidence artifact;
+- validated runner-recovery evidence and validation output;\n- final executed CI evidence artifact;
 - `ci-job-metadata.json` proving job/runner/steps execution;
 - `ci-evidence-validation.txt` PASS;
 - `ci-attestation-verify.txt` PASS;
@@ -53,7 +53,7 @@ Any unexplained mismatch is automatic **NO-GO**.
 The reviewer must confirm PASS for:
 
 - compile/artifact identity;
-- executed CI static checks;
+- runner recovery from the known pre-runner failure;\n- executed CI static checks;
 - CI provenance attestation and final bundle validation;
 - Strategy Tester;
 - full intelligence matrix;
@@ -71,13 +71,19 @@ The reviewer must confirm PASS for:
 - live news/intermarket;
 - WebRequest/OpenAI failure injection;
 - selected API transport matrix/evidence;
-- five-day machine acceptance record;
+- five-day machine acceptance record using `five_day_soak_acceptance_v2`;\n- all five dated soak-day reconciliation checklists with `ACCEPT DAY`;
 - five-day operator reconciliation record;
 - demo-soak schema/digest.
 
 No PASS may be inferred from profitability alone.
 
-## 4. CI-specific review
+## 4. Runner-recovery and CI review
+
+Confirm runner-recovery evidence preserves the original `runner_id=0 / steps=0` incident, then proves a successful later runner probe and the exact candidate's static run/CI bundle. The runner-recovery evidence ID/digest must validate and `gates.runner_recovery=true`.
+
+Then confirm the CI evidence below.
+
+## 5. CI-specific review
 
 Confirm:
 
@@ -95,11 +101,11 @@ Confirm:
 
 `runner_id=0`, blank runner name or `steps=[]` is HOLD, not CI evidence.
 
-## 5. Five-day/operator review
+## 6. Five-day/operator review
 
 Confirm:
 
-- exactly five accepted trading-day rows;
+- exactly five accepted trading-day rows under `five_day_soak_acceptance_v2`;\n- every day has a completed reconciliation checklist and `ACCEPT DAY` decision;
 - session/news/rollover/restart/reconnect/scan/checkpoint coverage meets the contract;
 - operator worksheet exists and contains per-day evidence references;
 - demo-soak report exists;
@@ -108,7 +114,7 @@ Confirm:
 - acceptance record ID/digest matches `demo_soak`;
 - acceptance candidate identity matches the build.
 
-## 6. API transport review
+## 7. API transport review
 
 For DIRECT_OPENAI:
 
@@ -125,7 +131,7 @@ For SECURE_PROXY:
 
 In either mode, the high-priority matrix, live deep-review path, web-search path, failure/recovery, request tracing and zero secret leaks must pass.
 
-## 7. Zero-tolerance review
+## 8. Zero-tolerance review
 
 GO requires zero/unobserved:
 
@@ -144,7 +150,7 @@ GO requires zero/unobserved:
 
 Any non-zero hard item is **NO-GO** until corrected and revalidated.
 
-## 8. Initial live-deployment controls
+## 9. Initial live-deployment controls
 
 Confirm:
 

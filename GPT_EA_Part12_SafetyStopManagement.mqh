@@ -2,44 +2,53 @@
 // GPT_EA Part 12 - Release safety gates, recovery invariants and advanced stops
 // ============================================================================
 
-// ------------------------ Release-blocking gates ----------------------
-input bool   InpUseReleaseSafetyGate          = true;
-input bool   InpBlockRealUnlessExplicitlyArmed= true;
-input string InpLiveArmPhrase                 = ""; // set locally to GPT_EA_LIVE_ARMED after validation
-input bool   InpRequireApprovalOnRealAccount  = true;
-input bool   InpRequireTerminalConnected      = true;
-input bool   InpRequireSeriesSynchronized     = true;
-input int    InpMinBarsPerRequiredTF          = 120;
-input int    InpMaxQuoteAgeSeconds            = 30;
-input bool   InpBlockOnRecoveryInvariantFail  = true;
-input bool   InpRequireMarketAndSLOrderModes  = true;
+input bool   InpUseReleaseSafetyGate           = true;
+input bool   InpBlockRealUnlessExplicitlyArmed = true;
+input string InpLiveArmPhrase                  = "";
+input bool   InpRequireApprovalOnRealAccount   = true;
+input bool   InpRequireTerminalConnected       = true;
+input bool   InpRequireSeriesSynchronized      = true;
+input int    InpMinBarsPerRequiredTF           = 120;
+input int    InpMaxQuoteAgeSeconds             = 30;
+input bool   InpBlockOnRecoveryInvariantFail   = true;
+input bool   InpRequireMarketAndSLOrderModes   = true;
 
-// --------------------- Advanced protective-stop logic ----------------
-input bool   InpUseAdvancedStopManagement    = true;
-input double InpBETriggerR                   = 1.00;
-input double InpBELockMinR                   = 0.00; // cost-aware BE is always at least entry
-input double InpProfitLockTriggerR           = 1.50;
-input double InpProfitLockR                  = 0.50;
-input double InpStrongLockTriggerR           = 2.00;
-input double InpStrongLockR                  = 1.00;
-input bool   InpUseATRTrailing               = true;
-input double InpTrailStartR                  = 2.00;
-input double InpTrailATRMultiplier           = 1.25;
-input int    InpTrailStructureBarsM5         = 8;
-input double InpTrailStructureBufferATR      = 0.15;
-input double InpTrailMinStepR                = 0.15;
-input double InpPartialAtTP2Percent          = 50.0; // % of remaining position
-input bool   InpKeepTP3WhileTrailing          = true;
+input bool   InpUseAdvancedStopManagement = true;
+input double InpBETriggerR                = 1.00;
+input double InpBELockMinR                = 0.00;
+input double InpProfitLockTriggerR        = 1.50;
+input double InpProfitLockR               = 0.50;
+input double InpStrongLockTriggerR        = 2.00;
+input double InpStrongLockR               = 1.00;
+input bool   InpUseATRTrailing            = true;
+input double InpTrailStartR               = 2.00;
+input double InpTrailATRMultiplier        = 1.25;
+input int    InpTrailStructureBarsM5      = 8;
+input double InpTrailStructureBufferATR   = 0.15;
+input double InpTrailMinStepR             = 0.15;
+input double InpPartialAtTP2Percent       = 50.0;
+input bool   InpKeepTP3WhileTrailing      = true;
 
 bool g_releaseBlocked=false;
 string g_releaseBlockReason="Not evaluated";
 
-// -------------------------- Small utilities ---------------------------
-string JoinReason(const string a,const string b)
+bool AdvancedManagementConfigSafe(string &why)
 {
-   if(a=="") return b;
-   if(b=="") return a;
-   return a+" | "+b;
+   why="";
+   if(!InpUseAdvancedStopManagement) return true;
+   if(InpBETriggerR<=0){ why="InpBETriggerR must be > 0."; return false; }
+   if(InpBELockMinR<0){ why="InpBELockMinR cannot be negative."; return false; }
+   if(InpProfitLockTriggerR<InpBETriggerR){ why="Profit-lock trigger must be >= BE trigger."; return false; }
+   if(InpProfitLockR<0 || InpProfitLockR>=InpProfitLockTriggerR){ why="Profit-lock R must be >=0 and below its trigger R."; return false; }
+   if(InpStrongLockTriggerR<InpProfitLockTriggerR){ why="Strong-lock trigger must be >= profit-lock trigger."; return false; }
+   if(InpStrongLockR<InpProfitLockR || InpStrongLockR>=InpStrongLockTriggerR){ why="Strong-lock R must be >= profit-lock R and below strong-lock trigger R."; return false; }
+   if(InpTrailStartR<InpStrongLockTriggerR){ why="Trail start must be >= strong-lock trigger."; return false; }
+   if(InpTrailATRMultiplier<=0){ why="Trail ATR multiplier must be > 0."; return false; }
+   if(InpTrailStructureBarsM5<3){ why="Trail structure lookback must be >= 3 bars."; return false; }
+   if(InpTrailStructureBufferATR<0 || InpTrailMinStepR<0){ why="Trail buffers/steps cannot be negative."; return false; }
+   if(InpPartialAtTP1Percent<0 || InpPartialAtTP1Percent>100){ why="TP1 partial percent must be 0..100."; return false; }
+   if(InpPartialAtTP2Percent<0 || InpPartialAtTP2Percent>100){ why="TP2 partial percent must be 0..100."; return false; }
+   return true;
 }
 
 bool RequiredSeriesReady(const string sym,string &why)
@@ -87,26 +96,16 @@ bool SymbolOrderModesSafe(const string sym,string &why)
    why="";
    if(!InpRequireMarketAndSLOrderModes) return true;
    long mode=SymbolInfoInteger(sym,SYMBOL_ORDER_MODE);
-   if((mode & SYMBOL_ORDER_MARKET)!=SYMBOL_ORDER_MARKET)
-   {
-      why=sym+" does not permit market orders.";
-      return false;
-   }
-   if((mode & SYMBOL_ORDER_SL)!=SYMBOL_ORDER_SL)
-   {
-      why=sym+" does not permit protective Stop Loss orders.";
-      return false;
-   }
+   if((mode & SYMBOL_ORDER_MARKET)!=(long)SYMBOL_ORDER_MARKET){ why=sym+" does not permit market orders."; return false; }
+   if((mode & SYMBOL_ORDER_SL)!=(long)SYMBOL_ORDER_SL){ why=sym+" does not permit protective Stop Loss orders."; return false; }
    return true;
 }
 
-// ------------------------- Recovery invariants ------------------------
 bool PositionRecoveryInvariant(ulong ticket,string &why)
 {
    why="";
    if(!PositionSelectByTicket(ticket)){ why="Position selection failed."; return false; }
    if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) return true;
-
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    string sym=PositionGetString(POSITION_SYMBOL);
    bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
@@ -117,13 +116,11 @@ bool PositionRecoveryInvariant(ulong ticket,string &why)
    if(entry<=0 || vol<=0){ why=sym+" has invalid entry/volume."; return false; }
    if(currentSL<=0){ why=sym+" open GPT_EA position is unprotected (SL=0)."; return false; }
    if(GVRead(PosKey(pid,"FINAL"),0)>0.5){ why=sym+" is open but analytics FINAL flag is already set."; return false; }
-
    double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
    if(initSL<=0) initSL=HistoricalInitialSL(pid);
    if(initSL<=0){ why=sym+" original stop cannot be recovered."; return false; }
    if(bull && initSL>=entry){ why=sym+" BUY original SL is not below entry."; return false; }
    if(!bull && initSL<=entry){ why=sym+" SELL original SL is not above entry."; return false; }
-
    double R=MathAbs(entry-initSL);
    if(R<=PointFor(sym)){ why=sym+" recovered initial risk distance is invalid."; return false; }
    double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
@@ -144,13 +141,10 @@ bool PendingRecoveryInvariant(string &why)
       if(s.symbol=="" || !EnsureSymbol(s.symbol)){ why="Pending approval has unavailable symbol."; return false; }
       if(g_pending[i].expiresAt<=g_pending[i].createdAt){ why=s.symbol+" pending approval has invalid timestamps."; return false; }
       if(!s.valid){ why=s.symbol+" active pending setup is not marked valid."; return false; }
-      if(s.bullish && !(s.sl<s.preferred && s.tp1>s.preferred && s.tp2>s.tp1 && s.tp3>s.tp2))
-      { why=s.symbol+" pending BUY geometry is inconsistent."; return false; }
-      if(!s.bullish && !(s.sl>s.preferred && s.tp1<s.preferred && s.tp2<s.tp1 && s.tp3<s.tp2))
-      { why=s.symbol+" pending SELL geometry is inconsistent."; return false; }
+      if(s.bullish && !(s.sl<s.preferred && s.tp1>s.preferred && s.tp2>s.tp1 && s.tp3>s.tp2)){ why=s.symbol+" pending BUY geometry is inconsistent."; return false; }
+      if(!s.bullish && !(s.sl>s.preferred && s.tp1<s.preferred && s.tp2<s.tp1 && s.tp3<s.tp2)){ why=s.symbol+" pending SELL geometry is inconsistent."; return false; }
       for(int j=i+1;j<ArraySize(g_pending);j++)
-         if(g_pending[j].active && g_pending[j].setup.symbol==s.symbol)
-         { why=s.symbol+" has duplicate active pending approvals."; return false; }
+         if(g_pending[j].active && g_pending[j].setup.symbol==s.symbol){ why=s.symbol+" has duplicate active pending approvals."; return false; }
    }
    return true;
 }
@@ -158,6 +152,8 @@ bool PendingRecoveryInvariant(string &why)
 bool RecoveryInvariantsPass(string &why)
 {
    why="";
+   string configWhy="";
+   if(!AdvancedManagementConfigSafe(configWhy)){ why="Management configuration invalid: "+configWhy; return false; }
    for(int i=PositionsTotal()-1;i>=0;i--)
    {
       ulong tk=PositionGetTicket(i); if(tk==0) continue;
@@ -167,11 +163,7 @@ bool RecoveryInvariantsPass(string &why)
    }
    string pendingWhy="";
    if(!PendingRecoveryInvariant(pendingWhy)){ why=pendingWhy; return false; }
-   if(g_dayStartEquity<=0 || g_equityPeak<=0)
-   {
-      why="Risk-session equity state is invalid.";
-      return false;
-   }
+   if(g_dayStartEquity<=0 || g_equityPeak<=0){ why="Risk-session equity state is invalid."; return false; }
    return true;
 }
 
@@ -189,7 +181,6 @@ void RebuildAdvancedProtectionState()
       if(initSL<=0) initSL=HistoricalInitialSL(pid);
       double R=MathAbs(entry-initSL);
       if(R<=0) continue;
-
       int stage=0;
       if(sl>0)
       {
@@ -201,44 +192,38 @@ void RebuildAdvancedProtectionState()
       double stored=GVRead(PosKey(pid,"SL_STAGE"),0);
       if(stage>(int)stored) GVWrite(PosKey(pid,"SL_STAGE"),stage);
       GVWrite(PosKey(pid,"LASTSL"),sl);
-      if(LegacyTicketRead(tk,"TP1DONE",0)>0.5) LegacyTicketWrite(tk,"TP1PARTIAL",1);
+      if(LegacyTicketRead(tk,"TP1DONE",0)>0.5 || PositionHistoryHadExit(pid))
+      {
+         LegacyTicketWrite(tk,"TP1PARTIAL",1);
+         GVWrite(PosKey(pid,"TP1PARTIAL"),1);
+      }
    }
    GlobalVariablesFlush();
 }
 
-// -------------------------- Release gate ------------------------------
 bool ReleaseSafetyAllows(const string sym,string &why)
 {
    why="";
    if(!InpUseReleaseSafetyGate){ why="Release safety gate disabled."; return true; }
    if((bool)MQLInfoInteger(MQL_TESTER)){ why="Strategy Tester environment."; return true; }
-
-   if(InpRequireTerminalConnected && !(bool)TerminalInfoInteger(TERMINAL_CONNECTED))
-   { why="Terminal is not connected to trade server."; return false; }
-   if(!(bool)TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
-   { why="Terminal automated trading is disabled."; return false; }
-   if(!(bool)MQLInfoInteger(MQL_TRADE_ALLOWED))
-   { why="EA-level automated trading permission is disabled."; return false; }
-   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED))
-   { why="Trading is disabled for this account."; return false; }
-   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_EXPERT))
-   { why="EA trading is disabled by the trade server/account."; return false; }
-
+   string configWhy="";
+   if(!AdvancedManagementConfigSafe(configWhy)){ why="Management configuration invalid: "+configWhy; return false; }
+   if(InpRequireTerminalConnected && !(bool)TerminalInfoInteger(TERMINAL_CONNECTED)){ why="Terminal is not connected to trade server."; return false; }
+   if(!(bool)TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)){ why="Terminal automated trading is disabled."; return false; }
+   if(!(bool)MQLInfoInteger(MQL_TRADE_ALLOWED)){ why="EA-level automated trading permission is disabled."; return false; }
+   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED)){ why="Trading is disabled for this account."; return false; }
+   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_EXPERT)){ why="EA trading is disabled by the trade server/account."; return false; }
    ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
    if(mode==ACCOUNT_TRADE_MODE_REAL)
    {
-      if(InpBlockRealUnlessExplicitlyArmed && InpLiveArmPhrase!="GPT_EA_LIVE_ARMED")
-      { why="REAL account blocked: set local InpLiveArmPhrase to GPT_EA_LIVE_ARMED only after release validation."; return false; }
-      if(InpRequireApprovalOnRealAccount && !InpRequireApproval)
-      { why="REAL account blocked: human approval is required by release policy."; return false; }
+      if(InpBlockRealUnlessExplicitlyArmed && InpLiveArmPhrase!="GPT_EA_LIVE_ARMED"){ why="REAL account blocked: set local InpLiveArmPhrase to GPT_EA_LIVE_ARMED only after release validation."; return false; }
+      if(InpRequireApprovalOnRealAccount && !InpRequireApproval){ why="REAL account blocked: human approval is required by release policy."; return false; }
    }
-
    if(InpBlockOnRecoveryInvariantFail)
    {
       string inv="";
       if(!RecoveryInvariantsPass(inv)){ why="Recovery invariant failed: "+inv; return false; }
    }
-
    if(sym!="")
    {
       string swhy="";
@@ -251,6 +236,8 @@ bool ReleaseSafetyAllows(const string sym,string &why)
 
 void RefreshReleaseSafetyGate()
 {
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
    string why="";
    bool ok=ReleaseSafetyAllows("",why);
    if(ok)
@@ -263,18 +250,18 @@ void RefreshReleaseSafetyGate()
    }
    g_releaseBlocked=!ok;
    g_releaseBlockReason=(ok?"All release-blocking safety gates pass.":why);
-   if(g_releaseBlocked) Print("GPT_EA RELEASE BLOCK: ",g_releaseBlockReason);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason)) Print("GPT_EA RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all release-blocking safety gates pass.");
 }
 
 string ReleaseGateSummary(){ return (g_releaseBlocked?"BLOCKED - "+g_releaseBlockReason:"PASS"); }
 
-// ---------------------- Protective-stop management -------------------
 double BrokerModifyDistance(const string sym)
 {
    double pt=PointFor(sym);
    int stops=(int)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL);
    int freeze=(int)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL);
-   return (MathMax(stops,freeze)+1)*pt;
+   return ((double)MathMax(stops,freeze)+1.0)*pt;
 }
 
 bool StopImproves(bool bull,double currentSL,double candidate,double minStep)
@@ -313,30 +300,32 @@ bool ApplyAdvancedStop(ulong ticket,double candidate,int stage,double rNow,const
    double entry=PositionGetDouble(POSITION_PRICE_OPEN);
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
    double R=MathAbs(entry-initSL);
+   if(R<=0) return false;
    double minStep=MathMax(PointFor(sym),InpTrailMinStepR*MathMax(R,PointFor(sym)));
    candidate=NormalizePriceToTick(sym,candidate);
-   if(!StopImproves(bull,currentSL,candidate,minStep) && stage>=4) return false;
-   if(stage<4 && !StopImproves(bull,currentSL,candidate,PointFor(sym)*0.5)) return false;
-
+   if(stage>=4)
+   {
+      if(!StopImproves(bull,currentSL,candidate,minStep)) return false;
+   }
+   else if(!StopImproves(bull,currentSL,candidate,PointFor(sym)*0.5)) return false;
    string safeWhy="";
    if(!StopBrokerSafe(sym,bull,candidate,safeWhy)) return false;
-   double tp=(InpKeepTP3WhileTrailing?PositionGetDouble(POSITION_TP):0);
+   double currentTP=PositionGetDouble(POSITION_TP);
+   double tp=((stage>=4 && !InpKeepTP3WhileTrailing)?0:currentTP);
    if(!trade.PositionModify(ticket,candidate,tp))
    {
       Print(sym,": stop modification failed - ",trade.ResultRetcodeDescription());
       return false;
    }
-
    GVWrite(PosKey(pid,"SL_STAGE"),stage);
    GVWrite(PosKey(pid,"LASTSL"),candidate);
    LegacyTicketWrite(ticket,"ADV_STAGE",stage);
    SafeUniversalCheckpointNow();
    int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
-   AppendJournal("STOP_"+StopStageName(stage),sym,kind,0,pid,entry,candidate,0,rNow,
-                 GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
-   PrintFormat("%s: protective SL advanced to %.*f | stage %s | %.2fR | %s",
-               sym,DigitsFor(sym),candidate,StopStageName(stage),rNow,reason);
+   AppendJournal("STOP_"+StopStageName(stage),sym,kind,0,pid,entry,candidate,0,rNow,GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
+   PrintFormat("%s: protective SL advanced to %.*f | stage %s | %.2fR | %s",sym,DigitsFor(sym),candidate,StopStageName(stage),rNow,reason);
    return true;
 }
 
@@ -380,7 +369,6 @@ bool AdvanceProfitProtection(ulong ticket,double rNow,double R,double entry,doub
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
    bool changed=false;
-
    if(rNow>=InpBETriggerR && stage<1)
    {
       if(EnsureBreakEvenProtection(ticket,rNow,R,entry,bull)){ stage=1; changed=true; }
@@ -388,29 +376,23 @@ bool AdvanceProfitProtection(ulong ticket,double rNow,double R,double entry,doub
    if(rNow>=InpProfitLockTriggerR && stage<2)
    {
       double candidate=(bull?entry+InpProfitLockR*R:entry-InpProfitLockR*R);
-      if(ApplyAdvancedStop(ticket,candidate,2,rNow,StringFormat("lock %.2fR after %.2fR",InpProfitLockR,InpProfitLockTriggerR)))
-      { stage=2; changed=true; }
+      if(ApplyAdvancedStop(ticket,candidate,2,rNow,StringFormat("lock %.2fR after %.2fR",InpProfitLockR,InpProfitLockTriggerR))){ stage=2; changed=true; }
    }
    if(rNow>=InpStrongLockTriggerR && stage<3)
    {
       double candidate=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
-      if(ApplyAdvancedStop(ticket,candidate,3,rNow,StringFormat("lock %.2fR after %.2fR",InpStrongLockR,InpStrongLockTriggerR)))
-      { stage=3; changed=true; }
+      if(ApplyAdvancedStop(ticket,candidate,3,rNow,StringFormat("lock %.2fR after %.2fR",InpStrongLockR,InpStrongLockTriggerR))){ stage=3; changed=true; }
    }
-
    if(InpUseATRTrailing && rNow>=InpTrailStartR)
    {
       double atr=0,hi=0,lo=0;
-      if(ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) && atr>0 &&
-         RecentHighLow(sym,PERIOD_M5,1,MathMax(3,InpTrailStructureBarsM5),hi,lo))
+      int lookback=(int)MathMax(3,InpTrailStructureBarsM5);
+      if(ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) && atr>0 && RecentHighLow(sym,PERIOD_M5,1,lookback,hi,lo))
       {
          double atrStop=(bull?px-InpTrailATRMultiplier*atr:px+InpTrailATRMultiplier*atr);
          double structureStop=(bull?lo-InpTrailStructureBufferATR*atr:hi+InpTrailStructureBufferATR*atr);
          double floorStop=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
-         // Use the wider of ATR/structure so normal noise does not over-tighten, but never give back below the strong-lock floor.
-         double candidate;
-         if(bull) candidate=MathMax(floorStop,MathMin(atrStop,structureStop));
-         else     candidate=MathMin(floorStop,MathMax(atrStop,structureStop));
+         double candidate=(bull?MathMax(floorStop,MathMin(atrStop,structureStop)):MathMin(floorStop,MathMax(atrStop,structureStop)));
          if(ApplyAdvancedStop(ticket,candidate,4,rNow,"ATR + M5 structure trailing")) changed=true;
       }
    }

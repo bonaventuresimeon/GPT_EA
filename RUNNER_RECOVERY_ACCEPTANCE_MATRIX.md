@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md`
+
+---
+
 # GPT_EA R6 Runner-Recovery Acceptance Matrix
 
 This matrix is the production acceptance layer for recovery from the known GitHub hosted-runner pre-execution failure. It is distinct from `RUNNER_RECOVERY_TEST_MATRIX.md`: the test matrix defines cases to exercise, while this matrix defines the evidence that must exist before the recovery is accepted for an R6 production candidate.

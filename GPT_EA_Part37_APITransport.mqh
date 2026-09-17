@@ -235,6 +235,15 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
    }
 
    string trace=APINewTraceId();
+   GVWrite(SysKey("MODEL_REQ"),GVRead(SysKey("MODEL_REQ"),0)+1);
+   if(ChaosInjectAPITimeout())
+   {
+      APIStringToResult("CHAOS: synthetic API timeout before network transport.",result);
+      result_headers="X-GPT-EA-Transport: chaos-timeout\r\n";
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+      APITransportRecordOutcome(trace,599,0,result_headers);
+      return 599;
+   }
    string target=url;
    string outgoingHeaders=headers;
    if(InpAPITransportMode==GPT_API_SECURE_PROXY)
@@ -269,6 +278,10 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
       code=599; // internal synthetic HTTP-like status so downstream code gets deterministic failure text
    }
 
+   if(code<200 || code>=300)
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+   else
+      GVWrite(SysKey("MODEL_LAST_TRANSPORT_OK"),(double)TimeTradeServer());
    APITransportRecordOutcome(trace,code,mqlError,result_headers);
    return code;
 }

@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `ADAPTIVE_EXECUTION_TEST_MATRIX.md`
+
+---
+
 # GPT_EA R5 Adaptive Execution Release Test Matrix
 
 This matrix is release-blocking for the R5 adaptive stack. A source-level implementation is not a PASS. Evidence must come from MetaEditor, Strategy Tester where applicable, and demo/terminal testing where live calendar, broker execution or WebRequest behavior is required.

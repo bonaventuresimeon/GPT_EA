@@ -24,6 +24,7 @@ CHECKS = [
     ROOT / "tools" / "check_mt5_validation_contract.py",
     ROOT / "tools" / "check_api_transport_static.py",
     ROOT / "tools" / "check_legal_rollout_static.py",
+    ROOT / "tools" / "check_documentation_branding.py",
 ]
 
 

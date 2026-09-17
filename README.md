@@ -388,6 +388,15 @@ Customer distribution is supported by:
 
 The R9 customer-risk acknowledgement gate sits on top of the R8 legal gate and existing R7 API/release gate. REAL-account new entries remain blocked until the customer explicitly accepts the current commercial terms and trading-risk disclosure, enters the exact acknowledgement phrase, and supplies the issued license reference. Demo/Strategy Tester remain available for evaluation. Legal/license failure must never be used to weaken management of already-open positions.
 
+## Documentation architecture
+
+- 🏗️ `ARCHITECTURE.md` — end-to-end system and trust-boundary diagrams.
+- 🗺️ `ROADMAP.md` — capability roadmap and promotion guardrails.
+- 🔐 `PRIVACY_DATA_RETENTION_REVIEW.md` — privacy inventory, retention and incident review.
+- 📦 `RELEASE_EVIDENCE_PACK.md` — canonical release archive structure and pack generator.
+
+Every repository Markdown file uses the shared **🧠⚡ GPT_EA** documentation lockup and navigation header. `tools/check_documentation_branding.py` prevents unbranded Markdown from silently entering the release documentation set.
+
 ## Installation and onboarding
 
 New users should start with:

@@ -7,6 +7,7 @@
   "required": [
     "schema_version",
     "evidence_id",
+    "evidence_digest",
     "start",
     "end",
     "trading_days",
@@ -41,6 +42,7 @@
   "properties": {
     "schema_version": {"const": "demo_soak_evidence_v1"},
     "evidence_id": {"type": "string", "minLength": 8},
+    "evidence_digest": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
     "start": {"type": "string", "minLength": 10},
     "end": {"type": "string", "minLength": 10},
     "trading_days": {"type": "integer", "minimum": 5},

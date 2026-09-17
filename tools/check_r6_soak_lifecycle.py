@@ -18,7 +18,7 @@ paths={
     "five_schema": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
     "five_template": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json",
     "five_record_doc": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md",
-    "operator_template": ROOT/"FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
+    "operator_template": ROOT/"FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",\n    "day_checklist": ROOT/"SOAK_DAY_RECONCILIATION_CHECKLIST.md",
     "evidence_doc": ROOT/"DEMO_SOAK_EVIDENCE.md",
     "report": ROOT/"DEMO_SOAK_REPORT_TEMPLATE.md",
     "matrix": ROOT/"R6_LIFECYCLE_SOAK_TEST_MATRIX.md",
@@ -118,14 +118,14 @@ try:
     required=set(five_schema.get("required",[]))
     for field in ("operator_record_path","report_path","operator_review","lifecycle_checks","reconciliation"):
         if field not in required: errors.append(f"five-day acceptance schema must require {field}")
-    if five_schema.get("properties",{}).get("schema_version",{}).get("const")!="five_day_soak_acceptance_v1":
+    if five_schema.get("properties",{}).get("schema_version",{}).get("const")!="five_day_soak_acceptance_v2":
         errors.append("five-day acceptance schema version mismatch")
 except Exception as exc:
     errors.append(f"FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json invalid: {exc}")
 
 try:
     five_template=json.loads(paths["five_template"].read_text(encoding="utf-8"))
-    if len(five_template.get("days",[]))!=5: errors.append("five-day template must have exactly five day rows")
+    if len(five_template.get("days",[]))!=5: errors.append("five-day template must have exactly five day rows")\n    if five_template.get("schema_version")!="five_day_soak_acceptance_v2": errors.append("five-day template must use v2 reconciliation schema")\n    for i,day in enumerate(five_template.get("days",[]),start=1):\n        for key in ("reconciliation_checklist_path","day_reconciled","reconciled_by","reconciled_at"):\n            if key not in day: errors.append(f"five-day template day {i} missing {key}")
     if not str(five_template.get("operator_record_path","")).strip(): errors.append("five-day template operator_record_path is missing")
     if five_template.get("operator_review",{}).get("decision")!="HOLD": errors.append("five-day template operator decision must default HOLD")
 except Exception as exc:
@@ -141,11 +141,11 @@ for token in [
 for token in ["Candidate identity","Zero-tolerance reconciliation","Schema and digest","Operator conclusion"]:
     if token not in report: errors.append(f"DEMO_SOAK_REPORT_TEMPLATE.md missing section: {token}")
 
-operator_doc=paths["operator_template"].read_text(encoding="utf-8")
+operator_doc=paths["operator_template"].read_text(encoding="utf-8")\nday_doc=paths["day_checklist"].read_text(encoding="utf-8")
 for token in ["Daily reconciliation","Lifecycle acceptance","Zero-tolerance reconciliation","Operator decision"]:
     if token not in operator_doc: errors.append(f"operator record template missing section: {token}")
 
-five_doc=paths["five_record_doc"].read_text(encoding="utf-8")
+for token in ["Day identity","Order/deal/execution reconciliation","Protection and stop-management reconciliation","Day decision","ACCEPT DAY"]:\n    if token not in day_doc: errors.append(f"soak-day checklist missing section/token: {token}")\n\nfive_doc=paths["five_record_doc"].read_text(encoding="utf-8")
 for token in ["operator_record_path","FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md","validate_five_day_soak_record.py"]:
     if token not in five_doc: errors.append(f"five-day acceptance record doc missing token: {token}")
 
@@ -154,7 +154,7 @@ for token in ["LS-001","LS-002","LS-008","DS-010","DS-020","DS-030","DS-040","DS
 
 for token in ["canonical_digest", "validate_soak", "evidence_digest", "No release-evidence file was modified"]:
     if token not in importer: errors.append(f"import_soak_snapshot.py missing safety token: {token}")
-for token in ["operator_record_path","stale_human_wait_closed","market_confirmation_wait_preserved","record_digest"]:
+for token in ["five_day_soak_acceptance_v2","reconciliation_checklist_path","day_reconciled","ACCEPT DAY","operator_record_path","record_digest"]:
     if token not in five_validator: errors.append(f"five-day validator missing contract token: {token}")
 
 if errors:

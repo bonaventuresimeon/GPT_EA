@@ -17,6 +17,10 @@ required=[
     "tools/validate_runner_recovery_evidence.py",
     "tools/build_runner_recovery_evidence.py",
     "RUNNER_RECOVERY_TEST_MATRIX.md",
+    "RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md",
+    "RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json",
+    "RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json",
+    "tools/validate_runner_recovery_acceptance.py",
     "GPT_EA_Part28B_CIReleaseEvidence.mqh",
     "RELEASE_EVIDENCE_TEMPLATE.json",
 ]
@@ -39,26 +43,45 @@ if not errors:
     validator=(ROOT/"tools/validate_runner_recovery_evidence.py").read_text(encoding="utf-8")
     builder=(ROOT/"tools/build_runner_recovery_evidence.py").read_text(encoding="utf-8")
     matrix=(ROOT/"RUNNER_RECOVERY_TEST_MATRIX.md").read_text(encoding="utf-8")
+    acceptance_matrix=(ROOT/"RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
+    acceptance_template=json.loads((ROOT/"RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json").read_text(encoding="utf-8"))
+    acceptance_validator=(ROOT/"tools/validate_runner_recovery_acceptance.py").read_text(encoding="utf-8")
     for token in ["PRE_RUNNER_NO_STEPS","runner_id","steps_executed","ci_bundle_digest","expected_bundle_digest","RUNNER RECOVERY EVIDENCE"]:
         if token not in validator: errors.append(f"runner recovery validator missing token: {token}")
     for token in ["attempts/{attempt}/jobs","ci_bundle_manifest","runner-probe","static-release-gate","GITHUB_TOKEN"]:
         if token not in builder: errors.append(f"runner recovery builder missing token: {token}")
     for token in ["RR-001","RR-004","RR-009","RR-013","RR-018"]:
         if token not in matrix: errors.append(f"runner recovery test matrix missing {token}")
+    for token in ["RA-001","RA-007","RA-014","RA-017","RA-022"]:
+        if token not in acceptance_matrix: errors.append(f"runner recovery acceptance matrix missing {token}")
+    if acceptance_template.get("schema_version")!="runner_recovery_acceptance_v1":
+        errors.append("runner recovery acceptance template schema mismatch")
+    if acceptance_template.get("operator_review",{}).get("decision")!="HOLD":
+        errors.append("runner recovery acceptance template must default HOLD")
+    for token in ["runner_recovery_acceptance_v1","validate_runner_recovery","ci_bundle_digest","RUNNER RECOVERY ACCEPTANCE"]:
+        if token not in acceptance_validator: errors.append(f"runner recovery acceptance validator missing token: {token}")
 
     part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for token in ["GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA","ReleaseRunnerRecoveryEvidenceAllows",
                   "InpReleaseRunnerRecoveryPassed","InpReleaseRunnerRecoverySchemaVersion",
-                  "InpReleaseRunnerRecoveryEvidenceId","InpReleaseRunnerRecoveryDigest"]:
+                  "InpReleaseRunnerRecoveryEvidenceId","InpReleaseRunnerRecoveryDigest",
+                  "GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA","ReleaseRunnerRecoveryAcceptanceAllows",
+                  "InpReleaseRunnerRecoveryAcceptancePassed","InpReleaseRunnerRecoveryAcceptanceDigest"]:
         if token not in part: errors.append(f"Part28B missing runner recovery token: {token}")
     if not re.search(r"input\s+bool\s+InpReleaseRunnerRecoveryPassed\s*=\s*false\s*;",part):
         errors.append("InpReleaseRunnerRecoveryPassed must default false")
+    if not re.search(r"input\s+bool\s+InpReleaseRunnerRecoveryAcceptancePassed\s*=\s*false\s*;",part):
+        errors.append("InpReleaseRunnerRecoveryAcceptancePassed must default false")
 
     release=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
     if release.get("runner_recovery",{}).get("schema_version")!="runner_recovery_evidence_v1":
         errors.append("release evidence template missing runner recovery object")
     if release.get("gates",{}).get("runner_recovery") is not False:
         errors.append("release evidence runner_recovery gate must default false")
+    if release.get("runner_recovery_acceptance",{}).get("schema_version")!="runner_recovery_acceptance_v1":
+        errors.append("release evidence template missing runner recovery acceptance object")
+    if release.get("gates",{}).get("runner_recovery_acceptance") is not False:
+        errors.append("release evidence runner_recovery_acceptance gate must default false")
 
 if errors:
     print("RUNNER RECOVERY STATIC CHECK: FAILED")

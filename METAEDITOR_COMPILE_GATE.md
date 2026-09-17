@@ -111,3 +111,15 @@ Minimum record:
 | Release owner | identified in local release evidence |
 
 `InpReleaseMetaEditorCompilePassed=true` may be set only after this contract has actually passed and its evidence is archived.
+
+## 8. Binding into MT5 validation evidence
+
+The compile gate is now one component of `mt5_validation_evidence_v1`. After compilation and the load smoke test:
+
+1. archive the compile log used by this gate;
+2. record its SHA-256 in `compile.compile_log_sha256`;
+3. ensure the MT5 evidence candidate Git/EX5/SET identity exactly matches the release build;
+4. record the same MetaEditor and MT5 builds;
+5. complete the remaining Strategy Tester, broker-runtime, recovery, protection and live-demo API/news evidence under `MT5_VALIDATION_EVIDENCE.md`.
+
+A compile PASS alone does not set `InpReleaseMT5ValidationPassed=true`. That input is eligible only after the full MT5 evidence validator returns PASS.

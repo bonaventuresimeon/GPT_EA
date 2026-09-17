@@ -19,11 +19,12 @@
 #include "GPT_EA_Part37_APITransport.mqh"
 #undef Trim
 #include "GPT_EA_Part38_LegalLicenseGate.mqh"
-#define ReleaseSafetyAllows ReleaseSafetyAllowsR8Legal
-#define ReleaseGateSummary ReleaseGateSummaryR8Legal
-#define StopFailureObservabilityInit StopFailureObservabilityInitR8Legal
-#define AdvancedSafetyInit AdvancedSafetyInitR8Legal
-#define AdvancedSafetyTimer AdvancedSafetyTimerR8Legal
+#include "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh"
+#define ReleaseSafetyAllows ReleaseSafetyAllowsR9CustomerAck
+#define ReleaseGateSummary ReleaseGateSummaryR9CustomerAck
+#define StopFailureObservabilityInit StopFailureObservabilityInitR9CustomerAck
+#define AdvancedSafetyInit AdvancedSafetyInitR9CustomerAck
+#define AdvancedSafetyTimer AdvancedSafetyTimerR9CustomerAck
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"

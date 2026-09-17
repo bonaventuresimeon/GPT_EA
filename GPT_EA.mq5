@@ -18,11 +18,12 @@
 #define Trim APITrim
 #include "GPT_EA_Part37_APITransport.mqh"
 #undef Trim
-#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API
-#define ReleaseGateSummary ReleaseGateSummaryR7API
-#define StopFailureObservabilityInit StopFailureObservabilityInitR7API
-#define AdvancedSafetyInit AdvancedSafetyInitR7API
-#define AdvancedSafetyTimer AdvancedSafetyTimerR7API
+#include "GPT_EA_Part38_LegalLicenseGate.mqh"
+#define ReleaseSafetyAllows ReleaseSafetyAllowsR8Legal
+#define ReleaseGateSummary ReleaseGateSummaryR8Legal
+#define StopFailureObservabilityInit StopFailureObservabilityInitR8Legal
+#define AdvancedSafetyInit AdvancedSafetyInitR8Legal
+#define AdvancedSafetyTimer AdvancedSafetyTimerR8Legal
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"

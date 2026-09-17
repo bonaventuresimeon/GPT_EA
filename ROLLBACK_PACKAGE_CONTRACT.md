@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 📚 Engineering Documentation
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 📚 **Document:** `ROLLBACK_PACKAGE_CONTRACT.md`
+
+---
+
 # GPT_EA Certified Release Rollback Package
 
 Every production promotion after the first certified release should retain a rollback package for the **previous certified candidate**. A rollback must restore a known evidence-bound EX5/SET/configuration, not merely copy an old executable from an operator folder.

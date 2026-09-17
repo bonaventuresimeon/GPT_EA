@@ -43,15 +43,26 @@ ulong RefreshTicketFromPositionId(ulong pid,ulong fallback)
    return current>0?current:fallback;
 }
 
+bool PositionFlag(ulong pid,ulong ticket,const string field)
+{
+   return (GVRead(PosKey(pid,field),LegacyTicketRead(ticket,field,0))>0.5);
+}
+
+void WritePositionFlag(ulong pid,ulong ticket,const string field,double value)
+{
+   GVWrite(PosKey(pid,field),value);
+   LegacyTicketWrite(ticket,field,value);
+}
+
 bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
 {
    if(!PositionSelectByTicket(ticket)) return false;
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    string sym=PositionGetString(POSITION_SYMBOL);
    bool reached=(bull?px>=tp1:px<=tp1);
-   if(!reached) return (LegacyTicketRead(ticket,"TP1DONE",0)>0.5);
+   if(!reached) return PositionFlag(pid,ticket,"TP1DONE");
 
-   bool partialDone=(LegacyTicketRead(ticket,"TP1PARTIAL",0)>0.5);
+   bool partialDone=PositionFlag(pid,ticket,"TP1PARTIAL");
    if(!partialDone)
    {
       bool partialOK=true;
@@ -72,9 +83,11 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
          return false;
       }
       ticket=RefreshTicketFromPositionId(pid,ticket);
-      if(!PositionSelectByTicket(ticket)) return true; // position may have fully closed
-      LegacyTicketWrite(ticket,"TP1PARTIAL",1);
-      LegacyTicketWrite(ticket,"TP1_TIME",(double)TimeTradeServer());
+      if(!PositionSelectByTicket(ticket)) return true;
+      WritePositionFlag(pid,ticket,"TP1PARTIAL",1);
+      double now=(double)TimeTradeServer();
+      GVWrite(PosKey(pid,"TP1_TIME"),now);
+      LegacyTicketWrite(ticket,"TP1_TIME",now);
       SafeUniversalCheckpointNow();
    }
 
@@ -93,8 +106,13 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
 
    if(protectionReady)
    {
-      LegacyTicketWrite(ticket,"TP1DONE",1);
-      if(LegacyTicketRead(ticket,"TP1_TIME",0)<=0) LegacyTicketWrite(ticket,"TP1_TIME",(double)TimeTradeServer());
+      WritePositionFlag(pid,ticket,"TP1DONE",1);
+      if(GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0))<=0)
+      {
+         double now=(double)TimeTradeServer();
+         GVWrite(PosKey(pid,"TP1_TIME"),now);
+         LegacyTicketWrite(ticket,"TP1_TIME",now);
+      }
       SafeUniversalCheckpointNow();
       return true;
    }
@@ -106,11 +124,11 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
 bool HandleTP2Partial(ulong &ticket,double px,double tp2,bool bull,double rNow)
 {
    if(!PositionSelectByTicket(ticket)) return false;
-   if(LegacyTicketRead(ticket,"TP2PARTIAL",0)>0.5) return true;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(PositionFlag(pid,ticket,"TP2PARTIAL")) return true;
    bool reached=(bull?px>=tp2:px<=tp2) || rNow>=2.0;
    if(!reached) return false;
 
-   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    string sym=PositionGetString(POSITION_SYMBOL);
    double vol=PositionGetDouble(POSITION_VOLUME);
    bool ok=true;
@@ -128,8 +146,10 @@ bool HandleTP2Partial(ulong &ticket,double px,double tp2,bool bull,double rNow)
    ticket=RefreshTicketFromPositionId(pid,ticket);
    if(PositionSelectByTicket(ticket))
    {
-      LegacyTicketWrite(ticket,"TP2PARTIAL",1);
-      LegacyTicketWrite(ticket,"TP2_TIME",(double)TimeTradeServer());
+      WritePositionFlag(pid,ticket,"TP2PARTIAL",1);
+      double now=(double)TimeTradeServer();
+      GVWrite(PosKey(pid,"TP2_TIME"),now);
+      LegacyTicketWrite(ticket,"TP2_TIME",now);
       SafeUniversalCheckpointNow();
    }
    return true;
@@ -185,7 +205,6 @@ void ManagePositionsAdvanced()
       ticket=RefreshTicketFromPositionId(pid,ticket);
       if(!PositionSelectByTicket(ticket)) continue;
 
-      // Before TP1, stale setups are exited after their adaptive M15 budget.
       if(!tp1done && BarsSince(sym,PERIOD_M15,opened)>=expiry)
       {
          Print(sym,": time invalidation — TP1 not reached within ",expiry," M15 candles.");
@@ -198,7 +217,6 @@ void ManagePositionsAdvanced()
 
       if(tp1done)
       {
-         // Monotonic protection sequence: BE -> +0.5R -> +1R -> ATR/structure trail.
          AdvanceProfitProtection(ticket,rNow,liveR,liveEntry,livePx,liveBull);
          ticket=RefreshTicketFromPositionId(pid,ticket);
          if(!PositionSelectByTicket(ticket)) continue;
@@ -207,8 +225,7 @@ void ManagePositionsAdvanced()
          ticket=RefreshTicketFromPositionId(pid,ticket);
          if(!PositionSelectByTicket(ticket)) continue;
 
-         // Stall timer starts at TP1, not at original entry.
-         datetime tp1Time=(datetime)LegacyTicketRead(ticket,"TP1_TIME",0);
+         datetime tp1Time=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0));
          if(tp1Time<=0) tp1Time=TimeTradeServer();
          double barrier=0;
          bool near=NearNextBarrier(sym,liveBull,barrier);

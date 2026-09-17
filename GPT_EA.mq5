@@ -11,6 +11,10 @@
 #include "GPT_EA_Part12_SafetyStopManagement.mqh"
 #include "GPT_EA_Part14_StopFailurePolicy.mqh"
 #include "GPT_EA_Part18_StopBrokerObservability.mqh"
+#include "GPT_EA_Part28_ReleaseCertification.mqh"
+#define ReleaseSafetyAllows ReleaseSafetyAllowsCertified
+#define ReleaseGateSummary ReleaseGateSummaryCertified
+#define StopFailureObservabilityInit StopFailureObservabilityInitCertified
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
@@ -61,3 +65,6 @@
 #undef StrategyIntelligenceInit
 #undef PersistStrategyPlanForExecution
 #undef SelectDynamicStrategy
+#undef StopFailureObservabilityInit
+#undef ReleaseGateSummary
+#undef ReleaseSafetyAllows

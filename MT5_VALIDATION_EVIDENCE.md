@@ -89,9 +89,11 @@ At minimum the record references and hashes:
 - Experts log;
 - Journal log;
 - broker history export or reconciliation file;
-- matrix/report bundle documenting the MT5 runtime tests.
+- completed `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` working copy documenting the MT5 runtime tests.
 
-Use `tools/build_mt5_validation_evidence.py` to calculate file hashes into a draft, complete the PASS booleans only from actual observations, then finalize with:
+Copy the matrix to `artifacts/mt5-validation-matrix.md`. The validator does not trust the matrix hash alone: it parses M5-001 through M5-034, requires exactly one row for each ID, requires literal `PASS`, and requires a non-empty evidence/reference for every row.
+
+Use `tools/build_mt5_validation_evidence.py` to calculate file hashes—including the completed matrix—into a draft. Complete the JSON PASS booleans only from the same actual observations referenced by the M5 rows, then finalize with:
 
 ```text
 python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json --finalize

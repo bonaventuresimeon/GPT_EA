@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `DEPLOYMENT_DRIFT_TESTS.md`
+
+---
+
 # GPT_EA Deployment Drift Test Matrix
 
 This matrix validates `GPT_EA_Part29_DeploymentDriftGuard.mqh` and is **release blocking** when deployment-profile attestation is required.

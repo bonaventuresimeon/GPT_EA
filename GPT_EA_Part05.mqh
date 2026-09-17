@@ -41,7 +41,7 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
    s+=StringFormat("• Lot size = %.2f%% of %s using OrderCalcProfit().\n",InpRiskPercent,(InpUseEquity?"equity":"balance"));
    s+=StringFormat("• At TP1: take %.0f%% partial; %s.\n",InpPartialAtTP1Percent,(InpMoveSLToBEAfterTP1?"move SL to BE + cost buffer":"keep original SL"));
    s+=StringFormat("• After TP1: if price stalls near the next M15 resistance/support for %d M5 candles, keep only while H1/M15 momentum remains aligned; otherwise close remainder.\n",InpPostTP1StallM5);
-   s+="• A high-impact event, yield shock, excessive opening range, stale price displacement, spread blowout, or effective R:R deterioration invalidates entry before execution.\n\n";
+   s+="• A high-impact event, yield shock, excessive opening range, stale price displacement, spread blowout, portfolio-risk breach, cooldown or effective R:R deterioration invalidates entry before execution.\n\n";
 
    bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
    s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
@@ -93,21 +93,39 @@ bool M5Trigger(const TradeSetup &s)
 
 bool ApprovedPlaceTrade(const TradeSetup &s)
 {
-   // Approval is authorization only. Revalidate immediately before execution.
+   // Approval is authorization only. Every risk and market condition is revalidated here.
    if(!InpEnableApprovedExecution || !s.valid) return false;
    if(!PriceInsideZone(s) || !M5Trigger(s)) return false;
    if(CountPositions(s.symbol)>=InpMaxPositionsPerSymbol) return false;
 
+   string kill=""; if(RiskKillSwitchActive(kill)){ Print(s.symbol,": execution blocked - ",kill); return false; }
+   string cd=""; if(CooldownActive(s.symbol,cd)){ Print(s.symbol,": execution blocked - ",cd); return false; }
    string sp; if(!SpreadOK(s.symbol,sp)) return false;
    string news; if(CalendarBlock(s.symbol,news)) return false;
    string y; if(YieldShock(y)) return false;
+
+   double liveRR=EffectiveRRDynamic(s);
+   if(liveRR<InpMinEffectiveRR)
+   {
+      PrintFormat("%s: dynamic execution R:R %.2f below %.2f minimum.",s.symbol,liveRR,InpMinEffectiveRR);
+      return false;
+   }
 
    double riskMoney=0,oneLot=0;
    double lots=LotSizeForRisk(s,riskMoney,oneLot);
    if(lots<=0){ Print(s.symbol,": lot calculation returned 0."); return false; }
 
+   string portfolioWhy="";
+   if(!PortfolioRiskAllows(s,lots,portfolioWhy))
+   {
+      Print(s.symbol,": portfolio risk blocked execution - ",portfolioWhy);
+      return false;
+   }
+
+   int slipPts=DynamicSlippagePoints(s.symbol);
+   RegisterPlannedExecution(s,lots,riskMoney);
    trade.SetExpertMagicNumber(InpMagic);
-   trade.SetDeviationInPoints(InpMaxSlippagePoints);
+   trade.SetDeviationInPoints(slipPts);
    trade.SetTypeFillingBySymbol(s.symbol);
    string comment=(s.kind==SETUP_PULLBACK?"GPT-PB-OK":"GPT-BR-OK");
    bool ok=(s.bullish?trade.Buy(lots,s.symbol,0,s.sl,s.tp3,comment):trade.Sell(lots,s.symbol,0,s.sl,s.tp3,comment));
@@ -126,7 +144,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       GVSet(newest,"INITSL",s.sl); GVSet(newest,"TP1",s.tp1); GVSet(newest,"TP2",s.tp2);
       GVSet(newest,"TP3",s.tp3); GVSet(newest,"EXP",s.expiryM15); GVSet(newest,"TP1DONE",0);
    }
-   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f account currency.",s.symbol,Arrow(s.bullish),lots,riskMoney);
+   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f.",
+               s.symbol,Arrow(s.bullish),lots,riskMoney,slipPts,liveRR);
    return true;
 }
-

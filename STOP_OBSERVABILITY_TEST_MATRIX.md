@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `STOP_OBSERVABILITY_TEST_MATRIX.md`
+
+---
+
 # GPT_EA Stop Observability Test Matrix
 
 This matrix validates `STOP_FAILURE_OBSERVABILITY_CONTRACT.md` and is release-blocking for intended live broker/account combinations.

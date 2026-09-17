@@ -367,8 +367,10 @@ Customer distribution is supported by:
 - `TRADING_RISK_DISCLOSURE.md`
 - `DISCLAIMER.md`
 - `ANTI_PIRACY_LICENSE_ENFORCEMENT.md`
+- `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md`
+- `CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md`
 
-The R8 legal acknowledgement gate sits on top of the existing R7 API/release gate. REAL-account new entries remain blocked until the customer explicitly accepts the current commercial terms and trading-risk disclosure, enters the exact acknowledgement phrase, and supplies the issued license reference. Demo/Strategy Tester remain available for evaluation. Legal/license failure must never be used to weaken management of already-open positions.
+The R9 customer-risk acknowledgement gate sits on top of the R8 legal gate and existing R7 API/release gate. REAL-account new entries remain blocked until the customer explicitly accepts the current commercial terms and trading-risk disclosure, enters the exact acknowledgement phrase, and supplies the issued license reference. Demo/Strategy Tester remain available for evaluation. Legal/license failure must never be used to weaken management of already-open positions.
 
 ## Installation and onboarding
 

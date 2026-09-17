@@ -1,350 +1,340 @@
-# GPT_EA Compile & Test Checklist
+# GPT_EA Compile & Release Test Checklist
 
-This is the release gate for `GPT_EA.mq5`. Do not promote a build development → demo → live until the applicable checks pass.
+This is the master release gate for `GPT_EA.mq5`. Do not promote a build development → demo → live until every applicable HIGH/release-blocking item passes.
 
 ## 1. MetaEditor compile gate
 
 - [ ] Compile `GPT_EA.mq5` with **0 errors**.
 - [ ] Review every warning; target **0 warnings** for release builds.
-- [ ] Confirm all local includes resolve:
-  - `GPT_EA_Part01.mqh`
-  - `GPT_EA_Part02.mqh`
-  - `GPT_EA_Part03.mqh`
-  - `GPT_EA_Part04.mqh`
-  - `GPT_EA_Part08_Advanced.mqh`
-  - `GPT_EA_Part09_RiskRecoveryAnalytics.mqh`
-  - `GPT_EA_Part10_BrokerUniversalRecovery.mqh`
-  - `GPT_EA_Part11_PreflightRecoveryGuard.mqh`
-  - `GPT_EA_Part12_SafetyStopManagement.mqh`
-  - `GPT_EA_Part05.mqh`
-  - `GPT_EA_Part06.mqh`
-  - `GPT_EA_Part14_StopFailurePolicy.mqh`
-  - `GPT_EA_Part13_AdvancedPositionManager.mqh`
-  - `GPT_EA_Part07.mqh`
-- [ ] Exactly one `OnInit`, `OnDeinit`, `OnTimer`, `OnTick`, `OnChartEvent`, and `OnTradeTransaction` is compiled.
-- [ ] No committed API key or real-account live-arm value exists in source.
+- [ ] Confirm all includes referenced by `GPT_EA.mq5` resolve, including the intelligence, safety, stop-policy and observability modules.
+- [ ] Confirm exactly one `OnInit`, `OnDeinit`, `OnTimer`, `OnTick`, `OnChartEvent`, and `OnTradeTransaction` implementation is compiled.
+- [ ] No committed API key or armed real-account secret/value exists in source.
+- [ ] Record MetaTrader/MetaEditor build number.
+
+Current entry-file module families include:
+
+- core: Parts 01–04;
+- advanced confluence/risk/recovery: Parts 08–12;
+- forward declarations: Part 00;
+- stop policy/observability/advanced management: Parts 14, 18, 13;
+- strategy intelligence/framework/context/targets/research/session hardening: Parts 15, 15B, 15C, 15D, 21, 24;
+- realistic cost/continuous intelligence: Parts 20, 19;
+- news/intermarket/freshness/response parsing: Parts 16, 16A, 22A, 22P, 22;
+- thesis/deep GPT/observability hardening: Parts 17, 25, 26, 23;
+- execution/UI/event lifecycle: Parts 05–07.
 
 ## 2. Broker/account preflight
 
 - [ ] Broker company/server correct.
 - [ ] Account currency correct.
 - [ ] Account leverage correct.
-- [ ] Account margin mode correct: hedging/netting/exchange.
+- [ ] Margin mode correct: hedging/netting/exchange.
 - [ ] `ACCOUNT_TRADE_ALLOWED` true.
 - [ ] `ACCOUNT_TRADE_EXPERT` true.
 - [ ] `TERMINAL_TRADE_ALLOWED` true for execution tests.
 - [ ] `MQL_TRADE_ALLOWED` true for execution tests.
 - [ ] Margin Call / Stop Out policy recorded.
+- [ ] Broker symbol profile archived for every live symbol.
 
 ## 3. Release-blocking safety gates
 
-Follow `RELEASE_SAFETY_GATES.md`.
+Follow `RELEASE_SAFETY_GATES.md` and `RECOVERY_INVARIANTS.md`.
 
 - [ ] Disconnected terminal blocks new entries.
 - [ ] Terminal/account/EA permission failure blocks new entries.
 - [ ] Unsynchronized D1/H4/H1/M30/M15/M5 blocks new entries.
-- [ ] Required timeframe with fewer than `InpMinBarsPerRequiredTF` blocks.
-- [ ] Stale quote older than `InpMaxQuoteAgeSeconds` blocks.
+- [ ] Required timeframe with insufficient bars blocks.
+- [ ] Stale quote blocks.
 - [ ] Missing market-order capability blocks.
 - [ ] Missing SL capability blocks.
 - [ ] Recovery invariant failure blocks.
-- [ ] Existing positions continue to be managed while release gate is blocked.
+- [ ] Existing positions remain managed while new-entry gate is blocked.
 - [ ] Real account with blank/incorrect arm phrase blocks.
-- [ ] Real account with approval disabled blocks when `InpRequireApprovalOnRealAccount=true`.
-- [ ] Correct local arm phrase does not bypass other gates.
+- [ ] Real account with approval disabled blocks when approval is required.
+- [ ] Correct arm phrase does not bypass any other safety gate.
 
 ## 4. Recovery invariants
 
-Follow `RECOVERY_INVARIANTS.md`.
-
 - [ ] Every open GPT_EA position has nonzero `POSITION_IDENTIFIER`.
-- [ ] Entry and volume are valid.
-- [ ] Current SL exists.
-- [ ] Original SL is recoverable.
-- [ ] Original BUY SL is below entry; original SELL SL is above entry.
-- [ ] Open position is not analytics `FINAL=1`.
-- [ ] TP1/TP2/TP3 geometry is directional and ordered.
-- [ ] No duplicate active pending approval for one symbol.
-- [ ] Pending approval timestamps are valid.
-- [ ] Risk-session equity/high-water state is valid.
+- [ ] Entry/volume valid.
+- [ ] Current SL exists unless the critical recovery path is actively handling SL=0.
+- [ ] Original SL recoverable.
+- [ ] Original BUY SL below entry; SELL SL above entry.
+- [ ] Open position not analytics `FINAL=1`.
+- [ ] TP geometry directional and ordered.
+- [ ] No duplicate active pending approval per symbol.
+- [ ] Pending approval timestamps/geometry valid.
+- [ ] Day-risk/high-water state valid.
 - [ ] Netting reversal mismatch pauses/requires review when configured.
+- [ ] Completed checkpoint/backup recovery passes restart tests.
 
-## 5. Symbol-resolution matrix
+## 5. Broker/symbol/contract matrix
 
-Run `BROKER_MATRIX_TESTS.md` for every intended broker/account combination.
+Run `BROKER_MATRIX_TESTS.md` on every intended broker/account combination.
 
-Minimum cases:
+Minimum coverage:
 
-- [ ] exact FX symbol
-- [ ] FX suffix/prefix
-- [ ] XAUUSD/GOLD alias
-- [ ] US100/NAS100/USTEC alias
-- [ ] GER40/DE40/DAX40 alias
-- [ ] WTI/USOIL and BRENT/UKOIL
-- [ ] crypto where available
-- [ ] proprietary stock/ETF/future using actual broker symbol
-- [ ] unknown symbol fails safely
-- [ ] `AUTO` / Market Watch universe respects caps
+- [ ] exact FX symbol;
+- [ ] prefix/suffix FX;
+- [ ] XAUUSD/GOLD;
+- [ ] US100/NAS100/USTEC;
+- [ ] GER40/DE40/DAX40;
+- [ ] WTI/USOIL and BRENT/UKOIL;
+- [ ] crypto where supported;
+- [ ] proprietary stock/ETF/future using actual broker name;
+- [ ] unknown symbol fails safely;
+- [ ] AUTO/Market Watch cap respected.
 
-## 6. Contract/tick/volume matrix
+For representative assets verify digits, point, tick size/value, contract size, min/max/step volume, directional limit, spread type/current spread, stop/freeze level, trade/execution/filling modes, margin currency and calculation mode.
 
-For each representative asset class verify:
+## 6. Risk sizing, margin and `OrderCheck()`
 
-- [ ] digits/point
-- [ ] tick size
-- [ ] tick value profit/loss
-- [ ] contract size
-- [ ] min/max/step volume
-- [ ] directional volume limit
-- [ ] floating/fixed spread flag
-- [ ] stop level
-- [ ] freeze level
-- [ ] trade/execution/filling modes
-- [ ] margin currency/calculation mode
+- [ ] `OrderCalcProfit()` risk sizing matches intended monetary risk after volume-step rounding.
+- [ ] FX, JPY, metal, U.S. index, European index, energy, crypto and stock/future cases tested where supported.
+- [ ] invalid min/max/step volume rejected.
+- [ ] directional volume limit enforced.
+- [ ] disabled/close-only/long-only/short-only modes enforced.
+- [ ] SL/TP normalized to tick size.
+- [ ] too-close stop rejected.
+- [ ] insufficient margin rejected.
+- [ ] new-trade free-margin cap enforced.
+- [ ] supported filling policy selected.
+- [ ] valid `OrderCheck()` passes.
+- [ ] rejected `OrderCheck()` suppresses approval readiness.
+- [ ] `OrderCheck()` runs again immediately before send.
+- [ ] projected margin-level floor enforced.
 
-Cross-asset sizing:
+## 7. Full intelligence / strategy gate
 
-- [ ] 5-digit FX
-- [ ] JPY FX
-- [ ] metal
-- [ ] U.S. index CFD
-- [ ] European index CFD
-- [ ] energy CFD
-- [ ] crypto CFD where supported
-- [ ] stock/ETF/future where supported
+Follow `ADVANCED_INTELLIGENCE_CONTRACT.md` and `FULL_INTELLIGENCE_COVERAGE.md`.
 
-Pass: intended monetary loss at initial SL is acceptably close to configured risk after volume-step rounding.
+- [ ] D1/H4/H1/M30/M15/M5 synchronized and included in analysis.
+- [ ] market state distinguishes continuation/retracement/correction/trend failure/reversal/breakout/false breakout/liquidity sweep/range/mean reversion/exhaustion/consolidation states.
+- [ ] strategy classification displayed before entry recommendation.
+- [ ] counter-trend classes require stricter threshold/confirmation.
+- [ ] strategy framework named and regime-appropriate.
+- [ ] structure/liquidity-aware targets used with measured-R fallback.
+- [ ] realistic R:R includes spread, modeled slippage, commission estimate and configured partial exits.
+- [ ] continuous intelligence scan triggers on configured interval/new M5 bar.
+- [ ] 25-point thesis rendered for candidate setup.
+- [ ] explicit counterargument/disproof section present.
+- [ ] historical/context evidence does not use future outcome leakage.
+- [ ] weak/contradictory candidate returns WAIT/NO TRADE rather than forced entry.
 
-## 7. Broker execution and `OrderCheck()`
+## 8. News/intermarket/session gate
 
-- [ ] invalid min/max/step volume rejected
-- [ ] directional volume limit enforced
-- [ ] disabled/close-only/long-only/short-only modes enforced
-- [ ] SL/TP normalized to broker tick size
-- [ ] too-close stop rejected
-- [ ] nonzero freeze level respected during modifications
-- [ ] insufficient free margin rejected
-- [ ] `InpMaxNewTradeMarginPctFree` enforced
-- [ ] Market Execution uses supported FOK/IOC
-- [ ] Request/Instant/Exchange policy validated
-- [ ] valid `OrderCheck()` passes
-- [ ] rejected `OrderCheck()` suppresses APPROVE readiness
-- [ ] `OrderCheck()` runs again before send
-- [ ] projected negative free margin rejected
-- [ ] projected margin-level floor enforced
+- [ ] native economic-calendar event block works.
+- [ ] upcoming event summary does not falsely block outside configured window.
+- [ ] live web/news layer follows availability policy.
+- [ ] unexpected headline/news risk cannot silently pass a stale approval.
+- [ ] Treasury-yield filter behaves according to configured symbol/availability policy.
+- [ ] DXY/yield/equity/gold/oil/volatility/correlated-market evidence is handled when available and relevant.
+- [ ] London 08:55/09:00 and New York 09:25/09:30 schedules correct.
+- [ ] UK/U.S. DST transition weeks correct.
+- [ ] strategy-specific session hardening behaves as documented.
 
-## 8. Spread/slippage/R:R
+## 9. APPROVE / DENY / pre-entry revalidation
 
-- [ ] spread is live Bid/Ask distance
-- [ ] M5 ATR available
-- [ ] dynamic slippage remains inside configured min/max
-- [ ] wider spread reduces effective R:R
-- [ ] effective R:R below minimum blocks entry
-- [ ] actual fill slippage logged
-- [ ] rollover/news spread expansion cannot pass a stale approval
+- [ ] no APPROVE-ready state unless strategy + intelligence + release + risk + broker + `OrderCheck()` + trigger gates pass.
+- [ ] approval expires correctly.
+- [ ] DENY deletes candidate and starts cooldown.
+- [ ] duplicate click cannot duplicate order.
+- [ ] manual PAUSE clears pending approvals.
+- [ ] price leaving zone after prompt cancels execution.
+- [ ] strategy classification change cancels/recalculates setup.
+- [ ] spread/news/intermarket/risk/stop-health change after prompt cancels execution.
+- [ ] final `ApprovedPlaceTrade()` rechecks stop observability before order send.
 
-## 9. Setup and multi-timeframe logic
+## 10. TP1 / breakeven / partial protection — RELEASE BLOCKING
 
-- [ ] D1/H4/H1/M30/M15/M5 loaded and synchronized
-- [ ] pullback geometry coherent
-- [ ] breakout/retest geometry coherent
-- [ ] sweep → displacement → retest behaves as configured
-- [ ] level-touch/rejection score changes appropriately
-- [ ] regime classification plausible
-- [ ] advanced confluence stays 0..100
+Run `PARTIAL_PROTECTION_RELEASE_TEST.md` in addition to the general stop matrix.
 
-## 10. Calendar/session/yield
+- [ ] TP1 partial executes exactly once.
+- [ ] `TP1PARTIAL=1` persists independently of BE.
+- [ ] `PARTIAL_PROTECTION_STARTED` emitted if BE is not already complete.
+- [ ] BE uses current cost-aware buffer.
+- [ ] stop/freeze rejection preserves prior SL.
+- [ ] BE retries use fresh broker geometry.
+- [ ] `TP1DONE=0` while required protection remains incomplete.
+- [ ] after timeout, `PARTIAL_PROTECTION_HAZARD` emitted once.
+- [ ] hazard independently blocks new approvals/execution.
+- [ ] existing trade continues to be managed.
+- [ ] BE recovery never repeats TP1 partial.
+- [ ] `PARTIAL_PROTECTION_COMPLETED` emitted when protection completes before hazard.
+- [ ] `PARTIAL_PROTECTION_RECOVERED` emitted when a prior hazard later clears.
+- [ ] restart in `TP1PARTIAL=1` / `TP1DONE=0` state does not duplicate partial or lose lifecycle.
+- [ ] BUY and SELL variants pass.
+- [ ] hedging/netting variants pass where supported.
 
-- [ ] mapped USD events affect XAU/USD-related U.S. assets as intended
-- [ ] mapped EUR events affect EUR/GER40-related assets as intended
-- [ ] high-impact block before/after works
-- [ ] upcoming event outside block window does not falsely block
-- [ ] London 08:55/09:00 schedules correct
-- [ ] New York 09:25/09:30 schedules correct
-- [ ] UK/U.S. DST transition weeks correct
-- [ ] missing yield symbol fails safely according to policy
-- [ ] yield shock blocks when threshold exceeded
+## 11. Advanced profit lock / trailing
 
-## 11. APPROVE / DENY
+- [ ] configured profit lock applies only after its trigger.
+- [ ] strong lock applies only after its trigger.
+- [ ] trailing starts only at/after trail trigger.
+- [ ] ATR + M5 structure logic used.
+- [ ] minimum improvement step enforced.
+- [ ] BUY SL never decreases.
+- [ ] SELL SL never increases.
+- [ ] tick size / stop / freeze rules respected.
+- [ ] runner mode removes fixed TP only when actual trailing begins if configured.
+- [ ] fixed-TP mode retains TP3 while trailing.
+- [ ] stop-stage events match broker position history.
 
-- [ ] no APPROVE-ready state unless release + strategy + risk + broker + `OrderCheck()` + M5 trigger all pass
-- [ ] APPROVE revalidates everything
-- [ ] price leaves zone after prompt → no trade
-- [ ] spread/news/yield/risk/release status changes after prompt → no trade
-- [ ] DENY deletes setup and starts cooldown
-- [ ] timeout deletes setup and starts cooldown
-- [ ] duplicate click cannot create duplicate order
-- [ ] manual PAUSE clears pending approvals
+## 12. Broker-specific stop-failure handling — RELEASE BLOCKING
 
-## 12. Advanced TP1 / breakeven state machine
+Follow `BROKER_STOP_FAILURE_POLICY.md` and `STOP_UPDATE_FAILURE_POLICY.md`.
 
-For BUY and SELL:
+- [ ] `INVALID_STOPS` / stop-level failure → current SL preserved; distance-clear retry.
+- [ ] `FROZEN` → current SL preserved; freeze-clear retry.
+- [ ] `MARKET_CLOSED` → slower wait-market-open policy.
+- [ ] `REQUOTE_PRICE_CHANGED` / `INVALID_PRICE` → fresh-price retry.
+- [ ] `NO_QUOTES` / `CONNECTION` → wait fresh quote/connection.
+- [ ] `RATE_LIMIT` / `TRADE_CONTEXT_LOCKED` → backoff, not timer spam.
+- [ ] `TRADING_DISABLED` / `INVALID_FILL` / `INVALID_VOLUME` → operator/broker-change policy and new-entry block.
+- [ ] `NO_CHANGES` remains a no-op condition.
+- [ ] `POSITION_CLOSED` stops lifecycle management.
+- [ ] `PROTECTION_MISSING` enters critical protect-or-close path.
+- [ ] class/action/retry state keyed by `POSITION_IDENTIFIER`.
+- [ ] repeated failures pause at configured threshold.
+- [ ] later successful protection clears position failure state but does not silently clear an escalated manual/global pause.
 
-- [ ] before TP1 original SL remains intact
-- [ ] TP1 partial executes once
-- [ ] `TP1PARTIAL` persists independently of BE
-- [ ] cost-aware BE buffer includes at least ATR-cost buffer or spread + dynamic-slippage cost
-- [ ] broker freeze/stop distance can delay BE without duplicating TP1 partial
-- [ ] BE retry eventually succeeds when broker-valid
-- [ ] `TP1DONE` is written only after configured partial + required protection are complete
-- [ ] restart after TP1 partial but before BE does not duplicate partial
+## 13. Stop-management matrix — RELEASE BLOCKING
 
-## 13. Advanced profit locks and trailing
+Run all applicable HIGH-priority cases in `STOP_MANAGEMENT_TEST_MATRIX.md`.
 
-- [ ] at `InpProfitLockTriggerR`, lock `InpProfitLockR`
-- [ ] at `InpStrongLockTriggerR`, lock `InpStrongLockR`
-- [ ] trailing starts only at/after `InpTrailStartR`
-- [ ] ATR trail uses M5 ATR
-- [ ] structure trail uses recent M5 structure
-- [ ] wider ATR/structure stop is chosen before applying strong-lock floor
-- [ ] trail changes require `InpTrailMinStepR` improvement
-- [ ] BUY stop never decreases
-- [ ] SELL stop never increases
-- [ ] every stop respects current broker stop/freeze level
-- [ ] stop normalized to tick size
-- [ ] TP3 remains attached by default
-- [ ] optional runner mode removes fixed TP after trailing begins when configured
-- [ ] journal records `STOP_BREAKEVEN`, `STOP_PROFIT_LOCK`, `STOP_STRONG_LOCK`, `STOP_TRAIL`
+Required minimum sequences:
 
-## 14. Stop-update failure policy — RELEASE BLOCKING
+- [ ] full BUY TP1 → BE → profit lock → strong lock → trail → TP2/runner lifecycle;
+- [ ] full SELL lifecycle;
+- [ ] broker distance/freeze failure and recovery;
+- [ ] missing-SL restoration;
+- [ ] missing-SL emergency close path;
+- [ ] restart during failed BE;
+- [ ] restart after BE/profit lock/strong lock/trailing/TP2;
+- [ ] manual stronger SL preserved;
+- [ ] stale quote / spread shock / reconnect cases;
+- [ ] netting reversal protection.
 
-Follow both:
+## 14. Stop-failure observability — RELEASE BLOCKING
 
-- `STOP_UPDATE_FAILURE_POLICY.md`
-- `STOP_MANAGEMENT_TEST_MATRIX.md`
+Follow:
 
-Required policy checks:
+- `STOP_FAILURE_OBSERVABILITY_CONTRACT.md`
+- `STOP_OBSERVABILITY_TEST_MATRIX.md`
 
-- [ ] failed update never weakens/removes an existing valid SL
-- [ ] no-op/non-improving trail does not count as a failure
-- [ ] expected BE/profit-lock failure is retried no faster than configured retry interval
-- [ ] `STOP_FAIL_COUNT`, first timestamp and last timestamp are position-identifier scoped
-- [ ] warning threshold generates configured alert/notification
-- [ ] repeated stop failures pause new entries at configured threshold
-- [ ] safety pause does not stop management of the existing position
-- [ ] later successful protection clears position-level failure state
-- [ ] safety pause is not silently auto-cleared after recovery
-- [ ] actual SL=0 is classified critical immediately
-- [ ] missing SL is first reconstructed/restored from durable state/history
-- [ ] unprotected position blocks new risk immediately
-- [ ] emergency close is attempted after configured timeout when enabled
-- [ ] failed emergency close leaves safety pause active and remains retryable
-- [ ] TP1 partial is never duplicated because BE failed
-- [ ] TP2 scale-out is never duplicated because a stop update failed
-- [ ] restart during stop-failure state does not regress protection
-- [ ] `STOP_UPDATE_FAIL`, `STOP_FAIL_CRITICAL`, `STOP_UPDATE_RECOVERED`, and `EMERGENCY_CLOSE_UNPROTECTED` are auditable
+- [ ] `GPT_EA_StopFailures.csv` created with `stop_failure_observability_v2` schema when enabled.
+- [ ] stable numeric `class_code` and `action_code` are present.
+- [ ] failure rows include broker/server/account/symbol/position context.
+- [ ] retry seconds and next retry timestamp reflect class policy.
+- [ ] failure count increments only on controlled retry cycles.
+- [ ] recovery event emitted before failure class/action state clears.
+- [ ] critical SL=0 state observable.
+- [ ] emergency-close attempt observable.
+- [ ] emergency-close failure observable when rejected.
+- [ ] partial-protection start/completion/hazard/recovery observable.
+- [ ] stop CSV joins to execution journal and broker history by `POSITION_IDENTIFIER`.
+- [ ] ticket changes do not break lifecycle joins.
+- [ ] recorded current SL matches broker state within symbol precision.
 
-**Live release requirement:** all applicable HIGH-priority cases in `STOP_MANAGEMENT_TEST_MATRIX.md` must pass on the intended broker/account type.
+## 15. Portfolio/daily protection
 
-## 15. TP2 scale-out and runner
+- [ ] symbol risk cap.
+- [ ] total portfolio risk cap.
+- [ ] correlated directional risk cap.
+- [ ] any unprotected open GPT_EA position blocks new risk.
+- [ ] critical/operator-required stop-health state blocks new risk independently of global pause flag.
+- [ ] daily loss kill switch.
+- [ ] high-water drawdown kill switch.
+- [ ] consecutive-loss kill switch.
+- [ ] blocked new-entry state does not stop protective management of existing positions.
 
-- [ ] TP2 partial uses percentage of remaining position
-- [ ] `TP2PARTIAL` prevents duplicate scale-out
-- [ ] failed TP2 partial remains retryable
-- [ ] sub-minimum partial volume is handled safely
-- [ ] trailing continues on remaining position
-- [ ] post-TP1 stall timer begins at TP1 time, not original entry
-- [ ] stall + barrier + momentum/reversal condition can close remainder
+## 16. Restart/crash durability
 
-## 16. Portfolio/daily protection
+- [ ] no-position/no-pending restart.
+- [ ] pending approval valid/expired offline cases.
+- [ ] restart immediately before/after order send.
+- [ ] restart before TP1.
+- [ ] restart after TP1 partial before BE.
+- [ ] restart after BE/profit lock/strong lock/trailing/TP2.
+- [ ] restart with stop failure count/class/action/next-retry active.
+- [ ] ticket change, same identifier.
+- [ ] deliberate netting reversal.
+- [ ] account/server/magic mismatch rejected.
+- [ ] truncated primary checkpoint uses completed backup.
+- [ ] invalid primary + invalid backup fails safely.
+- [ ] finalized analytics not duplicated.
 
-- [ ] symbol risk cap
-- [ ] total portfolio risk cap
-- [ ] correlated directional risk cap
-- [ ] unprotected existing position blocks new risk
-- [ ] daily loss kill switch
-- [ ] equity high-water drawdown kill switch
-- [ ] consecutive-loss kill switch
-- [ ] blocked state does not stop protective management of existing trades
+## 17. Analytics / observability consistency
 
-## 17. Restart/crash recovery matrix
+Follow `ANALYTICS_SCHEMA.md` plus the stop observability contract.
 
-- [ ] no-position/no-pending restart
-- [ ] pending approval still valid
-- [ ] approval expires while terminal offline
-- [ ] restart immediately before/after order send
-- [ ] restart before TP1
-- [ ] restart after TP1 partial before BE
-- [ ] restart after BE
-- [ ] restart after +0.5R lock
-- [ ] restart after +1R lock
-- [ ] restart during trailing
-- [ ] restart after TP2 partial
-- [ ] restart while `STOP_FAIL_COUNT > 0`
-- [ ] position ticket change, same identifier
-- [ ] deliberate netting reversal
-- [ ] account/server/magic mismatch
-- [ ] truncated primary checkpoint restores completed `.bak`
-- [ ] invalid primary + invalid backup fails safely
-- [ ] missing globals rebuild from broker/history where possible
-- [ ] finalized analytics not duplicated
+- [ ] one logical ENTRY per lifecycle.
+- [ ] partial/final EXIT events correct.
+- [ ] CLOSED once per identifier.
+- [ ] final R uses original planned risk.
+- [ ] MAE/MFE valid.
+- [ ] strategy/context analytics join correctly.
+- [ ] stop-stage events use durable position ID.
+- [ ] stop-failure/recovery events use durable position ID.
+- [ ] no future-outcome leakage into candidate feature records.
 
-## 18. Analytics
+## 18. OpenAI / web intelligence / DOM / ONNX
 
-Follow `ANALYTICS_SCHEMA.md`.
-
-- [ ] one logical ENTRY per lifecycle
-- [ ] EXIT_PART for partial/final exit deals
-- [ ] CLOSED once per completed identifier
-- [ ] requested/actual/slippage units correct
-- [ ] final R uses original planned monetary risk
-- [ ] MAE_R/MFE_R nonnegative
-- [ ] pullback/breakout statistics separate
-- [ ] profit factor calculation correct
-- [ ] `FINAL=1` idempotency works
-- [ ] protective-stop stage events contain position ID and current R
-- [ ] stop failure/recovery events contain durable position ID
-
-## 19. OpenAI / DOM / ONNX
-
-OpenAI:
-- [ ] blank/invalid key fails safely
-- [ ] timeout/network failure fails safely
-- [ ] AI cannot bypass deterministic/release gates
-- [ ] no key appears in logs/source
+OpenAI/web:
+- [ ] blank/invalid API key fails according to configured availability policy.
+- [ ] timeout/network failure cannot bypass deterministic gates.
+- [ ] parser does not treat malformed response as confirmed setup.
+- [ ] no API secret appears in source/logs.
 
 DOM:
-- [ ] subscription works where supported
-- [ ] unavailable DOM follows optional/required policy
+- [ ] subscription works where broker supports it.
+- [ ] unavailable DOM follows optional/required policy.
 
 ONNX:
-- [ ] `[1,12]` input and `[1,1]` output validated
-- [ ] missing/invalid model cannot bypass hard gates
+- [ ] model shape contract validated.
+- [ ] missing/invalid model cannot bypass risk/release gates.
 
-## 20. Strategy Tester / static gate
+## 19. Strategy Tester / static gate
 
-- [ ] no array-out-of-range
-- [ ] no divide-by-zero
-- [ ] no invalid indicator-handle leak
-- [ ] no duplicate position beyond configured limit
-- [ ] no runaway release-gate/trailing/failure log spam
-- [ ] historical risk per trade plausible
-- [ ] drawdown reviewed
-- [ ] pullback and breakout performance reviewed independently
+- [ ] no array-out-of-range.
+- [ ] no divide-by-zero.
+- [ ] no indicator-handle leak.
+- [ ] no duplicate position beyond configured limit.
+- [ ] no runaway release/stop/news scan logging.
+- [ ] historical risk plausible.
+- [ ] drawdown reviewed.
+- [ ] strategy classes reviewed separately where sample exists.
 
-## 21. Demo soak and live release
+## 20. Demo soak
 
-Demo:
-- [ ] multiple London/U.S. sessions
-- [ ] at least one high-impact news day
-- [ ] weekend/terminal restart
-- [ ] spread expansion/rollover period
-- [ ] checkpoint + backup + execution CSV persist
-- [ ] at least one complete TP1 → BE → lock → trail lifecycle
-- [ ] at least one controlled stop-update failure/recovery lifecycle
-- [ ] at least one controlled missing-SL emergency-policy test on demo
-- [ ] `BROKER_MATRIX_TESTS.md` completed for intended broker
-- [ ] all applicable HIGH-priority `STOP_MANAGEMENT_TEST_MATRIX.md` cases passed
+- [ ] multiple London/U.S. sessions.
+- [ ] at least one high-impact news day.
+- [ ] weekend/terminal restart.
+- [ ] spread expansion/rollover period.
+- [ ] checkpoint + backup + execution CSV + stop observability CSV persist.
+- [ ] complete BUY and SELL stop-management lifecycle observed.
+- [ ] controlled broker stop failure/recovery observed.
+- [ ] controlled partial-protection hazard/recovery observed.
+- [ ] controlled missing-SL emergency path observed.
+- [ ] intended broker matrix completed.
+- [ ] intelligence contract coverage reviewed.
 
-Live:
-- [ ] compile gate passed
-- [ ] recovery invariants passed
-- [ ] release-gate tests passed
-- [ ] broker matrix passed on intended live account type
-- [ ] stop-management matrix release gate passed
-- [ ] demo soak passed
-- [ ] `InpRequireApproval=true` for initial live deployment
-- [ ] live arm phrase entered locally only after validation
-- [ ] conservative risk used initially
-- [ ] ONNX/DOM remain optional unless separately live-validated
-- [ ] archive `.ex5`, `.set`, commit SHA, MT5 build, analytics schema version, broker profile and stop-matrix evidence
+## 21. Live release gate
+
+Before setting the local live arm phrase:
+
+- [ ] MetaEditor compile passed.
+- [ ] release/recovery invariants passed.
+- [ ] full-intelligence tests passed.
+- [ ] intended live broker matrix passed.
+- [ ] `BROKER_STOP_FAILURE_POLICY.md` applicable classes tested.
+- [ ] all applicable HIGH `STOP_MANAGEMENT_TEST_MATRIX.md` cases passed.
+- [ ] `PARTIAL_PROTECTION_RELEASE_TEST.md` passed.
+- [ ] `STOP_OBSERVABILITY_TEST_MATRIX.md` passed.
+- [ ] demo soak passed.
+- [ ] `InpRequireApproval=true` for initial live deployment.
+- [ ] conservative risk used initially.
+- [ ] ONNX/DOM kept optional unless separately validated live.
+- [ ] archive `.ex5`, `.set`, Git commit SHA, MT5 build, analytics schema, stop observability schema, broker profile and all release evidence.
+
+A source push alone is **not** a release. The build is releasable only after the above gates are evidenced on the intended MT5 broker/account environment.

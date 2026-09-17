@@ -8,6 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "gpt_ea_compile_evidence_v1"
 SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
@@ -74,13 +75,11 @@ def main() -> int:
     if rec.get("source_unchanged_after_compile") is not True:
         fail("source_unchanged_after_compile must be true")
 
-    base = record_path.parent
-
     def resolve(value: str) -> Path:
         p = Path(value)
         if p.is_absolute():
             return p
-        return (base / p).resolve()
+        return (ROOT / p).resolve()
 
     log_path = resolve(str(rec.get("compile_log_path", "")))
     if not log_path.exists() or not log_path.is_file():

@@ -19,3 +19,6 @@ void RecordStopFailureObservation(ulong ticket,const string context,const string
 void RecordStopRecoveryObservation(ulong ticket,const string context,const string note);
 void RecordStopObservationEvent(ulong ticket,const string eventName,const string context,const string reason,bool critical,double requestedSL,double rNow);
 void RecordPartialProtectionObservation(ulong ticket,const string eventName,const string reason);
+
+// Defined in Part23 and used by adaptive notification integration in Part35.
+void NotifyCardObserved(const string card);

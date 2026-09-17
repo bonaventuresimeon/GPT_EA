@@ -16,7 +16,7 @@ bool SpreadOK(const string sym,string &detail)
 void InitSetup(TradeSetup &s,const string sym,SetupKind k,bool bull)
 {
    s.valid=false; s.bullish=bull; s.kind=k; s.symbol=sym;
-   s.name=(k==SETUP_PULLBACK?"PULLBACK":"BREAKOUT-RETEST");
+   s.name=(k==SETUP_PULLBACK?"PULLBACK":(k==SETUP_BREAKOUT?"BREAKOUT":"BREAKOUT-RETEST"));
    s.zoneLow=s.zoneHigh=s.preferred=s.sl=s.tp1=s.tp2=s.tp3=0;
    s.nominalRR1=s.effectiveRR1=0; s.confidence=0; s.expiryM15=0;
    s.reason=s.invalidation=s.failurePattern=s.eventRisk=s.yieldRisk=s.executionRule="";

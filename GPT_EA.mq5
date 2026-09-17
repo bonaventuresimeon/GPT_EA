@@ -10,5 +10,6 @@
 #include "GPT_EA_Part12_SafetyStopManagement.mqh"
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part06.mqh"
+#include "GPT_EA_Part14_StopFailurePolicy.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 #include "GPT_EA_Part07.mqh"

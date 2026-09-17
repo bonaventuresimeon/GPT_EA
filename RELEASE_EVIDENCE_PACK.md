@@ -159,6 +159,18 @@ Then hash the completed manifest itself.
 - [ ] Archive manifest hashed.
 - [ ] Pack stored in immutable/versioned archive.
 
+## 🤖 Pack generator
+
+Use `RELEASE_EVIDENCE_PACK_TEMPLATE.json` as the input manifest and run:
+
+```text
+python tools/build_release_evidence_pack.py RELEASE_EVIDENCE_PACK_TEMPLATE.json
+```
+
+The generator verifies required files, prevents path escape outside the configured source root, scans for common secret patterns, copies evidence into a clean pack, hashes every artifact, writes `archive-index.json` / `archive-index.txt`, and creates `evidence-pack-manifest.sha256`.
+
+It deliberately does **not** claim that MetaEditor, Strategy Tester, soak or legal evidence passed; it only packages artifacts that actually exist.
+
 ## 🤖 Recommended automation
 
 A future release-pack generator should verify required files, compute SHA-256 for every artifact, reject secrets/missing evidence, create the archive index, write the pack digest and never mark external gates PASS without the actual artifacts.

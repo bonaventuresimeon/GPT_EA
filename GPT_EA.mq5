@@ -17,8 +17,9 @@
 #include "GPT_EA_Part20_RealisticCostModel.mqh"
 #include "GPT_EA_Part15D_StructureTargets.mqh"
 #include "GPT_EA_Part21_ResearchValidation.mqh"
+#include "GPT_EA_Part24_SessionStrategyHardening.mqh"
 #include "GPT_EA_Part19_ContinuousIntelligence.mqh"
-#define SelectDynamicStrategy SelectDynamicStrategyResearch
+#define SelectDynamicStrategy SelectDynamicStrategyFinal
 #define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionFull
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull
@@ -31,12 +32,15 @@
 #include "GPT_EA_Part16A_StrictRevalidation.mqh"
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
+#include "GPT_EA_Part25_ThesisHardening.mqh"
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part23_IntelligenceObservability.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 #define NotifyCard NotifyCardObserved
+#define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal
 #include "GPT_EA_Part07.mqh"
+#undef BuildMandatory25PointThesis
 #undef NotifyCard
 #undef PreEntryIntelligenceRevalidation
 #undef AssessIntermarket

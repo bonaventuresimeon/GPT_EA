@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from validate_five_day_soak_record import validate_record
+
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "SOAK_EVIDENCE_SCHEMA.json"
 
@@ -24,6 +26,11 @@ def parse_time(value: str) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def resolve_path(value: str) -> Path:
+    p = Path(value)
+    return p if p.is_absolute() else ROOT / p
 
 
 def validate_subset_schema(value: dict[str, Any], schema: dict[str, Any]) -> list[str]:
@@ -74,12 +81,29 @@ def validate_soak(soak: dict[str, Any], schema: dict[str, Any]) -> tuple[list[st
             errors.append("demo_soak.start and demo_soak.end must use compatible timezone forms")
 
     report = str(soak.get("report_path", "")).strip()
-    if report:
-        p = Path(report)
-        if not p.is_absolute():
-            p = ROOT / p
-        if not p.exists():
-            errors.append(f"demo soak report not found: {p}")
+    if report and not resolve_path(report).exists():
+        errors.append(f"demo soak report not found: {resolve_path(report)}")
+
+    record_path_raw = str(soak.get("acceptance_record_path", "")).strip()
+    if not record_path_raw:
+        errors.append("demo_soak.acceptance_record_path is required")
+    else:
+        record_path = resolve_path(record_path_raw)
+        if not record_path.exists():
+            errors.append(f"five-day soak acceptance record not found: {record_path}")
+        else:
+            try:
+                record = json.loads(record_path.read_text(encoding="utf-8"))
+                record_errors, record_digest = validate_record(record, require_digest=True)
+                errors.extend(f"five-day record: {e}" for e in record_errors)
+                if str(record.get("record_id", "")) != str(soak.get("acceptance_record_id", "")):
+                    errors.append("demo_soak.acceptance_record_id does not match five-day record.record_id")
+                if str(record.get("evidence_id", "")) != str(soak.get("evidence_id", "")):
+                    errors.append("five-day record.evidence_id does not match demo_soak.evidence_id")
+                if record_digest.lower() != str(soak.get("acceptance_record_digest", "")).lower():
+                    errors.append("demo_soak.acceptance_record_digest does not match five-day record digest")
+            except Exception as exc:
+                errors.append(f"could not validate five-day soak acceptance record: {exc}")
 
     basis = copy.deepcopy(soak)
     stored = str(basis.pop("evidence_digest", ""))
@@ -93,7 +117,7 @@ def validate_soak(soak: dict[str, Any], schema: dict[str, Any]) -> tuple[list[st
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Validate GPT_EA demo-soak evidence against the versioned schema")
+    ap = argparse.ArgumentParser(description="Validate GPT_EA demo-soak evidence against the versioned schema and five-day acceptance record")
     ap.add_argument("evidence", nargs="?", default="release_evidence.json")
     args = ap.parse_args()
 
@@ -119,7 +143,7 @@ def main() -> int:
         print(text, end="")
         return 1
 
-    text = f"SOAK EVIDENCE SCHEMA CHECK: PASS\nSCHEMA_VERSION: {soak['schema_version']}\nSOAK_EVIDENCE_SHA256: {digest}\n"
+    text = f"SOAK EVIDENCE SCHEMA CHECK: PASS\nSCHEMA_VERSION: {soak['schema_version']}\nACCEPTANCE_RECORD_ID: {soak['acceptance_record_id']}\nSOAK_EVIDENCE_SHA256: {digest}\n"
     out.write_text(text, encoding="utf-8")
     print(text, end="")
     return 0

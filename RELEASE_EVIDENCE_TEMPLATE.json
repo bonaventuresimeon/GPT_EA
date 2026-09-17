@@ -63,6 +63,15 @@
     "validated": false,
     "validation_path": "artifacts/mt5-validation-evidence-validation.txt"
   },
+  "resilience_hardening": {
+    "schema_version": "resilience_hardening_evidence_v1",
+    "evidence_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_path": "artifacts/r6-resilience-hardening.json",
+    "config_fingerprint": "00000000",
+    "validated": false,
+    "validation_path": "artifacts/resilience-hardening-evidence-validation.txt"
+  },
   "deployment": {
     "broker_company": "",
     "trade_server": "",
@@ -148,7 +157,8 @@
     "web_failure_injection": false,
     "api_transport": false,
     "demo_soak": false,
-    "operator_review": false
+    "operator_review": false,
+    "resilience_hardening": false
   },
   "final_review": {
     "schema_version": "final_release_review_v1",

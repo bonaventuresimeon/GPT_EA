@@ -196,6 +196,19 @@ void RecoverySafetyAudit()
 // ------------------- Validated checkpoint backup layer ----------------
 string RecoveryBackupFileName(){ return RecoveryStateFileName()+".bak"; }
 
+bool AppendRecoveryEndMarker()
+{
+   if(!InpUseRecoveryFileCheckpoint) return true;
+   string main=RecoveryStateFileName();
+   int h=FileOpen(main,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return false;
+   if(!FileSeek(h,0,SEEK_END)){ FileClose(h); return false; }
+   uint written=FileWrite(h,"END","2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS));
+   FileFlush(h);
+   FileClose(h);
+   return (written>0);
+}
+
 bool RecoveryCheckpointHeaderValid(const string fileName)
 {
    if(!FileIsExist(fileName,FILE_COMMON)) return false;
@@ -208,12 +221,19 @@ bool RecoveryCheckpointHeaderValid(const string fileName)
    long login=(long)StringToInteger(FileReadString(h));
    string server=FileReadString(h);
    long magic=(long)StringToInteger(FileReadString(h));
-   string snapshot=FileReadString(h);
+   FileReadString(h); // snapshot time
+
+   bool completed=false;
+   while(!FileIsEnding(h))
+   {
+      string row=FileReadString(h);
+      if(row=="END") completed=true;
+      while(!FileIsLineEnding(h) && !FileIsEnding(h)) FileReadString(h);
+   }
    FileClose(h);
 
-   bool ok=(tag=="META" && version>=2 && login==AccountInfoInteger(ACCOUNT_LOGIN) && magic==InpMagic);
+   bool ok=(tag=="META" && version>=2 && login==AccountInfoInteger(ACCOUNT_LOGIN) && magic==InpMagic && completed);
    if(InpRejectRecoveryServerMismatch && server!=AccountInfoString(ACCOUNT_SERVER)) ok=false;
-   snapshot=snapshot; // retained for schema-compatible header validation
    return ok;
 }
 
@@ -235,12 +255,12 @@ void PrepareRecoveryCheckpointFallback()
    string backup=RecoveryBackupFileName();
    if(!RecoveryCheckpointHeaderValid(backup))
    {
-      if(FileIsExist(main,FILE_COMMON)) Print("GPT_EA recovery main checkpoint is invalid and no valid backup is available.");
+      if(FileIsExist(main,FILE_COMMON)) Print("GPT_EA recovery main checkpoint is incomplete/invalid and no completed backup is available.");
       return;
    }
    ResetLastError();
    if(FileCopy(backup,FILE_COMMON,main,FILE_COMMON|FILE_REWRITE))
-      Print("GPT_EA restored recovery checkpoint from validated backup.");
+      Print("GPT_EA restored recovery checkpoint from completed validated backup.");
    else
       Print("GPT_EA could not restore recovery backup: ",GetLastError());
 }
@@ -248,6 +268,11 @@ void PrepareRecoveryCheckpointFallback()
 void SafeUniversalCheckpointNow()
 {
    UniversalCheckpointNow();
+   if(!AppendRecoveryEndMarker())
+   {
+      Print("GPT_EA could not append recovery END marker; snapshot will not be promoted to backup.");
+      return;
+   }
    BackupRecoveryCheckpointIfValid();
 }
 

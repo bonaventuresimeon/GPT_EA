@@ -38,7 +38,8 @@ void WriteIntelligenceDecisionJournal(const string card)
    if(FileSize(h)==0)
       FileWrite(h,"server_time","asset","classification","market_state","strategy_decision","final_decision","full_card");
    FileSeek(h,0,SEEK_END);
-   string payload=StringSubstr(card,0,MathMax(1000,InpIntelligenceCardMaxChars));
+   int maxChars=(int)MathMax(1000,InpIntelligenceCardMaxChars);
+   string payload=StringSubstr(card,0,maxChars);
    FileWrite(h,
       TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),
       CardLineValue(card,"Asset:"),

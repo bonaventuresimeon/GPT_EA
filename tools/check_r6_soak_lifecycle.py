@@ -17,6 +17,7 @@ paths={
     "schema": ROOT/"SOAK_EVIDENCE_SCHEMA.json",
     "evidence_doc": ROOT/"DEMO_SOAK_EVIDENCE.md",
     "report": ROOT/"DEMO_SOAK_REPORT_TEMPLATE.md",
+    "matrix": ROOT/"R6_LIFECYCLE_SOAK_TEST_MATRIX.md",
     "importer": ROOT/"tools/import_soak_snapshot.py",
     "soak_validator": ROOT/"tools/validate_soak_evidence.py",
     "release_validator": ROOT/"tools/validate_release_evidence.py",
@@ -35,6 +36,7 @@ p35=paths["part35"].read_text(encoding="utf-8")
 p36=paths["part36"].read_text(encoding="utf-8")
 doc=paths["evidence_doc"].read_text(encoding="utf-8")
 report=paths["report"].read_text(encoding="utf-8")
+matrix=paths["matrix"].read_text(encoding="utf-8")
 importer=paths["importer"].read_text(encoding="utf-8")
 
 for token in [
@@ -113,6 +115,9 @@ for token in [
 
 for token in ["Candidate identity","Zero-tolerance reconciliation","Schema and digest","Operator conclusion"]:
     if token not in report: errors.append(f"DEMO_SOAK_REPORT_TEMPLATE.md missing section: {token}")
+
+for token in ["LS-001","LS-002","LS-008","DS-010","DS-020","DS-030","DS-040","DS-050","DS-070","DS-073","DS-080","DS-085"]:
+    if token not in matrix: errors.append(f"R6_LIFECYCLE_SOAK_TEST_MATRIX.md missing release case: {token}")
 
 for token in ["canonical_digest", "validate_soak", "evidence_digest", "No release-evidence file was modified"]:
     if token not in importer: errors.append(f"import_soak_snapshot.py missing safety token: {token}")

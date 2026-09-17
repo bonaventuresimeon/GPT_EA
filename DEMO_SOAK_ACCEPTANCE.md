@@ -1,144 +1,184 @@
-# GPT_EA Demo-Soak Acceptance Contract
+# GPT_EA R6 Demo-Soak Acceptance Contract
 
-This contract is **release blocking**. A demo soak is not considered passed merely because the EA stayed attached without crashing.
+This contract is **release blocking**. A demo soak is not considered passed merely because the EA stayed attached, traded profitably or displayed a healthy dashboard.
 
-## 1. Minimum coverage
+The authoritative R6 evidence flow is:
 
-The candidate build must run on the intended broker/account type using the exact release `.ex5` and `.set` preset for at least:
+`GPT_EA_Part36_DemoSoakEvidence.mqh` → `GPT_EA_DemoSoakSnapshot.json` → operator reconciliation/report → `tools/import_soak_snapshot.py` → `tools/validate_soak_evidence.py` → `tools/validate_release_evidence.py` → Part28 local release inputs.
 
-- **5 consecutive trading days**;
-- coverage of London session and New York/U.S. cash session on at least 3 of those days;
+See `DEMO_SOAK_EVIDENCE.md`, `DEMO_SOAK_REPORT_TEMPLATE.md` and `SOAK_EVIDENCE_SCHEMA.json`.
+
+## 1. Candidate and run identity
+
+Use the intended broker/account type and the exact candidate `.ex5` and `.set` preset. Before starting:
+
+- archive the exact Git commit SHA;
+- archive EX5 SHA-256;
+- archive SET SHA-256 or explicit `NONE`;
+- record MetaEditor and MT5 builds;
+- record broker/server/account profile;
+- set `InpEnableDemoSoakEvidence=true` on demo/contest only;
+- set a unique `InpDemoSoakEvidenceId` of at least 8 characters;
+- preserve that evidence ID for the whole run.
+
+A material executable-source, EX5, SET/risk-profile or deployment change creates a new candidate and invalidates the prior soak.
+
+## 2. Minimum R6 coverage
+
+The same candidate must demonstrate at least:
+
+- **5 consecutive trading days** with fresh configured-symbol quotes;
+- London-session coverage on at least 3 days;
+- New York/U.S. cash-session coverage on at least 3 days;
 - at least one London/New York overlap;
-- at least one broker rollover/spread-expansion window;
-- at least one high-impact scheduled-news day relevant to a configured symbol;
-- at least one terminal/VPS restart;
-- at least one disconnect/reconnect event, naturally occurring or controlled;
-- at least one forced manual SCAN NOW cycle and normal scheduled/continuous scans.
+- at least one relevant high-impact scheduled-news day;
+- at least one rollover window with actual spread expansion;
+- at least one EA/terminal restart or reinitialization under the same soak ID;
+- at least one observed disconnect followed by reconnect;
+- at least one scheduled scan;
+- at least one continuous/new-M5 scan;
+- at least one manual `SCAN NOW` cycle;
+- at least one primary recovery-checkpoint update;
+- at least one validated backup-checkpoint observation.
 
-If the intended deployment trades weekend-enabled instruments, include at least one weekend session for those instruments.
+If the intended deployment trades weekend-enabled instruments, document weekend behavior separately. Weekend days do not count toward the normal Monday-Friday consecutive-day requirement unless `InpDemoSoakCountWeekendTradingDays` is explicitly enabled and justified for that release profile.
 
-## 2. Instrument/account coverage
+## 3. Machine evidence artifacts
 
-Use the intended broker naming/specification and validate the configured portfolio, normally including the selected release symbols such as XAUUSD, US100 and GER40 where offered.
+Part36 writes to MT5 Common Files:
 
-Record:
+- `GPT_EA_DemoSoakEvidence.csv` — event/summary stream;
+- `GPT_EA_DemoSoakSnapshot.json` — current R6 `demo_soak` object;
+- existing `GPT_EA_Execution.csv`;
+- existing `GPT_EA_StopFailures.csv`;
+- existing `GPT_EA_ReleaseEvidence.csv`.
 
-- broker company/server;
-- demo account margin mode;
-- account currency/leverage;
-- actual resolved symbol names;
-- tick size, contract size, volume step, stops/freeze levels and execution mode;
-- spread observations in normal and stressed conditions.
+The runtime snapshot uses schema version:
 
-## 3. Mandatory operational observations
+`demo_soak_evidence_v1`
 
-The soak must demonstrate all applicable behaviors without forcing artificial trades solely to increase sample count:
+The snapshot deliberately leaves `evidence_digest` blank. Digest finalization happens offline after reconciliation.
 
-- scans continue across all configured symbols;
-- HIGH-CONFIDENCE, WAIT/REANALYZE and NO-TRADE states can all occur without forcing execution;
-- pending approvals expire safely;
-- approval revalidation blocks stale/changed setups;
-- news/intermarket failures follow configured fail-open/fail-closed policy;
-- release/risk gates never become bypassed because of a timer, restart or reconnect;
-- existing positions continue to be protected when new entries are blocked;
-- checkpoint and `.bak` recovery files continue to update;
-- execution, intelligence, stop-failure and release-evidence logs remain writable and internally consistent.
+## 4. Required operational observations
 
-## 4. Position-management evidence
+The soak must demonstrate normal operation without manufacturing unsafe trades merely to increase sample size:
 
-Across the full release test campaign, including controlled matrix tests plus soak, archive evidence for at least one complete BUY and one complete SELL lifecycle where market conditions permit:
+- scans continue across configured symbols;
+- HIGH-CONFIDENCE, WAIT/REANALYZE and NO-TRADE decisions can occur without forced execution;
+- pending approvals expire/deny safely;
+- stale human-approval lifecycle states reconcile to `INVALIDATED` when no pending approval or fill remains;
+- market-confirmation waits are not falsely invalidated by that reconciliation;
+- fresh approval validation rejects changed/stale setups;
+- news/intermarket failures obey configured failure policy;
+- GPT disagreement/integrity gates do not override deterministic hard risk controls;
+- release/risk/stop gates remain effective through timers, restart and reconnect;
+- existing positions remain protected when new entries are blocked;
+- strategy health, shadow/challenger and execution-learning journals continue updating;
+- recovery checkpoint and validated `.bak` evidence continue updating;
+- required CSVs remain writable and internally consistent.
 
-`initial SL → TP1 partial → BE → profit lock → strong lock → trailing/TP3 or managed exit`.
+## 5. Position-management evidence
 
-The soak itself must not manufacture unsafe market orders just to satisfy this requirement. If natural setups do not produce every stage during the 5-day soak, use the already required controlled demo stop-management tests and reference those artifacts in the soak report.
+Across the complete release campaign—including controlled matrices plus the soak—archive at least one complete BUY and one complete SELL lifecycle where market conditions permit:
 
-## 5. Zero-tolerance failures
+`initial SL → TP1 partial → protection/BE → profit lock → strong lock → runner/trailing/TP3 or managed exit`.
 
-The soak immediately FAILS for any of the following:
+Do not manufacture unsafe market orders solely to complete this sequence. If natural soak setups do not cover every stage, reference the required controlled demo stop-management tests in the soak report.
 
-- duplicate market order caused by one authorization;
-- duplicate TP1 or TP2 partial exit;
-- BUY SL moves backward or SELL SL moves backward because of EA logic;
-- valid broker-held SL is unintentionally removed;
-- an unprotected GPT_EA position coexists with newly authorized risk;
-- a real-account order is possible without full release certification;
-- recovery creates a position that does not actually exist at the broker;
-- stale pending approval executes after restart without fresh validation;
-- netting reversal receives stale pre-reversal management state;
-- analytics finalizes the same position lifecycle twice;
-- stop/recovery critical error is silently auto-cleared without policy authorization;
-- release/dashboard reports PASS while the certified gate is BLOCKED;
-- uncaught initialization/runtime loop prevents normal position protection;
-- unexplained array/divide/indicator-handle runtime errors;
-- API key or other secret appears in logs/source artifacts.
+## 6. R6 zero-tolerance fields
 
-## 6. End-of-soak unresolved-state rule
+The final schema requires all of these to equal zero:
 
-At the end of the soak there must be **zero unexplained critical release blockers**.
+- `zero_tolerance_failures`;
+- `unresolved_critical_states`;
+- `duplicate_orders`;
+- `duplicate_partials`;
+- `sl_regressions`;
+- `unprotected_new_authorizations`;
+- `release_gate_bypasses`;
+- `analytics_duplicate_finalizations`;
+- `stop_failure_join_failures`;
+- `dashboard_gate_mismatches`;
+- `runtime_critical_errors`;
+- `secrets_exposed`.
 
-The following must be either clear or explicitly reconciled and archived:
+A machine-produced zero is not sufficient proof. The operator must reconcile each category against broker history, Experts/Journal, execution/stop/lifecycle/intelligence CSVs and the completed soak report. Any discovered event must be reflected as a non-zero count and is release blocking.
 
-- no `SL=0` GPT_EA position;
-- no unresolved `STOP_FAIL_CRITICAL` state;
-- no unresolved operator-required stop-failure class;
+Examples of immediate soak failure include duplicate orders/partials, stop regression, unintentionally removed protection, new authorization while a position is unprotected, release-gate bypass, stale approval execution after restart, duplicated analytics lifecycle finalization, unexplained critical runtime errors or credential exposure.
+
+## 7. End-of-soak state
+
+At soak end there must be no unexplained critical state, including:
+
+- no GPT_EA position with `SL=0` unless an explicitly documented broker-transition policy is actively handling it;
+- no unresolved critical/operator-required stop state;
 - no stale partial-protection hazard;
+- no orphaned human-approval `WAIT_CONFIRMATION`;
 - no duplicate pending approval;
-- no corrupt/unreadable recovery checkpoint without a valid fallback;
-- no unexplained `OrderCheck`/broker execution rejection loop;
-- no repeated WebRequest/OpenAI failure loop that violates configured policy;
-- no release-evidence mismatch on the candidate environment.
+- no corrupt checkpoint without a valid fallback;
+- no unexplained broker rejection loop;
+- no repeated OpenAI/WebRequest failure loop contrary to configured policy;
+- no release/dashboard state mismatch;
+- no candidate artifact or deployment identity mismatch.
 
-A deliberately induced safety pause may remain paused, but its cause, recovery and operator decision must be documented before release.
+A deliberately induced safety pause may remain paused only if its cause, evidence, recovery status and operator decision are explicitly documented.
 
-## 7. Stability/quality thresholds
+## 8. Evidence report and reconciliation
 
-The candidate should meet all of the following during the soak:
+Copy `DEMO_SOAK_REPORT_TEMPLATE.md` to the report path referenced by the snapshot and complete every applicable section. Archive:
 
-- no EA crash or uncontrolled reinitialization loop;
-- no runaway duplicate log/alert storm;
-- no more than one expected scan action per configured scheduling trigger/new-M5-bar event;
-- broker-specific stop retry obeys its configured backoff;
-- no repeated emergency close request faster than policy permits;
-- no unexplained orphaned pending state after reconnect/restart;
-- no unexplained discrepancy between broker history and `GPT_EA_Execution.csv` lifecycle identity;
-- every observed material stop failure is joinable to `GPT_EA_StopFailures.csv` by `POSITION_IDENTIFIER`;
-- every release-evidence snapshot clearly reports PASS/BLOCK and reason.
-
-## 8. Performance is observed, not guaranteed
-
-The soak should record win rate, realized R, MAE/MFE, slippage, spread, strategy class and session, but **profitability is not itself the release acceptance criterion** for a 5-day engineering soak.
-
-A build does not fail solely because demo P/L is negative over a small sample, and it does not pass solely because P/L is positive. Strategy-edge decisions require the separate historical/walk-forward/forward-performance evidence defined by the strategy analytics contracts.
-
-## 9. Required archived evidence
-
-Archive together:
-
-- exact Git commit SHA;
-- `.ex5` SHA-256;
-- `.set` SHA-256;
-- MetaTrader/MetaEditor builds;
-- broker/server/account profile;
-- soak start/end timestamps;
-- terminal uptime/restart notes;
+- candidate and deployment identity;
+- soak start/end;
+- session/news/rollover coverage;
+- restart/reconnect evidence;
+- scheduled/continuous/manual scan counts;
+- primary and backup checkpoint observations;
 - Experts and Journal logs;
+- broker order/deal history;
 - `GPT_EA_Execution.csv`;
 - `GPT_EA_StopFailures.csv`;
-- intelligence/news observations;
+- `GPT_EA_Intelligence.csv` and adaptive journals where applicable;
 - `GPT_EA_ReleaseEvidence.csv`;
-- checkpoint and `.bak` samples;
-- screenshots or trade-history exports for material lifecycle/failure events;
-- list of all unresolved warnings/issues, which must be empty for critical blockers.
+- `GPT_EA_DemoSoakEvidence.csv`;
+- `GPT_EA_DemoSoakSnapshot.json`;
+- recovery checkpoint and `.bak` samples;
+- screenshots/trade-history exports for material events;
+- reconciliation of every zero-tolerance field.
 
-## 10. PASS decision
+Performance metrics—win rate, realized R, MAE/MFE, slippage, spread and strategy/session performance—are recorded for research but are **not by themselves the engineering PASS criterion** for a five-day soak.
 
-`InpReleaseDemoSoakPassed=true` may be set only when:
+## 9. Finalize the soak JSON and digest
 
-1. minimum session/time/event coverage is complete;
-2. all zero-tolerance rules pass;
-3. no unexplained critical state remains;
-4. required observability/recovery files are internally consistent;
-5. exact release artifacts are identified and archived;
-6. a human operator reviews and signs the soak report.
+Part36's live snapshot is intentionally not release-ready because its digest is blank. After the report is complete and the counters have been reconciled, import it into a copy of the release evidence:
 
-Any executable source change after the soak invalidates the soak certification for that build and requires a new candidate artifact plus revalidation appropriate to the change.
+```text
+python tools/import_soak_snapshot.py path/to/GPT_EA_DemoSoakSnapshot.json path/to/release_evidence.json
+```
+
+The importer refuses an incomplete/invalid snapshot, verifies the report exists, calculates the canonical SHA-256 excluding the `evidence_digest` field, inserts the digest and updates the `demo_soak` object.
+
+Then run:
+
+```text
+python tools/validate_soak_evidence.py path/to/release_evidence.json
+python tools/validate_release_evidence.py path/to/release_evidence.json
+```
+
+Both must PASS. Archive `soak-evidence-validation.txt`, `release-evidence-validation.txt` and the completed evidence JSON.
+
+## 10. Part28 promotion rule
+
+`InpReleaseDemoSoakPassed=true` may be set locally only after all of the following are true:
+
+1. the exact candidate identity is archived;
+2. machine coverage requirements are complete;
+3. the operator reconciled all zero-tolerance categories;
+4. the completed report exists;
+5. the `demo_soak` object passes `SOAK_EVIDENCE_SCHEMA.json`;
+6. its canonical digest is archived;
+7. `tools/validate_soak_evidence.py` passes;
+8. the complete release bundle passes `tools/validate_release_evidence.py`;
+9. all Part28 soak fields match the archived evidence exactly;
+10. final human GO/NO-GO review is still separately completed.
+
+Part36 never changes release-attestation inputs and never authorizes REAL-account execution. R6 remains fail-closed until the complete engineering and operator release process is satisfied.

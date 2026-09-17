@@ -1,0 +1,41 @@
+{
+  "schema_version": "final_release_review_v1",
+  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+  "review_evidence_id": "",
+  "review_timestamp": "",
+  "reviewer": "",
+  "decision": "HOLD",
+  "candidate": {
+    "git_sha": "0000000000000000000000000000000000000000",
+    "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "set_sha256": "NONE",
+    "release_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "deployment": {
+    "broker_company": "",
+    "trade_server": "",
+    "account_currency": "",
+    "margin_mode": "",
+    "account_leverage": "",
+    "deployment_profile_match": false
+  },
+  "review": {
+    "compile_contract_pass": false,
+    "soak_schema_pass": false,
+    "release_evidence_validator_pass": false,
+    "all_release_gates_pass": false,
+    "zero_unresolved_critical_states": false,
+    "zero_zero_tolerance_failures": false,
+    "artifact_identity_match": false,
+    "deployment_identity_match": false,
+    "no_source_change_after_validation": false,
+    "no_unreviewed_known_issue": false,
+    "initial_live_risk_conservative": false,
+    "approval_required_initially": true
+  },
+  "unresolved_critical_count": 0,
+  "zero_tolerance_failure_count": 0,
+  "known_limitations": [],
+  "open_noncritical_issues": [],
+  "notes": ""
+}

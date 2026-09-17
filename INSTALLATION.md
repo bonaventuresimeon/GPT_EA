@@ -8,6 +8,8 @@ Also use:
 
 - **`FIRST_RUN_CHECKLIST.md`** — first-launch PASS/FAIL checklist.
 - **`API_KEY_TROUBLESHOOTING.md`** — safe API/WebRequest troubleshooting without sharing secrets.
+- **`TRADING_RISK_DISCLOSURE.md`** — trading-loss and no-profit-guarantee disclosure.
+- **`TERMS_AND_CONDITIONS.md`** and **`COMMERCIAL_LICENSE.md`** — customer legal/license terms.
 
 The standard customer setup is:
 
@@ -92,3 +94,14 @@ Read **`USER_INSTALLATION_GUIDE.md`**, **`FIRST_RUN_CHECKLIST.md`**, and **`API_
 - API troubleshooting;
 - release-block messages;
 - real-account activation.
+
+## Real-account legal acknowledgement
+
+Before a REAL account can clear the R8 legal gate, the customer must read the commercial terms and trading-risk disclosure and enter the acknowledgement personally. Distributed presets must leave these fields unaccepted/blank.
+
+    InpAcceptGPTCommercialTerms = true
+    InpAcceptGPTTradingRisk = true
+    InpGPTTermsAcceptancePhrase = I ACCEPT GPT_EA TERMS AND TRADING RISK
+    InpCustomerLicenseReference = <LICENSE REFERENCE ISSUED TO CUSTOMER>
+
+This acknowledgement does not guarantee profitability and does not waive rights or liabilities that applicable law does not allow to be waived.

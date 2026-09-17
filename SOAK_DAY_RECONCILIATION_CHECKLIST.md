@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `SOAK_DAY_RECONCILIATION_CHECKLIST.md`
+
+---
+
 # GPT_EA R6 Soak-Day Reconciliation Checklist
 
 Use one completed copy for **each accepted trading day** in the five-day demo soak. Copy this file to `artifacts/soak-day-YYYY-MM-DD.md` and reference that path from the matching day object in `five-day-soak-acceptance.json`.

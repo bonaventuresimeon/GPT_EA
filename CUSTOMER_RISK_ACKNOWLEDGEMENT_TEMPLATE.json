@@ -1,0 +1,22 @@
+{
+  "schema_version": "GPT_EA_RISK_ACK_V1",
+  "terms_version": "GPT_EA_TERMS_20260917_V1",
+  "acknowledgement_id": "",
+  "accepted_at_utc": "",
+  "jurisdiction": "",
+  "license_reference_masked": "****",
+  "broker_company": "",
+  "trade_server": "",
+  "acknowledgements": {
+    "commercial_terms": false,
+    "trading_risk": false,
+    "no_profit_guarantee": false,
+    "possible_total_loss": false,
+    "ai_limitations": false,
+    "broker_third_party_risk": false,
+    "personal_responsibility": false,
+    "demo_first": false
+  },
+  "decision": "HOLD",
+  "record_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

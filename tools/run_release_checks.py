@@ -21,6 +21,7 @@ CHECKS = [
     ROOT / "tools" / "check_r5_adaptive.py",
     ROOT / "tools" / "check_r6_soak_lifecycle.py",
     ROOT / "tools" / "check_runner_recovery_contract.py",
+    ROOT / "tools" / "check_mt5_validation_contract.py",
     ROOT / "tools" / "check_api_transport_static.py",
 ]
 

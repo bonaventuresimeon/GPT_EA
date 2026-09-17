@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### ⚖️ Legal, Risk & Governance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> ⚖️ **Document:** `ANTI_PIRACY_LICENSE_ENFORCEMENT.md`
+
+---
+
 # GPT_EA Anti-Piracy and License-Enforcement Policy
 
 This policy combines contractual anti-theft rules with recommended technical controls.

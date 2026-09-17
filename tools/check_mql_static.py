@@ -33,6 +33,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part24_SessionStrategyHardening.mqh",
     "GPT_EA_Part25_ThesisHardening.mqh",
     "GPT_EA_Part26_DeepGPTPolicy.mqh",
+    "GPT_EA_Part27_StrategyCompletion.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -69,7 +70,7 @@ REQUIRED_TOKENS = {
     "GPT_EA_Part24_SessionStrategyHardening.mqh": [
         "AccurateSessionBucket", "LONDON_NY_OVERLAP",
         "AccurateSessionEvidenceAllows", "LateSessionLiquidityRisk",
-        "StrategyAdaptiveExpiry",
+        "StrategyAdaptiveExpiry", "PersistStrategyPlanForExecutionAccurate",
     ],
     "GPT_EA_Part25_ThesisHardening.mqh": [
         "RealisticRiskReward(pb)", "RealisticRiskReward(br)",
@@ -77,6 +78,11 @@ REQUIRED_TOKENS = {
     ],
     "GPT_EA_Part26_DeepGPTPolicy.mqh": [
         "gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep",
+    ],
+    "GPT_EA_Part27_StrategyCompletion.mqh": [
+        "BuildDirectBreakoutCandidate", "SelectDynamicStrategyUltimate",
+        "STRATEGY_COUNTER_TREND_SWING", "STATE_BREAKOUT_RETEST",
+        "Mean-reversion validity repaired",
     ],
 }
 
@@ -89,7 +95,9 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part24_SessionStrategyHardening.mqh"',
     '#include "GPT_EA_Part25_ThesisHardening.mqh"',
     '#include "GPT_EA_Part26_DeepGPTPolicy.mqh"',
-    "#define SelectDynamicStrategy SelectDynamicStrategyFinal",
+    '#include "GPT_EA_Part27_StrategyCompletion.mqh"',
+    "#define SelectDynamicStrategy SelectDynamicStrategyUltimate",
+    "#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate",
     "#define GetLiveWebIntel GetLiveWebIntelHardened",
     "#define AssessIntermarket AssessIntermarketHardened",
     "#define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict",
@@ -202,6 +210,7 @@ def main() -> int:
         "GPT_EA_Part15D_StructureTargets.mqh",
         "GPT_EA_Part21_ResearchValidation.mqh",
         "GPT_EA_Part24_SessionStrategyHardening.mqh",
+        "GPT_EA_Part27_StrategyCompletion.mqh",
         "GPT_EA_Part16_NewsIntermarket.mqh",
         "GPT_EA_Part22A_IntermarketForward.mqh",
         "GPT_EA_Part22P_ResponseParser.mqh",

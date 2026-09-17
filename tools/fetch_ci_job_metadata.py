@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -54,18 +53,32 @@ def main() -> int:
             print("ERROR:", e)
         return 1
 
-    url = f"https://api.github.com/repos/{args.repository}/actions/runs/{args.run_id}/jobs?per_page=100&filter=latest"
+    # Pin metadata to the exact workflow attempt. This prevents a rerun from
+    # accidentally reusing a job record from a different attempt of the same run.
+    url = (
+        f"https://api.github.com/repos/{args.repository}/actions/runs/{args.run_id}"
+        f"/attempts/{args.run_attempt}/jobs?per_page=100"
+    )
     try:
         data = api_json(url, token)
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-        print(f"CI JOB METADATA: FAILED\nERROR: GitHub jobs API request failed: {exc}")
+        print(f"CI JOB METADATA: FAILED\nERROR: GitHub exact-attempt jobs API request failed: {exc}")
         return 1
 
     candidates = [j for j in data.get("jobs", []) if j.get("name") == args.job_name]
     if not candidates:
-        print(f"CI JOB METADATA: FAILED\nERROR: completed job named {args.job_name!r} was not found in run {args.run_id}")
+        print(
+            "CI JOB METADATA: FAILED\n"
+            f"ERROR: completed job named {args.job_name!r} was not found in run {args.run_id} attempt {args.run_attempt}"
+        )
         return 1
-    job = sorted(candidates, key=lambda j: int(j.get("id", 0)), reverse=True)[0]
+    if len(candidates) != 1:
+        print(
+            "CI JOB METADATA: FAILED\n"
+            f"ERROR: expected one {args.job_name!r} job in exact run attempt, found {len(candidates)}"
+        )
+        return 1
+    job = candidates[0]
 
     steps = job.get("steps") or []
     completed_steps = [
@@ -78,7 +91,7 @@ def main() -> int:
         "repository": args.repository,
         "run_id": args.run_id,
         "run_attempt": args.run_attempt,
-        "run_url": f"https://github.com/{args.repository}/actions/runs/{args.run_id}",
+        "run_url": f"https://github.com/{args.repository}/actions/runs/{args.run_id}/attempts/{args.run_attempt}",
         "head_sha": args.head_sha,
         "job_id": int(job.get("id", 0) or 0),
         "job_name": str(job.get("name", "")),
@@ -124,6 +137,7 @@ def main() -> int:
         return 1
 
     print("CI JOB METADATA: PASS")
+    print(f"RUN_ATTEMPT={meta['run_attempt']}")
     print(f"JOB_ID={meta['job_id']}")
     print(f"RUNNER_ID={meta['runner_id']}")
     print(f"STEPS_EXECUTED={meta['steps_executed']}")

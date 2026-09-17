@@ -49,7 +49,7 @@
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
 #undef ExtractOpenAIText
 
-// Adaptive execution, portfolio risk, shadow validation, lifecycle and dashboard stack.
+// Adaptive execution, portfolio risk, shadow validation, lifecycle, demo-soak evidence and dashboard stack.
 #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
 #include "GPT_EA_Part31_ExecutionLearning.mqh"
 #include "GPT_EA_Part31A_RegimeSizing.mqh"
@@ -57,6 +57,7 @@
 #include "GPT_EA_Part32_ChampionChallenger.mqh"
 #include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
 #include "GPT_EA_Part34_StrategyHealthDashboard.mqh"
+#include "GPT_EA_Part36_DemoSoakEvidence.mqh"
 #include "GPT_EA_Part35_AdaptiveIntegration.mqh"
 
 // Part05 order execution consumes final adaptive sizing and learned slippage.

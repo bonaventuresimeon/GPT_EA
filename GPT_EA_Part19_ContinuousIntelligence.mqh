@@ -48,3 +48,13 @@ bool ContinuousIntelligenceScanDue(string &why)
    }
    return false;
 }
+
+bool ScheduledOrContinuousScanDue(string &why)
+{
+   if(ScheduledScanDue(why))
+   {
+      g_lastContinuousScanTime=TimeTradeServer();
+      return true;
+   }
+   return ContinuousIntelligenceScanDue(why);
+}

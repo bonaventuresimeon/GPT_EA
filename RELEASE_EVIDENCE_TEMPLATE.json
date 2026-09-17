@@ -39,6 +39,20 @@
     "account_leverage": "",
     "symbols": []
   },
+  "api_transport": {
+    "schema_version": "api_transport_evidence_v1",
+    "mode": "DIRECT_OPENAI",
+    "endpoint_host": "api.openai.com",
+    "https_required": true,
+    "webrequest_allow_list_verified": false,
+    "high_priority_matrix_passed": false,
+    "deep_review_path_passed": false,
+    "web_search_path_passed": false,
+    "failure_recovery_tested": false,
+    "request_id_trace_tested": false,
+    "secret_leak_count": 0,
+    "evidence_path": "artifacts/api-transport-evidence.md"
+  },
   "demo_soak": {
     "schema_version": "demo_soak_evidence_v1",
     "evidence_id": "",
@@ -96,6 +110,7 @@
     "stop_observability": false,
     "live_news_intermarket": false,
     "web_failure_injection": false,
+    "api_transport": false,
     "demo_soak": false,
     "operator_review": false
   },

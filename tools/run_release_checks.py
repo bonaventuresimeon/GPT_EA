@@ -19,7 +19,7 @@ CHECKS = [
     ROOT / "tools" / "check_mql_static.py",
     ROOT / "tools" / "check_release_certification.py",
     ROOT / "tools" / "check_r5_adaptive.py",
-    ROOT / "tools" / "check_r6_soak_lifecycle.py",
+    ROOT / "tools" / "check_r6_soak_lifecycle.py",\n    ROOT / "tools" / "check_runner_recovery_contract.py",
     ROOT / "tools" / "check_api_transport_static.py",
 ]
 

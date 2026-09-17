@@ -13,11 +13,12 @@
 #include "GPT_EA_Part18_StopBrokerObservability.mqh"
 #include "GPT_EA_Part28_ReleaseCertification.mqh"
 #include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
-#define ReleaseSafetyAllows ReleaseSafetyAllowsR6
-#define ReleaseGateSummary ReleaseGateSummaryR6
-#define StopFailureObservabilityInit StopFailureObservabilityInitR6
-#define AdvancedSafetyInit AdvancedSafetyInitR6
-#define AdvancedSafetyTimer AdvancedSafetyTimerR6
+#include "GPT_EA_Part28B_CIReleaseEvidence.mqh"
+#define ReleaseSafetyAllows ReleaseSafetyAllowsR6Evidence
+#define ReleaseGateSummary ReleaseGateSummaryR6Evidence
+#define StopFailureObservabilityInit StopFailureObservabilityInitR6Evidence
+#define AdvancedSafetyInit AdvancedSafetyInitR6Evidence
+#define AdvancedSafetyTimer AdvancedSafetyTimerR6Evidence
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"

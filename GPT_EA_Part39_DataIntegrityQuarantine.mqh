@@ -8,6 +8,7 @@ input bool   InpUseDataIntegrityVersioning      = true;
 input bool   InpUseLearningQuarantine           = true;
 input string InpDataIntegrityFile               = "GPT_EA_DataIntegrity.csv";
 input string InpLearningQuarantineFile          = "GPT_EA_QuarantinedLearning.csv";
+input string InpStrategyConfigRegistryFile       = "GPT_EA_StrategyConfigRegistry.csv";
 input string InpStrategyEngineVersion           = "strategy_engine_r6_hardening_1";
 input string InpModelPolicyVersion              = "model_policy_r6_hardening_1";
 input bool   InpQuarantineManualIntervention    = true;
@@ -193,10 +194,59 @@ void AttachIntegrityMetadataToPosition(ulong ticket)
    WriteDataIntegrityRow("POSITION_BIND",sym,c,pid,"position bound to current data/config generation");
 }
 
+string StrategyConfigDescription(StrategyClass c)
+{
+   switch(c)
+   {
+      case STRATEGY_TREND_CONTINUATION:
+         return StringFormat("min_score=%d;trend_daily=%.2f;trend_weekly=%.2f",InpMinStrategyScore,InpTrendDailyRiskBudgetPct,InpTrendWeeklyRiskBudgetPct);
+      case STRATEGY_RETRACEMENT_ENTRY:
+         return StringFormat("min_score=%d;expiry=%d;daily=%.2f;weekly=%.2f",InpMinStrategyScore,InpPullbackExpiryM15,InpRetracementDailyRiskBudgetPct,InpRetracementWeeklyRiskBudgetPct);
+      case STRATEGY_COUNTER_TREND_SCALP:
+         return StringFormat("min_ct=%d;daily=%.2f;weekly=%.2f",InpMinCounterTrendScore,InpCounterScalpDailyRiskBudgetPct,InpCounterScalpWeeklyRiskBudgetPct);
+      case STRATEGY_COUNTER_TREND_SWING:
+         return StringFormat("min_ct=%d;daily=%.2f;weekly=%.2f",InpMinCounterTrendScore,InpCounterSwingDailyRiskBudgetPct,InpCounterSwingWeeklyRiskBudgetPct);
+      case STRATEGY_POTENTIAL_REVERSAL:
+         return StringFormat("min_score=%d;daily=%.2f;weekly=%.2f",InpMinStrategyScore,InpReversalDailyRiskBudgetPct,InpReversalWeeklyRiskBudgetPct);
+      case STRATEGY_BREAKOUT:
+         return StringFormat("direct=%d;vol=%.2f;adx=%.1f;zone=%.2f;daily=%.2f;weekly=%.2f",
+            InpAllowDirectBreakoutExecution?1:0,InpDirectBreakoutMinVolumeRatio,InpDirectBreakoutMinADX,InpDirectBreakoutZoneATR,
+            InpBreakoutDailyRiskBudgetPct,InpBreakoutWeeklyRiskBudgetPct);
+      case STRATEGY_BREAKOUT_RETEST:
+         return StringFormat("buffer=%.2f;retest=%.2f;expiry=%d;daily=%.2f;weekly=%.2f",
+            InpBreakoutBufferATR,InpRetestHalfWidthATR,InpBreakoutExpiryM15,InpBreakoutRetestDailyRiskBudgetPct,InpBreakoutRetestWeeklyRiskBudgetPct);
+      case STRATEGY_RANGE_TRADE:
+         return StringFormat("enabled=%d;daily=%.2f;weekly=%.2f",InpAllowRangeTrades?1:0,InpRangeDailyRiskBudgetPct,InpRangeWeeklyRiskBudgetPct);
+      case STRATEGY_MEAN_REVERSION:
+         return StringFormat("enabled=%d;daily=%.2f;weekly=%.2f",InpAllowMeanReversion?1:0,InpMeanReversionDailyRiskBudgetPct,InpMeanReversionWeeklyRiskBudgetPct);
+      default: return "none";
+   }
+}
+
+void WriteStrategyConfigRegistry()
+{
+   bool exists=FileIsExist(InpStrategyConfigRegistryFile,FILE_COMMON);
+   int h=FileOpen(InpStrategyConfigRegistryFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","release_id","strategy_engine","model_policy","config_fingerprint",
+         "strategy","strategy_config_version","configuration");
+   FileSeek(h,0,SEEK_END);
+   for(int ci=1;ci<=9;ci++)
+   {
+      StrategyClass c=(StrategyClass)ci;
+      FileWrite(h,"strategy_config_registry_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),
+         GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+         StrategyClassName(c),StrategyConfigVersion(c),StrategyConfigDescription(c));
+   }
+   FileFlush(h); FileClose(h);
+}
+
 void DataIntegrityInit()
 {
    EnsureDataIntegrityHeader();
    EnsureLearningQuarantineHeader();
+   WriteStrategyConfigRegistry();
    WriteDataIntegrityRow("INIT","",STRATEGY_NO_TRADE,0,"EA data-integrity generation initialized");
 }
 

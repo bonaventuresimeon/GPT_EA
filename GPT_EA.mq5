@@ -48,14 +48,51 @@
 #define ExtractOpenAIText ExtractOpenAITextWide
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
 #undef ExtractOpenAIText
+
+// Adaptive execution, portfolio risk, shadow validation, lifecycle and dashboard stack.
+#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
+#include "GPT_EA_Part31_ExecutionLearning.mqh"
+#include "GPT_EA_Part31A_RegimeSizing.mqh"
+#include "GPT_EA_Part32_ChampionChallenger.mqh"
+#include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
+#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"
+#include "GPT_EA_Part35_AdaptiveIntegration.mqh"
+
+// Part05 order execution consumes final adaptive sizing and learned slippage.
+#define LotSizeForRisk AdaptiveLotSizeForRiskFinal
+#define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5
 #include "GPT_EA_Part05.mqh"
+#undef DynamicSlippagePoints
+#undef LotSizeForRisk
+
 #include "GPT_EA_Part23_IntelligenceObservability.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
+
+// Scanner/approval path uses R5 adaptive wrappers while older modules retain
+// their original deterministic functions.
+#undef SelectDynamicStrategy
+#define SelectDynamicStrategy SelectDynamicStrategyR5
 #define CallOpenAI CallOpenAIDeep
-#define NotifyCard NotifyCardObserved
+#define NotifyCard NotifyCardR5
 #define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal
+#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5
+#define LotSizeForRisk AdaptiveLotSizeForRiskFinal
+#define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5
+#define AIReviewAllowsExecution AIReviewAllowsExecutionR5
+#define MarkSignalCooldown MarkSignalCooldownR5
+#define NewsIntermarketInit NewsIntermarketInitR5
+#define NewsIntermarketTimer NewsIntermarketTimerR5
+#define DeleteAdvancedDashboard DeleteAdvancedDashboardR5
 #include "GPT_EA_Part07.mqh"
+#undef DeleteAdvancedDashboard
+#undef NewsIntermarketTimer
+#undef NewsIntermarketInit
+#undef MarkSignalCooldown
+#undef AIReviewAllowsExecution
+#undef DynamicSlippagePoints
+#undef LotSizeForRisk
+#undef PreAuthorizationRiskAllows
 #undef BuildMandatory25PointThesis
 #undef NotifyCard
 #undef CallOpenAI

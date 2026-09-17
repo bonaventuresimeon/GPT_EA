@@ -19,4 +19,14 @@ jobs:
         with:
           python-version: '3.12'
       - name: Run GPT_EA static release checks
-        run: python tools/check_mql_static.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/check_mql_static.py 2>&1 | tee static-check.txt
+      - name: Upload static diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpt-ea-static-check
+          path: static-check.txt
+          if-no-files-found: warn

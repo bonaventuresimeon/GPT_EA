@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `MT5_VALIDATION_EVIDENCE.md`
+
+---
+
 # GPT_EA R6 MT5 Validation Evidence Contract
 
 This is the release-blocking evidence definition for validation performed inside the intended MetaTrader 5 / MetaEditor environment. Source checks and GitHub CI cannot substitute for this record because they do not prove MQL compilation, Strategy Tester behavior, broker symbol geometry, terminal lifecycle, WebRequest behavior or runtime protection on the target MT5 build.

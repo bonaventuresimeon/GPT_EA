@@ -1,5 +1,5 @@
 // ============================================================================
-// GPT_EA Part 07 - Approval workflow, advanced scanner and MT5 event hooks
+// GPT_EA Part 07 - Approval workflow, full intelligence scanner and MT5 hooks
 // ============================================================================
 
 void DeletePending(const int idx,const string reason)
@@ -27,6 +27,12 @@ void QueueForApproval(const TradeSetup &s,const string card,const string scanRea
       Print(s.symbol,": approval prompt suppressed by release gate - ",releaseWhy);
       return;
    }
+   string stopWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopWhy))
+   {
+      Print(s.symbol,": approval prompt suppressed by partial-protection/stop gate - ",stopWhy);
+      return;
+   }
 
    datetime now=TimeTradeServer();
    int timeout=MathMax(10,InpApprovalTimeoutSeconds);
@@ -47,7 +53,8 @@ void QueueForApproval(const TradeSetup &s,const string card,const string scanRea
    RenderApprovalPrompt();
    StyleApprovalUI();
 
-   string msg=StringFormat("GPT_EA approval required: %s %s. APPROVE or DENY within %d seconds.",s.symbol,Arrow(s.bullish),timeout);
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(s.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   string msg=StringFormat("GPT_EA approval required: %s %s %s. APPROVE or DENY within %d seconds.",s.symbol,StrategyClassName(cls),Arrow(s.bullish),timeout);
    Print(msg);
    if(InpApprovalAlert && InpEnableAlerts) Alert(msg);
    if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(msg);
@@ -63,6 +70,30 @@ void ProcessApprovalTimeouts()
    StyleApprovalUI();
 }
 
+bool StrategyAwareConfluenceGate(TradeSetup &s,ConfluenceReport &r,StrategyClass cls,string &why)
+{
+   why="";
+   bool nonTrend=(cls==STRATEGY_COUNTER_TREND_SCALP || cls==STRATEGY_COUNTER_TREND_SWING || cls==STRATEGY_POTENTIAL_REVERSAL ||
+                  cls==STRATEGY_RANGE_TRADE || cls==STRATEGY_MEAN_REVERSION);
+   if(!nonTrend)
+   {
+      ApplyAdvancedConfluence(s,r);
+      if(InpUseAdvancedConfluence && !r.valid){ why=StringFormat("standard confluence invalid at %d/100",r.score); return false; }
+   }
+   else
+   {
+      // Counter-trend/range strategies are intentionally allowed to disagree with HTF direction,
+      // but must still pass spread/proximity/strategy-specific confirmation and a demanding score.
+      int required=(cls==STRATEGY_COUNTER_TREND_SCALP || cls==STRATEGY_COUNTER_TREND_SWING || cls==STRATEGY_POTENTIAL_REVERSAL)?InpMinCounterTrendScore:InpMinStrategyScore;
+      s.confidence=(int)MathRound(0.65*s.confidence+0.35*r.score);
+      if(!r.spreadOK || s.confidence<MathMin(99,required-5))
+      { s.valid=false; why=StringFormat("non-trend confluence insufficient: score %d confidence %d",r.score,s.confidence); return false; }
+      r.valid=true;
+   }
+   why=StringFormat("strategy-aware confluence PASS %d/100",r.score);
+   return true;
+}
+
 bool FreshApprovalValidation(const TradeSetup &s,string &why)
 {
    why="";
@@ -70,13 +101,16 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
 
    string releaseWhy="";
    if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
-   {
-      why="Release safety gate failed: "+releaseWhy;
-      return false;
-   }
+   { why="Release safety gate failed: "+releaseWhy; return false; }
 
+   string stopWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopWhy))
+   { why="Partial-protection/stop gate failed: "+stopWhy; return false; }
+
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(s.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   if(cls==STRATEGY_NO_TRADE){ why="No valid strategy classification remains."; return false; }
    if(!PriceInsideZone(s)){ why="Price left the approved entry zone."; return false; }
-   if(!M5Trigger(s)){ why="M5 execution trigger is no longer present."; return false; }
+   if(!StrategyExecutionTrigger(s,cls)){ why="Strategy-specific M5 execution trigger is no longer present."; return false; }
 
    TradeSetup live=s;
    live.sl=NormalizePriceToTick(live.symbol,live.sl);
@@ -85,56 +119,43 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
    live.tp3=NormalizePriceToTick(live.symbol,live.tp3);
 
    ConfluenceReport fresh=EvaluateConfluence(live);
-   if(InpUseAdvancedConfluence && !fresh.valid)
-   {
-      why=StringFormat("Advanced confluence fell to %d/100.",fresh.score);
-      return false;
-   }
+   string confWhy="";
+   if(!StrategyAwareConfluenceGate(live,fresh,cls,confWhy))
+   { why="Confluence revalidation failed: "+confWhy; return false; }
+
    string institutional="";
    EnhanceSetupWithInstitutionalFilters(live,fresh,institutional);
-   if(!live.valid)
-   {
-      why="Institutional/regime validation failed: "+institutional;
-      return false;
-   }
+   if(!live.valid && cls!=STRATEGY_COUNTER_TREND_SCALP && cls!=STRATEGY_COUNTER_TREND_SWING && cls!=STRATEGY_POTENTIAL_REVERSAL)
+   { why="Institutional/regime validation failed: "+institutional; return false; }
+
+   string intelWhy="";
+   if(!PreEntryIntelligenceRevalidation(live,intelWhy))
+   { why="Deep pre-entry intelligence failed: "+intelWhy; return false; }
 
    double liveRR=EffectiveRRDynamic(live);
-   if(liveRR<InpMinEffectiveRR)
-   {
-      why=StringFormat("Effective R:R deteriorated to %.2f below minimum %.2f.",liveRR,InpMinEffectiveRR);
-      return false;
-   }
+   double rrFloor=(cls==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR);
+   if(liveRR<rrFloor)
+   { why=StringFormat("Effective R:R deteriorated to %.2f below %.2f strategy floor.",liveRR,rrFloor); return false; }
 
    double atr=0; ATRValue(s.symbol,PERIOD_M15,InpATRPeriod,1,atr);
    string sessionText="";
    if(SessionConditionInvalidates(s.symbol,s.preferred,atr,sessionText))
-   {
-      why=sessionText;
-      return false;
-   }
+   { why=sessionText; return false; }
 
    string riskWhy="";
    if(!PreAuthorizationRiskAllows(live,riskWhy))
-   {
-      why="Risk authorization failed: "+riskWhy;
-      return false;
-   }
+   { why="Risk authorization failed: "+riskWhy; return false; }
 
    double rm=0,ol=0;
    double lots=LotSizeForRisk(live,rm,ol);
    string brokerWhy="";
    if(lots<=0 || !BrokerExecutionAllows(live,lots,brokerWhy))
-   {
-      why="Broker execution validation failed: "+brokerWhy;
-      return false;
-   }
+   { why="Broker execution validation failed: "+brokerWhy; return false; }
 
    string serverWhy="";
    if(!ServerOrderCheckAllows(live,lots,DynamicSlippagePoints(live.symbol),serverWhy))
-   {
-      why="Server OrderCheck failed: "+serverWhy;
-      return false;
-   }
+   { why="Server OrderCheck failed: "+serverWhy; return false; }
+   why="Fresh strategy + news + intermarket + confluence + risk + broker validation PASS.";
    return true;
 }
 
@@ -165,12 +186,11 @@ void ApprovePending(const int idx)
 
    if(ApprovedPlaceTrade(s))
    {
-      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
-         SendNotification(s.symbol+": APPROVED - trade executed.");
+      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(s.symbol+": APPROVED - trade executed.");
    }
    else
    {
-      Print(s.symbol,": APPROVED but release/broker/filter/risk revalidation failed. No order opened.");
+      Print(s.symbol,": APPROVED but final strategy/news/release/broker/risk validation failed. No order opened.");
       if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
          SendNotification(s.symbol+": approved, but final execution validation failed; no trade opened.");
    }
@@ -178,7 +198,7 @@ void ApprovePending(const int idx)
 
 string FilterStateText(bool newsBlock,bool yieldBlock,bool spreadOk,bool sessionBlock,bool aiAllows)
 {
-   return StringFormat("Filters: News %s | Yield %s | Spread %s | Session %s | AI %s",
+   return StringFormat("Filters: Calendar %s | Yield %s | Spread %s | Session %s | AI %s",
       newsBlock?"BLOCK":"OK",yieldBlock?"BLOCK":"OK",spreadOk?"OK":"BLOCK",sessionBlock?"BLOCK":"OK",aiAllows?"OK":"VETO");
 }
 
@@ -189,29 +209,37 @@ void ScanSymbol(const string sym,const string scanReason)
 
    string trend="";
    bool alignedBull=false,alignedBear=false;
-   int score=MultiTFScore(sym,trend,alignedBull,alignedBear);
-   bool bull=(score>=0);
-   if(alignedBear) bull=false;
-   else if(alignedBull) bull=true;
-   int base=BaseConfidenceFromScore(score,alignedBull,alignedBear,bull);
+   int mtfScore=MultiTFScore(sym,trend,alignedBull,alignedBear);
+   bool baseBull=(mtfScore>=0);
+   if(alignedBear) baseBull=false; else if(alignedBull) baseBull=true;
+   int base=BaseConfidenceFromScore(mtfScore,alignedBull,alignedBear,baseBull);
 
-   TradeSetup pb=BuildPullback(sym,bull,base,trend);
-   TradeSetup br=BuildBreakoutRetest(sym,bull,base,trend);
+   TradeSetup pb=BuildPullback(sym,baseBull,base,trend);
+   TradeSetup br=BuildBreakoutRetest(sym,baseBull,base,trend);
 
-   ConfluenceReport pbReport=EvaluateConfluence(pb);
-   ConfluenceReport brReport=EvaluateConfluence(br);
-   ApplyAdvancedConfluence(pb,pbReport);
-   ApplyAdvancedConfluence(br,brReport);
+   // First classify the market and choose the strategy; never force pullback/breakout on every chart.
+   StrategyDecision decision;
+   SelectDynamicStrategy(sym,pb,br,decision);
+   TradeSetup primary=decision.setup;
+   if(primary.symbol=="") primary=(pb.confidence>=br.confidence?pb:br);
 
+   ConfluenceReport pbReport=EvaluateConfluence(pb),brReport=EvaluateConfluence(br),primaryReport=EvaluateConfluence(primary);
+   ApplyAdvancedConfluence(pb,pbReport); ApplyAdvancedConfluence(br,brReport);
    string pbInstitutional="",brInstitutional="";
    EnhanceSetupWithInstitutionalFilters(pb,pbReport,pbInstitutional);
    EnhanceSetupWithInstitutionalFilters(br,brReport,brInstitutional);
 
-   TradeSetup primary=ChoosePrimary(pb,br);
-   ConfluenceReport primaryReport;
+   string strategyConfWhy="";
+   bool strategyConfluence=StrategyAwareConfluenceGate(primary,primaryReport,decision.strategy,strategyConfWhy);
    string primaryInstitutional="";
-   if(primary.kind==SETUP_BREAKOUT_RETEST){ primaryReport=brReport; primaryInstitutional=brInstitutional; }
-   else { primaryReport=pbReport; primaryInstitutional=pbInstitutional; }
+   bool institutionalOK=EnhanceSetupWithInstitutionalFilters(primary,primaryReport,primaryInstitutional);
+   if(decision.counterTrend && strategyConfluence)
+   {
+      // HTF opposition is expected for a valid counter-trend setup. Institutional filters remain informative,
+      // while counter-trend score/trigger and hard risk/news gates carry the stricter authorization burden.
+      primary.valid=(primary.valid && primary.effectiveRR1>=MathMax(1.10,InpMinEffectiveRR-0.30));
+      institutionalOK=primary.valid;
+   }
 
    string newsText="",yieldText="",spreadText="",sessionText="";
    bool newsBlock=CalendarBlock(sym,newsText);
@@ -220,75 +248,86 @@ void ScanSymbol(const string sym,const string scanReason)
    double atr=0; ATRValue(sym,PERIOD_M15,InpATRPeriod,1,atr);
    bool sessionBlock=SessionConditionInvalidates(sym,primary.preferred,atr,sessionText);
 
-   bool readyNow=(primary.valid && PriceInsideZone(primary) && M5Trigger(primary));
+   IntermarketReport intermarket=AssessIntermarket(sym,primary.bullish);
+   string webText="",webError=""; bool webBlock=false,webWatch=false;
+   bool webAvailable=GetLiveWebIntel(sym,primary,decision,false,webText,webBlock,webWatch,webError);
+   if(!webAvailable && InpBlockIfWebIntelUnavailable) webBlock=true;
+
+   bool readyNow=(primary.valid && decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE && StrategyExecutionTrigger(primary,decision.strategy));
    string upcoming=UpcomingEventSummary(sym);
 
-   string card=BuildCard(primary,pb,br,scanReason,newsBlock,newsText,spreadText,spreadOk,yieldBlock,yieldText,sessionBlock,sessionText);
+   string card=StrategyDecisionHeader(decision);
+   card+=BuildCard(primary,pb,br,scanReason,newsBlock,newsText,spreadText,spreadOk,yieldBlock,yieldText,sessionBlock,sessionText);
    card+=ConfluenceCardBlock(primaryReport,upcoming,readyNow);
-   card+=StringFormat("Pullback confluence: %d/100 | Breakout-retest confluence: %d/100\n",pbReport.score,brReport.score);
+   card+=StringFormat("Pullback confluence: %d/100 | Breakout-retest confluence: %d/100 | Selected strategy confluence: %d/100\n",pbReport.score,brReport.score,primaryReport.score);
+   card+="Strategy rationale: "+decision.rationale+"\n";
+   card+="Strategy confirmation: "+decision.confirmation+"\n";
+   card+="Counterargument: "+decision.counterargument+"\n";
    card+="Institutional validation: "+primaryInstitutional+"\n";
    card+="Pullback institutional: "+pbInstitutional+"\n";
    card+="Breakout institutional: "+brInstitutional+"\n";
+   card+="Intermarket: "+intermarket.detail+"\n";
+   card+="Live web/news intelligence: "+webText+"\n";
    card+="Broker environment: "+BrokerEnvironmentSummary()+"\n";
    card+="Broker symbol profile: "+SymbolProfileSummary(sym)+"\n";
 
-   bool aiAvailable=false;
-   string aiAnswer="",aiError="";
-   bool requestAI=(InpUseOpenAI && (!InpAIReviewHighConfidenceOnly || primary.confidence>=InpMinConfidence));
+   string thesis=BuildMandatory25PointThesis(sym,primary,pb,br,decision,primaryReport,newsText,webText,intermarket,spreadText,sessionText);
+   card+=thesis;
+
+   bool aiAvailable=false; string aiAnswer="",aiError="";
+   bool requestAI=(InpUseOpenAI && (!InpAIReviewHighConfidenceOnly || decision.score>=InpMinStrategyScore));
    if(requestAI)
    {
-      aiAvailable=CallOpenAI(BuildOpenAIPrompt(sym,card),aiAnswer,aiError);
-      if(aiAvailable)
-         card += "\n━━━━━━━━━━━━━━━━━━━━\n🤖 OPENAI SECONDARY REVIEW\n━━━━━━━━━━━━━━━━━━━━\n"+aiAnswer+"\n";
-      else
-         card += "\nOpenAI review unavailable: "+aiError+"\n";
+      aiAvailable=CallOpenAI(BuildDeepGPTPrompt(sym,card,thesis,webText,decision),aiAnswer,aiError);
+      if(aiAvailable) card+="\n━━━━━━━━━━━━━━━━━━━━\n🤖 GPT ADVERSARIAL VALIDATION\n━━━━━━━━━━━━━━━━━━━━\n"+aiAnswer+"\n";
+      else card+="\nGPT secondary validation unavailable: "+aiError+"\n";
    }
 
    string aiGateWhy="";
    bool aiAllows=AIReviewAllowsExecution(aiAnswer,aiAvailable,aiGateWhy);
-   if(!requestAI && InpAICanVetoTrade)
-   {
-      aiAllows=true;
-      aiGateWhy="AI review not requested for this scan.";
-   }
+   if(!requestAI && InpAICanVetoTrade){ aiAllows=true; aiGateWhy="AI review not requested for this candidate."; }
 
-   string releaseWhy="";
-   bool releaseAllows=ReleaseSafetyAllows(sym,releaseWhy);
+   string releaseWhy=""; bool releaseAllows=ReleaseSafetyAllows(sym,releaseWhy);
+   string stopObsWhy=""; bool stopObsAllows=StopObservabilityAllowsNewEntries(stopObsWhy);
+   string evidenceText=""; bool evidenceAllows=StrategyEvidenceAllows(decision.strategy,evidenceText);
 
-   string riskWhy="";
-   bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
+   string riskWhy=""; bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
    double previewRisk=0,previewOneLot=0;
    double previewLots=LotSizeForRisk(primary,previewRisk,previewOneLot);
-   string brokerWhy="";
-   bool brokerAllows=(previewLots>0 && BrokerExecutionAllows(primary,previewLots,brokerWhy));
+   string brokerWhy=""; bool brokerAllows=(previewLots>0 && BrokerExecutionAllows(primary,previewLots,brokerWhy));
    if(previewLots<=0) brokerWhy="Preview lot calculation returned zero.";
 
-   string serverWhy="";
-   bool serverAllows=false;
-   if(brokerAllows)
-      serverAllows=ServerOrderCheckAllows(primary,previewLots,DynamicSlippagePoints(sym),serverWhy);
-   else
-      serverWhy="Skipped because broker execution gate did not pass.";
+   string serverWhy=""; bool serverAllows=false;
+   if(brokerAllows) serverAllows=ServerOrderCheckAllows(primary,previewLots,DynamicSlippagePoints(sym),serverWhy);
+   else serverWhy="Skipped because broker execution gate did not pass.";
 
-   bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
-   bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
-                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && releaseAllows &&
-                   riskAllows && brokerAllows && serverAllows);
+   double rrFloor=(decision.strategy==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR);
+   bool strategyActionOK=(decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE);
+   bool hardValid=(strategyActionOK && primary.valid && strategyConfluence && institutionalOK && evidenceAllows &&
+                   !newsBlock && !yieldBlock && !sessionBlock && spreadOk && EffectiveRRDynamic(primary)>=rrFloor &&
+                   !intermarket.severeConflict && !(InpBlockOnWebIntelVerdictBLOCK && webBlock) && aiAllows &&
+                   releaseAllows && stopObsAllows && riskAllows && brokerAllows && serverAllows);
    bool approvalReady=(hardValid && readyNow);
 
    string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
+   filterState+=" | Web "+(webBlock?"BLOCK":webWatch?"WATCH":"OK");
+   filterState+=" | Intermarket "+(intermarket.severeConflict?"BLOCK":"OK");
    filterState+=" | Release "+(releaseAllows?"OK":"BLOCK");
+   filterState+=" | StopRisk "+(stopObsAllows?"OK":"BLOCK");
    card+="\n"+filterState+"\n";
-   card+="AI execution gate: "+aiGateWhy+"\n";
+   card+="Strategy decision: "+(strategyActionOK?"HIGH-CONFIDENCE":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
+   card+="Historical strategy evidence gate: "+evidenceText+"\n";
+   card+="GPT execution gate: "+aiGateWhy+"\n";
    card+="Release safety gate: "+(releaseAllows?"PASS":"BLOCK - "+releaseWhy)+"\n";
+   card+="Partial-protection/stop gate: "+stopObsWhy+"\n";
    card+="Portfolio/risk gate: "+riskWhy+"\n";
    card+="Broker execution gate: "+brokerWhy+"\n";
    card+="MT5 OrderCheck gate: "+serverWhy+"\n";
-   card+=StringFormat("Current GPT_EA portfolio risk: %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
+   card+=StringFormat("Portfolio risk %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
                       CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),ConsecutiveLosses());
-   card+=StringFormat("Dynamic slippage ceiling: %d points | dynamic effective R:R: %.2f\n",
-                      DynamicSlippagePoints(sym),EffectiveRRDynamic(primary));
-   card+=StringFormat("Approval status: %s\n",approvalReady?"✅ READY - APPROVE / DENY PROMPT ACTIVE":"⏳ NOT READY - NO ORDER AUTHORIZATION");
+   card+=StringFormat("Dynamic slippage ceiling %d points | dynamic effective R:R %.2f\n",DynamicSlippagePoints(sym),EffectiveRRDynamic(primary));
+   card+=StringFormat("FINAL DECISION: %s\n",approvalReady?"✅ HIGH-CONFIDENCE TRADE SETUP — APPROVE / DENY ACTIVE":
+                     decision.action==STRATEGY_ACTION_NO_TRADE?"❌ NO TRADE":"⏳ WAIT FOR CONFIRMATION / REANALYZE");
 
    NotifyCard(card);
    RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
@@ -297,6 +336,7 @@ void ScanSymbol(const string sym,const string scanReason)
    int existing=ActivePendingForSymbol(sym);
    if(approvalReady)
    {
+      PersistStrategyCandidate(sym,decision);
       if(InpRequireApproval) QueueForApproval(primary,card,scanReason);
       else
       {
@@ -307,29 +347,21 @@ void ScanSymbol(const string sym,const string scanReason)
    }
    else if(existing>=0)
    {
-      DeletePending(existing,"fresh scan no longer meets high-confluence entry conditions");
+      DeletePending(existing,"fresh scan no longer meets complete intelligence/entry conditions");
    }
 }
 
 void ScanAll(const string reason)
 {
-   for(int i=0;i<ArraySize(g_symbols);i++)
-      if(g_symbols[i]!="") ScanSymbol(g_symbols[i],reason);
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") ScanSymbol(g_symbols[i],reason);
 }
 
 // -------------------------- MT5 event hooks -----------------------
 int OnInit()
 {
-   if(SplitSymbols()<=0)
-   {
-      Print("No symbols configured.");
-      return INIT_PARAMETERS_INCORRECT;
-   }
+   if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
    if(!ResolveConfiguredSymbolsUniversal())
-   {
-      Print("No configured symbols could be resolved on this broker.");
-      return INIT_PARAMETERS_INCORRECT;
-   }
+   { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
 
    PrintResolvedBrokerProfiles();
    trade.SetExpertMagicNumber(InpMagic);
@@ -342,24 +374,26 @@ int OnInit()
    RecoverySafetyAudit();
    SafeUniversalCheckpointNow();
    AdvancedSafetyInit();
+   StopFailurePolicyInit();
+   StopFailureObservabilityInit();
+   StrategyIntelligenceInit();
+   NewsIntermarketInit();
 
-   Print("GPT_EA Advanced initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
+   Print("GPT_EA Full Intelligence initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
+         ", Min strategy=",InpMinStrategyScore,
          ", Min confluence=",InpMinAdvancedConfluence,
          ", Portfolio cap=",DoubleToString(InpMaxPortfolioRiskPercent,2),"%",
-         ", ApprovedExecution=",InpEnableApprovedExecution?"ON":"OFF",
+         ", Live web intel=",InpUseLiveWebIntelligence?"ON":"OFF",
          ", ReleaseGate=",ReleaseGateSummary());
 
    if(InpUseOpenAI && StringLen(Trim(InpOpenAIAPIKey))<20)
       Print("OpenAI enabled but API key is blank. Enter it locally in EA Inputs. Never commit the key.");
-   if(InpUseOpenAI)
+   if(InpUseOpenAI || InpUseLiveWebIntelligence)
       Print("MT5 WebRequest allow-list must include: https://api.openai.com");
 
-   ScanAll("EA startup / restart recovery scan");
-   RenderApprovalPrompt();
-   StyleApprovalUI();
-   UpdateRiskAnalyticsPanel();
-   SafeUniversalCheckpointNow();
+   ScanAll("EA startup / restart recovery full-intelligence scan");
+   RenderApprovalPrompt(); StyleApprovalUI(); UpdateRiskAnalyticsPanel(); SafeUniversalCheckpointNow();
    return INIT_SUCCEEDED;
 }
 
@@ -376,12 +410,16 @@ void OnDeinit(const int reason)
 
 void OnTimer()
 {
-   // Existing positions remain managed even when release gates block new entries.
+   // Existing positions remain managed even if new-entry intelligence or release gates are blocked.
    ManagePositionsAdvanced();
    ProcessApprovalTimeouts();
    RiskRecoveryTimer();
    SafeUniversalRecoveryTimer();
    AdvancedSafetyTimer();
+   StopFailurePolicyTimer();
+   StopFailureObservabilityTimer();
+   StrategyIntelligenceTimer();
+   NewsIntermarketTimer();
    StyleApprovalUI();
 
    string why="";
@@ -391,40 +429,24 @@ void OnTimer()
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
 {
    if(id!=CHARTEVENT_OBJECT_CLICK) return;
-
    if(sparam==BTN_SCAN_NOW)
    {
       ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
-      ScanAll("Manual SCAN NOW");
-      return;
+      ScanAll("Manual SCAN NOW"); return;
    }
    if(sparam==BTN_PAUSE)
    {
       ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
-      ToggleTradingPause();
-      SafeUniversalCheckpointNow();
-      UpdateRiskAnalyticsPanel();
-      if(g_manualPaused)
-      {
-         for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
-      }
+      ToggleTradingPause(); SafeUniversalCheckpointNow(); UpdateRiskAnalyticsPanel();
+      if(g_manualPaused) for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
       return;
    }
-
    if(g_displayPending<0) return;
-   if(sparam==BTN_APPROVE)
-   {
-      ObjectSetInteger(0,BTN_APPROVE,OBJPROP_STATE,false);
-      ApprovePending(g_displayPending);
-   }
-   else if(sparam==BTN_DENY)
-   {
-      ObjectSetInteger(0,BTN_DENY,OBJPROP_STATE,false);
-      DeletePending(g_displayPending,"user denied trade");
-   }
+   if(sparam==BTN_APPROVE){ ObjectSetInteger(0,BTN_APPROVE,OBJPROP_STATE,false); ApprovePending(g_displayPending); }
+   else if(sparam==BTN_DENY){ ObjectSetInteger(0,BTN_DENY,OBJPROP_STATE,false); DeletePending(g_displayPending,"user denied trade"); }
 }
 
 void OnTick()
 {
-   // Multi-symbol scanning, approval expiry, recovery and position management are timer-driven.
+   // Multi-symbol intelligence scans, approval expiry, recovery and position management are timer-driven.
 }

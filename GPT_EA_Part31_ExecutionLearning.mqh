@@ -235,6 +235,7 @@ void EnsureExecutionLearningHeader()
    if(h==INVALID_HANDLE) return;
    if(!exists || FileSize(h)==0)
       FileWrite(h,"schema_version","time","event","broker","server","symbol","position_id","strategy","market_state","session","event_class",
+                   "analysis_time","approval_time","model_latency_ms","sent_time","ack_time","fill_time",
                    "expected_entry","request_price","fill_price","spread_request_pts","spread_fill_pts","slippage_pts","latency_ms","lots","risk_money",
                    "raw_confidence","calibrated_confidence","realized_r","mae_r","mfe_r","tp1_m15","commission",
                    "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","note");
@@ -256,6 +257,12 @@ void WriteExecutionLearningRow(const string eventName,const string sym,ulong pid
    FileWrite(h,"execution_learning_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
       AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),sym,(string)pid,
       StrategyClassName((StrategyClass)cls),MarketStateName((MarketStateClass)state),(string)ses,AdaptiveEventName(ev),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_ANALYSIS_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_APPROVAL_TIME"),0),TIME_DATE|TIME_SECONDS),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_MODEL_LATENCY_MS"),0),0),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_SENT_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_ACK_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_FILL_TIME"),0),TIME_DATE|TIME_SECONDS),
       DoubleToString(GVRead(PosKey(pid,"EXEC_EXPECTED"),0),DigitsFor(sym)),DoubleToString(GVRead(PosKey(pid,"EXEC_REQUEST_PX"),0),DigitsFor(sym)),
       DoubleToString(GVRead(PosKey(pid,"EXEC_FILL"),0),DigitsFor(sym)),DoubleToString(GVRead(PosKey(pid,"EXEC_SPREAD_REQ"),0),1),
       DoubleToString(GVRead(PosKey(pid,"EXEC_SPREAD_FILL"),0),1),DoubleToString(GVRead(PosKey(pid,"EXEC_SLIP_PTS"),0),1),
@@ -308,6 +315,12 @@ void RegisterAdaptiveExecutionFill(ulong ticket,const TradeSetup &s,double lots,
    GVWrite(PosKey(pid,"EXEC_LATENCY_MS"),latency);
    GVWrite(PosKey(pid,"EXEC_LOTS"),lots);
    GVWrite(PosKey(pid,"RISK"),riskMoney);
+   GVWrite(PosKey(pid,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(sym,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(sym,"CAND_TIME"),0)));
+   GVWrite(PosKey(pid,"EXEC_APPROVAL_TIME"),GVRead(SymKey(sym,"EXEC_APPROVAL_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_MODEL_LATENCY_MS"),GVRead(SymKey(sym,"EXEC_MODEL_LATENCY_MS"),0));
+   GVWrite(PosKey(pid,"EXEC_SENT_TIME"),GVRead(SymKey(sym,"EXEC_SENT_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_ACK_TIME"),GVRead(SymKey(sym,"EXEC_ACK_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_FILL_TIME"),(double)TimeTradeServer());
    GVWrite(PosKey(pid,"RAW_CONF"),s.confidence);
    GVWrite(PosKey(pid,"CAL_CONF"),calibrated);
    GVWrite(PosKey(pid,"EVENT_CLASS"),ev);

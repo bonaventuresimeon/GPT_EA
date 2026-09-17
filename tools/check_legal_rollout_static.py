@@ -8,15 +8,17 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
 PART38=(ROOT/"GPT_EA_Part38_LegalLicenseGate.mqh").read_text(encoding="utf-8")
+PART39=(ROOT/"GPT_EA_Part39_CustomerRiskAcknowledgement.mqh").read_text(encoding="utf-8")
 errors=[]
 
 for token in [
     '#include "GPT_EA_Part38_LegalLicenseGate.mqh"',
-    '#define ReleaseSafetyAllows ReleaseSafetyAllowsR8Legal',
-    '#define ReleaseGateSummary ReleaseGateSummaryR8Legal',
-    '#define StopFailureObservabilityInit StopFailureObservabilityInitR8Legal',
-    '#define AdvancedSafetyInit AdvancedSafetyInitR8Legal',
-    '#define AdvancedSafetyTimer AdvancedSafetyTimerR8Legal',
+    '#include "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh"',
+    '#define ReleaseSafetyAllows ReleaseSafetyAllowsR9CustomerAck',
+    '#define ReleaseGateSummary ReleaseGateSummaryR9CustomerAck',
+    '#define StopFailureObservabilityInit StopFailureObservabilityInitR9CustomerAck',
+    '#define AdvancedSafetyInit AdvancedSafetyInitR9CustomerAck',
+    '#define AdvancedSafetyTimer AdvancedSafetyTimerR9CustomerAck',
 ]:
     if token not in MAIN:
         errors.append(f"GPT_EA.mq5 missing legal rollout wiring: {token}")
@@ -41,6 +43,31 @@ for name in ["InpAcceptGPTCommercialTerms","InpAcceptGPTTradingRisk"]:
 if 'I ACCEPT GPT_EA TERMS AND TRADING RISK' not in PART38:
     errors.append("required acceptance phrase missing")
 
+for token in [
+    "GPT_EA_RISK_ACK_SCHEMA_VERSION",
+    "InpAcknowledgeNoProfitGuarantee",
+    "InpAcknowledgePossibleTotalLoss",
+    "InpAcknowledgeAILimitations",
+    "InpAcknowledgeBrokerThirdPartyRisk",
+    "InpAcknowledgePersonalResponsibility",
+    "InpAcknowledgeDemoFirst",
+    "InpCustomerJurisdiction",
+    "InpAcceptedGPTTermsVersion",
+    "InpAcceptedGPTRiskAckVersion",
+    "ReleaseSafetyAllowsR9CustomerAck",
+    "GPT_EA_RiskAcknowledgements.csv",
+]:
+    if token not in PART39:
+        errors.append(f"Part39 missing customer acknowledgement token: {token}")
+
+for name in [
+    "InpAcknowledgeNoProfitGuarantee","InpAcknowledgePossibleTotalLoss",
+    "InpAcknowledgeAILimitations","InpAcknowledgeBrokerThirdPartyRisk",
+    "InpAcknowledgePersonalResponsibility","InpAcknowledgeDemoFirst"
+]:
+    if not re.search(rf"input\\s+bool\\s+{name}\\s*=\\s*false\\s*;", PART39):
+        errors.append(f"{name} must default false")
+
 docs=[
     "COMMERCIAL_LICENSE.md",
     "TERMS_AND_CONDITIONS.md",
@@ -49,6 +76,8 @@ docs=[
     "ANTI_PIRACY_LICENSE_ENFORCEMENT.md",
     "CUSTOMER_SUPPORT_RUNBOOK.md",
     "CUSTOMER_RELEASE_READINESS_CHECKLIST.md",
+    "JURISDICTION_LEGAL_REVIEW_CHECKLIST.md",
+    "CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md",
 ]
 for name in docs:
     p=ROOT/name
@@ -61,3 +90,8 @@ if errors:
         print("ERROR:",e)
     sys.exit(1)
 print("LEGAL/ROLLOUT STATIC CHECK: PASS")
+
+for name in ["CUSTOMER_RISK_ACKNOWLEDGEMENT_SCHEMA.json","CUSTOMER_RISK_ACKNOWLEDGEMENT_TEMPLATE.json","tools/validate_customer_risk_acknowledgement.py"]:
+    p=ROOT/name
+    if not p.exists() or len(p.read_text(encoding="utf-8").strip())<100:
+        errors.append(f"missing/too-small acknowledgement evidence artifact: {name}")

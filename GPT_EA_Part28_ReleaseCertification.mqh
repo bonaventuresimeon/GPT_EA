@@ -1,0 +1,116 @@
+// ============================================================================
+// GPT_EA Part 28 - Live release certification / evidence gate
+// ============================================================================
+// This gate does not replace testing. It prevents a REAL account from being
+// armed unless the operator explicitly attests that the release evidence for
+// the current release ID has been completed and archived.
+
+input bool   InpRequireReleaseEvidenceOnReal         = true;
+input string InpReleaseValidationId                  = "";
+input bool   InpReleaseMetaEditorCompilePassed       = false;
+input bool   InpReleaseStrategyTesterPassed          = false;
+input bool   InpReleaseBrokerMatrixPassed            = false;
+input bool   InpReleaseRecoveryTestsPassed           = false;
+input bool   InpReleaseStopMatrixPassed               = false;
+input bool   InpReleasePartialProtectionPassed       = false;
+input bool   InpReleaseWebFailureInjectionPassed     = false;
+input bool   InpReleaseDemoSoakPassed                = false;
+input bool   InpReleaseOperatorReviewPassed          = false;
+input bool   InpWriteReleaseEvidenceSnapshot         = true;
+input string InpReleaseEvidenceSnapshotFile          = "GPT_EA_ReleaseEvidence.csv";
+
+const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID = "GPT_EA_FULL_INTELLIGENCE_R2_20260917";
+
+bool ReleaseEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpRequireReleaseEvidenceOnReal)
+   {
+      why="Release-evidence gate disabled by input.";
+      return true;
+   }
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: release-evidence attestation not required.";
+      return true;
+   }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode!=ACCOUNT_TRADE_MODE_REAL)
+   {
+      why="Demo/contest account: release-evidence attestation is informational only.";
+      return true;
+   }
+
+   if(InpReleaseValidationId!=GPT_EA_REQUIRED_RELEASE_VALIDATION_ID)
+   {
+      why="REAL account blocked: release validation ID is missing or does not match the current release contract.";
+      return false;
+   }
+   if(!InpReleaseMetaEditorCompilePassed){ why="REAL account blocked: MetaEditor 0-error compile has not been attested."; return false; }
+   if(!InpReleaseStrategyTesterPassed){ why="REAL account blocked: Strategy Tester validation has not been attested."; return false; }
+   if(!InpReleaseBrokerMatrixPassed){ why="REAL account blocked: broker/account/symbol matrix has not been attested."; return false; }
+   if(!InpReleaseRecoveryTestsPassed){ why="REAL account blocked: restart/recovery tests have not been attested."; return false; }
+   if(!InpReleaseStopMatrixPassed){ why="REAL account blocked: HIGH-priority stop-management matrix has not been attested."; return false; }
+   if(!InpReleasePartialProtectionPassed){ why="REAL account blocked: partial-protection release test has not been attested."; return false; }
+   if(!InpReleaseWebFailureInjectionPassed){ why="REAL account blocked: OpenAI/WebRequest failure-injection test has not been attested."; return false; }
+   if(!InpReleaseDemoSoakPassed){ why="REAL account blocked: demo soak has not been attested."; return false; }
+   if(!InpReleaseOperatorReviewPassed){ why="REAL account blocked: final operator release review has not been attested."; return false; }
+
+   why="Release evidence attested for "+GPT_EA_REQUIRED_RELEASE_VALIDATION_ID+".";
+   return true;
+}
+
+bool ReleaseSafetyAllowsCertified(const string sym,string &why)
+{
+   string base="";
+   if(!ReleaseSafetyAllows(sym,base))
+   {
+      why=base;
+      return false;
+   }
+   string evidence="";
+   if(!ReleaseEvidenceAllows(evidence))
+   {
+      why=evidence;
+      return false;
+   }
+   why=base+(base!=""?" | ":"")+evidence;
+   return true;
+}
+
+string ReleaseGateSummaryCertified()
+{
+   string why="";
+   if(!ReleaseSafetyAllowsCertified("",why)) return "BLOCKED - "+why;
+   return "PASS - "+why;
+}
+
+void WriteReleaseEvidenceSnapshot()
+{
+   if(!InpWriteReleaseEvidenceSnapshot || (bool)MQLInfoInteger(MQL_TESTER)) return;
+   int h=FileOpen(InpReleaseEvidenceSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE)
+   {
+      Print("Release evidence snapshot open failed: ",GetLastError());
+      return;
+   }
+   if(FileSize(h)==0)
+      FileWrite(h,"time","required_release_id","entered_release_id","account_mode","broker","server","compile","strategy_tester","broker_matrix","recovery","stop_matrix","partial_protection","web_failure_injection","demo_soak","operator_review","gate_result","reason");
+   FileSeek(h,0,SEEK_END);
+   string why=""; bool ok=ReleaseEvidenceAllows(why);
+   FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseValidationId,
+      (string)AccountInfoInteger(ACCOUNT_TRADE_MODE),AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),
+      InpReleaseMetaEditorCompilePassed?"1":"0",InpReleaseStrategyTesterPassed?"1":"0",InpReleaseBrokerMatrixPassed?"1":"0",
+      InpReleaseRecoveryTestsPassed?"1":"0",InpReleaseStopMatrixPassed?"1":"0",InpReleasePartialProtectionPassed?"1":"0",
+      InpReleaseWebFailureInjectionPassed?"1":"0",InpReleaseDemoSoakPassed?"1":"0",InpReleaseOperatorReviewPassed?"1":"0",
+      ok?"PASS":"BLOCK",why);
+   FileFlush(h); FileClose(h);
+}
+
+void ReleaseCertificationInit()
+{
+   WriteReleaseEvidenceSnapshot();
+   string why="";
+   bool ok=ReleaseEvidenceAllows(why);
+   Print("GPT_EA release certification: ",ok?"PASS - ":"BLOCK - ",why);
+}

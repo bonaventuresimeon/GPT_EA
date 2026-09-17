@@ -42,7 +42,7 @@ if not errors:
 
     validator=(ROOT/"tools/validate_mt5_validation_evidence.py").read_text(encoding="utf-8")
     for token in ["mt5_validation_evidence_v1","compile_log_sha256","report_sha256","broker_history_sha256",
-                  "required_failure_fail_closed","secret_leak_count","MT5 VALIDATION EVIDENCE"]:
+                  "required_failure_fail_closed","secret_leak_count","validate_matrix_bundle","M5-","MT5 VALIDATION EVIDENCE"]:
         if token not in validator: errors.append(f"MT5 validator missing token: {token}")
 
     builder=(ROOT/"tools/build_mt5_validation_evidence.py").read_text(encoding="utf-8")

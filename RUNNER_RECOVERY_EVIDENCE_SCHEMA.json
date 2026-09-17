@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bonaventuresimeon/GPT_EA/RUNNER_RECOVERY_EVIDENCE_SCHEMA.json",
+  "title": "GPT_EA R6 Runner Recovery Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","release_validation_id","evidence_id","evidence_digest","incident","recovery_probe","release_static","remediation","operator_review"],
+  "properties": {
+    "schema_version": {"const":"runner_recovery_evidence_v1"},
+    "release_validation_id": {"const":"GPT_EA_FULL_INTELLIGENCE_R6_20260917"},
+    "evidence_id": {"type":"string","minLength":8},
+    "evidence_digest": {"type":"string","pattern":"^[0-9a-fA-F]{64}$"},
+    "incident": {
+      "type":"object","additionalProperties":false,
+      "required":["workflow","run_id","run_attempt","job_id","conclusion","runner_id","runner_name","steps_executed","observed_signature","evidence_reference"],
+      "properties":{
+        "workflow":{"type":"string","minLength":1},"run_id":{"type":"integer","minimum":1},"run_attempt":{"type":"integer","minimum":1},
+        "job_id":{"type":"integer","minimum":1},"conclusion":{"const":"failure"},"runner_id":{"const":0},"runner_name":{"const":""},
+        "steps_executed":{"const":0},"observed_signature":{"const":"PRE_RUNNER_NO_STEPS"},"evidence_reference":{"type":"string","minLength":1}
+      }
+    },
+    "recovery_probe": {
+      "type":"object","additionalProperties":false,
+      "required":["workflow","run_id","run_attempt","job_id","conclusion","runner_id","runner_name","steps_executed","run_url","observed_at_utc"],
+      "properties":{
+        "workflow":{"const":"GPT_EA Runner Provisioning Probe"},"run_id":{"type":"integer","minimum":1},"run_attempt":{"type":"integer","minimum":1},
+        "job_id":{"type":"integer","minimum":1},"conclusion":{"const":"success"},"runner_id":{"type":"integer","minimum":1},
+        "runner_name":{"type":"string","minLength":1},"steps_executed":{"type":"integer","minimum":1},
+        "run_url":{"type":"string","minLength":8},"observed_at_utc":{"type":"string","minLength":8}
+      }
+    },
+    "release_static": {
+      "type":"object","additionalProperties":false,
+      "required":["workflow","run_id","run_attempt","job_id","conclusion","runner_id","runner_name","steps_executed","head_sha","ci_bundle_schema_version","ci_bundle_digest","run_url"],
+      "properties":{
+        "workflow":{"const":"GPT_EA Static Release Gate"},"run_id":{"type":"integer","minimum":1},"run_attempt":{"type":"integer","minimum":1},
+        "job_id":{"type":"integer","minimum":1},"conclusion":{"const":"success"},"runner_id":{"type":"integer","minimum":1},
+        "runner_name":{"type":"string","minLength":1},"steps_executed":{"type":"integer","minimum":7},
+        "head_sha":{"type":"string","pattern":"^[0-9a-fA-F]{40}$"},"ci_bundle_schema_version":{"const":"ci_evidence_bundle_v1"},
+        "ci_bundle_digest":{"type":"string","pattern":"^[0-9a-fA-F]{64}$"},"run_url":{"type":"string","minLength":8}
+      }
+    },
+    "remediation": {
+      "type":"object","additionalProperties":false,
+      "required":["github_status_checked","billing_usage_checked","budgets_checked","payment_state_checked","support_case_id","notes"],
+      "properties":{
+        "github_status_checked":{"const":true},"billing_usage_checked":{"const":true},"budgets_checked":{"const":true},"payment_state_checked":{"const":true},
+        "support_case_id":{"type":"string"},"notes":{"type":"string"}
+      }
+    },
+    "operator_review": {
+      "type":"object","additionalProperties":false,
+      "required":["decision","reviewer","timestamp","notes"],
+      "properties":{"decision":{"const":"ACCEPT"},"reviewer":{"type":"string","minLength":2},"timestamp":{"type":"string","minLength":8},"notes":{"type":"string"}}
+    }
+  }
+}

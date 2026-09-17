@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### ⚖️ Legal, Risk & Governance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> ⚖️ **Document:** `DISCLAIMER.md`
+
+---
+
 # GPT_EA Disclaimer
 
 GPT_EA is software for market analysis, trade filtering, risk controls and optional execution assistance. It is not a promise of wealth, profit, income or capital preservation.

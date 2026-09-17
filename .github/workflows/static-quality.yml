@@ -11,6 +11,8 @@ permissions:
   id-token: write
   attestations: write
 
+actions:
+
 concurrency:
   group: gpt-ea-static-${{ github.ref }}
   cancel-in-progress: true
@@ -19,6 +21,8 @@ jobs:
   static-release-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      static_outcome: ${{ steps.static_check.outcome }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +34,19 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Record runner identity
+        shell: bash
+        run: |
+          {
+            echo "head_sha=$GITHUB_SHA"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+          } | tee ci-runner-identity.txt
+          test -n "$RUNNER_NAME"
+
       - name: Run GPT_EA aggregate static release checks
         id: static_check
         continue-on-error: true
@@ -38,24 +55,117 @@ jobs:
           set -o pipefail
           python tools/run_release_checks.py 2>&1 | tee static-check-ci.txt
 
-      - name: Build machine-readable CI evidence
-        id: ci_evidence
+      - name: Validate raw static output shape
+        id: raw_validate
         if: always()
         continue-on-error: true
+        shell: bash
+        run: |
+          test -s static-check.txt
+          test -s static-check-ci.txt
+          grep -q '^RESULT=' static-check.txt
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Build raw evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          touch static-check.txt static-check-ci.txt ci-runner-identity.txt
+          sha256sum static-check.txt static-check-ci.txt ci-runner-identity.txt | tee raw-static-manifest.txt
+
+      - name: Upload raw static evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpt-ea-r6-static-raw-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            static-check.txt
+            static-check-ci.txt
+            ci-runner-identity.txt
+            raw-static-manifest.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish raw static summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## GPT_EA Raw Static Gate'
+            echo
+            echo "- Head SHA: $GITHUB_SHA"
+            echo "- Run: $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
+            echo "- Runner: $RUNNER_NAME / $RUNNER_OS / $RUNNER_ARCH"
+            echo "- Static outcome: ${{ steps.static_check.outcome }}"
+            echo "- Raw-output validation: ${{ steps.raw_validate.outcome }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce raw static gate
+        if: steps.static_check.outcome != 'success' || steps.raw_validate.outcome != 'success'
+        shell: bash
+        run: |
+          echo 'Raw static gate failed. Evidence publication will retain diagnostics but cannot produce release PASS evidence.'
+          exit 1
+
+  ci-evidence-bundle:
+    needs: static-release-gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download raw static evidence
+        id: raw_download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: gpt-ea-r6-static-raw-${{ github.sha }}-${{ github.run_attempt }}
+          path: .
+
+      - name: Capture completed static job metadata
+        id: job_metadata
+        if: steps.raw_download.outcome == 'success'
+        continue-on-error: true
         env:
-          STATIC_OUTCOME: ${{ steps.static_check.outcome }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python tools/fetch_ci_job_metadata.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --job-name static-release-gate \
+            --head-sha "$GITHUB_SHA" \
+            --output ci-job-metadata.json
+
+      - name: Build machine-readable CI evidence
+        id: ci_evidence
+        if: steps.job_metadata.outcome == 'success'
+        continue-on-error: true
+        env:
+          STATIC_OUTCOME: ${{ needs.static-release-gate.outputs.static_outcome }}
         shell: bash
         run: |
           python tools/build_ci_evidence.py \
             --static-check static-check.txt \
             --ci-log static-check-ci.txt \
+            --job-metadata ci-job-metadata.json \
             --output ci-evidence.json \
             --static-outcome "$STATIC_OUTCOME"
-          sha256sum ci-evidence.json static-check.txt static-check-ci.txt | tee ci-evidence-manifest.txt
+          sha256sum static-check.txt static-check-ci.txt ci-job-metadata.json ci-evidence.json | tee ci-evidence-manifest.txt
 
-      - name: Validate CI evidence against checked-out source
+      - name: Validate CI evidence against candidate and job metadata
         id: ci_validate
-        if: steps.static_check.outcome == 'success' && steps.ci_evidence.outcome == 'success'
+        if: steps.ci_evidence.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -63,16 +173,63 @@ jobs:
             --expected-sha "$GITHUB_SHA" \
             --static-check static-check.txt \
             --ci-log static-check-ci.txt \
+            --job-metadata ci-job-metadata.json \
             --check-current-manifest
 
       - name: Attest CI evidence provenance
         id: ci_attest
-        if: steps.static_check.outcome == 'success' && steps.ci_evidence.outcome == 'success' && steps.ci_validate.outcome == 'success'
+        if: steps.ci_validate.outcome == 'success'
         uses: actions/attest@v4
         with:
           subject-path: ci-evidence.json
 
-      - name: Upload R6 static evidence bundle
+      - name: Verify CI evidence attestation
+        id: ci_verify
+        if: steps.ci_attest.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh --version
+          set +e
+          gh attestation verify ci-evidence.json --repo "$GITHUB_REPOSITORY" > ci-attestation-details.txt 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            cat ci-attestation-details.txt
+            exit "$rc"
+          fi
+          {
+            echo 'CI ATTESTATION VERIFY: PASS'
+            cat ci-attestation-details.txt
+          } > ci-attestation-verify.txt
+          cat ci-attestation-verify.txt
+
+      - name: Build final CI evidence bundle manifest
+        id: bundle_build
+        if: steps.ci_verify.outcome == 'success'
+        continue-on-error: true
+        env:
+          ARTIFACT_NAME: gpt-ea-r6-static-evidence-${{ github.sha }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          python tools/build_ci_bundle_manifest.py \
+            --artifact-name "$ARTIFACT_NAME" \
+            --output ci-bundle-manifest.json \
+            --base-dir .
+
+      - name: Validate final CI evidence bundle
+        id: bundle_validate
+        if: steps.bundle_build.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          python tools/validate_ci_bundle.py ci-bundle-manifest.json \
+            --base-dir . \
+            --expected-sha "$GITHUB_SHA"
+
+      - name: Upload final R6 CI evidence bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -80,33 +237,44 @@ jobs:
           path: |
             static-check.txt
             static-check-ci.txt
+            ci-runner-identity.txt
+            raw-static-manifest.txt
+            ci-job-metadata.json
             ci-evidence.json
             ci-evidence-manifest.txt
             ci-evidence-validation.txt
-          if-no-files-found: error
+            ci-attestation-details.txt
+            ci-attestation-verify.txt
+            ci-bundle-manifest.json
+            ci-bundle-validation.txt
+          if-no-files-found: warn
           retention-days: 90
 
-      - name: Publish evidence summary
+      - name: Publish final evidence summary
         if: always()
         shell: bash
         run: |
           {
-            echo '## GPT_EA R6 Static Release Evidence'
+            echo '## GPT_EA Executed CI Evidence Bundle'
             echo
             echo "- Head SHA: $GITHUB_SHA"
             echo "- Run: $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
-            echo "- Static outcome: ${{ steps.static_check.outcome }}"
-            echo "- Evidence build: ${{ steps.ci_evidence.outcome }}"
-            echo "- Evidence validation: ${{ steps.ci_validate.outcome }}"
+            echo "- Raw job result: ${{ needs.static-release-gate.result }}"
+            echo "- Job metadata: ${{ steps.job_metadata.outcome }}"
+            echo "- CI evidence: ${{ steps.ci_evidence.outcome }}"
+            echo "- CI validation: ${{ steps.ci_validate.outcome }}"
             echo "- Attestation: ${{ steps.ci_attest.outcome }}"
-            if [ -f ci-evidence.json ]; then
-              echo "- CI evidence file SHA-256: $(sha256sum ci-evidence.json | cut -d' ' -f1)"
+            echo "- Attestation verification: ${{ steps.ci_verify.outcome }}"
+            echo "- Bundle build: ${{ steps.bundle_build.outcome }}"
+            echo "- Bundle validation: ${{ steps.bundle_validate.outcome }}"
+            if [ -f ci-bundle-manifest.json ]; then
+              echo "- Bundle manifest file SHA-256: $(sha256sum ci-bundle-manifest.json | cut -d' ' -f1)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce static release gate
-        if: steps.static_check.outcome != 'success' || steps.ci_evidence.outcome != 'success' || steps.ci_validate.outcome != 'success' || steps.ci_attest.outcome != 'success'
+      - name: Enforce executed CI evidence gate
+        if: needs.static-release-gate.result != 'success' || steps.job_metadata.outcome != 'success' || steps.ci_evidence.outcome != 'success' || steps.ci_validate.outcome != 'success' || steps.ci_attest.outcome != 'success' || steps.ci_verify.outcome != 'success' || steps.bundle_build.outcome != 'success' || steps.bundle_validate.outcome != 'success'
         shell: bash
         run: |
-          echo 'R6 static evidence gate failed. A green check requires executed static checks, validated machine evidence and a GitHub artifact attestation.'
+          echo 'Executed CI evidence gate failed. Release PASS requires a completed static job on a real runner, validated evidence, verified GitHub attestation, and a valid final bundle.'
           exit 1

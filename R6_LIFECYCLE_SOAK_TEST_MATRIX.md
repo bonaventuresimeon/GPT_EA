@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `R6_LIFECYCLE_SOAK_TEST_MATRIX.md`
+
+---
+
 # GPT_EA R6 Lifecycle & Demo-Soak Release Test Matrix
 
 This matrix is release blocking for the stale-approval lifecycle fix and the R6 machine-observed demo-soak evidence path. Source presence alone is not a PASS.

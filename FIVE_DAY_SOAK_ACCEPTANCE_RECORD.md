@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md`
+
+---
+
 # GPT_EA R6 Five-Day Soak Acceptance Record
 
 The five-day record (acceptance schema `five_day_soak_acceptance_v2`) is the release-blocking human/machine reconciliation layer between `GPT_EA_DemoSoakSnapshot.json` and final R6 release evidence. It is not a profitability scorecard and it cannot be completed before the observations actually occur.

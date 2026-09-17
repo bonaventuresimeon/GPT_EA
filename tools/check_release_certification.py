@@ -121,6 +121,7 @@ else:
         if rt.get("schema_version") != "five_day_soak_acceptance_v1": errors.append("five-day template schema mismatch")
         if len(rt.get("days", [])) != 5: errors.append("five-day template must contain exactly five day rows")
         if rt.get("operator_review", {}).get("decision") != "HOLD": errors.append("five-day template must default operator decision to HOLD")
+        if not str(rt.get("operator_record_path", "")).strip(): errors.append("five-day template must reference operator_record_path")
     except Exception as exc: errors.append(f"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json invalid: {exc}")
 
 for path_name, expected in [
@@ -134,6 +135,8 @@ for path_name, expected in [
     try:
         schema = json.loads(p.read_text(encoding="utf-8")); const = schema.get("properties", {}).get("schema_version", {}).get("const")
         if const != expected: errors.append(f"{path_name} schema version mismatch")
+        if path_name == "FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json" and "operator_record_path" not in set(schema.get("required", [])):
+            errors.append("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json must require operator_record_path")
     except Exception as exc: errors.append(f"{path_name} invalid JSON: {exc}")
 
 ci_schema_path = ROOT / "CI_EVIDENCE_SCHEMA.json"
@@ -154,7 +157,7 @@ for path_name, tokens in {
     "tools/build_ci_bundle_manifest.py": ["ci_evidence_bundle_v1", "CI ATTESTATION VERIFY: PASS", "bundle_digest"],
     "tools/validate_ci_bundle.py": ["validate_bundle", "ci_evidence_bundle_v1", "attestation_verified", "CI BUNDLE VALIDATION"],
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
-    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "record_digest"],
+    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "operator_record_path", "record_digest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
     "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],

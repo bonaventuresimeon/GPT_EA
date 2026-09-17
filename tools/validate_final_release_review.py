@@ -34,6 +34,8 @@ def release_basis(data:dict[str,Any])->dict[str,Any]:
         "runner_recovery_acceptance":data.get("runner_recovery_acceptance",{}),
         "ci_static":data.get("ci_static",{}),
         "mt5_validation":data.get("mt5_validation",{}),
+        "resilience_hardening":data.get("resilience_hardening",{}),
+        "rollback_package":data.get("rollback_package",{}),
         "deployment":data.get("deployment",{}),
         "api_transport":data.get("api_transport",{}),
         "demo_soak":data.get("demo_soak",{}),
@@ -89,7 +91,8 @@ def main()->int:
     checks=review.get("review",{})
     required_checks=[
         "compile_contract_pass","runner_recovery_pass","runner_recovery_acceptance_pass","ci_bundle_pass",
-        "ci_attestation_verified","mt5_validation_pass","api_transport_pass","five_day_acceptance_pass",
+        "ci_attestation_verified","mt5_validation_pass","resilience_hardening_pass","rollback_package_ready",
+        "api_transport_pass","five_day_acceptance_pass",
         "soak_day_reconciliation_pass","five_day_operator_record_complete","soak_schema_pass",
         "release_evidence_validator_pass","all_release_gates_pass","zero_unresolved_critical_states",
         "zero_zero_tolerance_failures","artifact_identity_match","deployment_identity_match",
@@ -129,6 +132,23 @@ def main()->int:
         require(errors,mt5.get("validated") is True,"MT5 validation evidence must be validated before final review")
         require(errors,bool(HEX64.fullmatch(str(mt5.get("evidence_digest","")))),"MT5 validation digest must be valid")
         require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"MT5 validation evidence ID is required")
+
+    rh=evidence.get("resilience_hardening",{})
+    require(errors,isinstance(rh,dict),"release evidence resilience_hardening must be an object")
+    if isinstance(rh,dict):
+        require(errors,rh.get("schema_version")=="resilience_hardening_evidence_v1","resilience hardening schema must be current")
+        require(errors,rh.get("validated") is True,"resilience hardening must be validated before final review")
+        require(errors,bool(HEX64.fullmatch(str(rh.get("evidence_digest","")))),"resilience hardening digest must be valid")
+        require(errors,len(str(rh.get("evidence_id","")).strip())>=8,"resilience hardening evidence ID is required")
+        require(errors,bool(re.fullmatch(r"[0-9a-fA-F]{8}",str(rh.get("config_fingerprint","")))) and str(rh.get("config_fingerprint",""))!="00000000",
+                "resilience hardening configuration fingerprint must be valid")
+
+    rollback=evidence.get("rollback_package",{})
+    require(errors,isinstance(rollback,dict),"release evidence rollback_package must be an object")
+    if isinstance(rollback,dict):
+        require(errors,rollback.get("validated") is True,"rollback readiness must be validated before final review")
+        require(errors,rollback.get("mode") in {"VALIDATED_PACKAGE","FIRST_CERTIFIED_RELEASE"},
+                "rollback readiness mode must be VALIDATED_PACKAGE or FIRST_CERTIFIED_RELEASE")
 
     api=evidence.get("api_transport",{})
     require(errors,isinstance(api,dict),"release evidence api_transport must be an object")

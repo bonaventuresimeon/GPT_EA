@@ -341,6 +341,9 @@ void BindTradeIntentToPosition(ulong ticket,const TradeSetup &s,const string non
    GVWrite(PosKey(pid,"INTENT_NONCE_HASH"),IntentNonceHash(nonce));
    GVWrite(PosKey(pid,"INTENT_BOUND"),1);
    GVWrite(PosKey(pid,"DECISION_HASH"),IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
+   GVWrite(PosKey(pid,"RECON_VOL"),PositionGetDouble(POSITION_VOLUME));
+   GVWrite(PosKey(pid,"RECON_SL"),PositionGetDouble(POSITION_SL));
+   GVWrite(PosKey(pid,"RECON_TP"),PositionGetDouble(POSITION_TP));
    if(GVRead(SysKey("CHAOS_ACTIVE_SAMPLE"),0)>0.5) GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
    AttachIntegrityMetadataToPosition(ticket);
    WriteIntentLedgerRow("FILLED",nonce,s,lots,riskMoney,pid,ticket,trade.ResultRetcode(),"broker position bound to durable intent");
@@ -454,6 +457,59 @@ void ReconcileBrokerAgainstEA()
 
       if(magic==InpMagic)
       {
+         double vol=PositionGetDouble(POSITION_VOLUME);
+         double sl=PositionGetDouble(POSITION_SL);
+         double tp=PositionGetDouble(POSITION_TP);
+         double oldVol=GVRead(PosKey(pid,"RECON_VOL"),0);
+         double oldSL=GVRead(PosKey(pid,"RECON_SL"),0);
+         double oldTP=GVRead(PosKey(pid,"RECON_TP"),0);
+         double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+         double tick=MathMax(SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE),PointFor(sym));
+
+         if(oldVol>0 && vol>oldVol+0.5*step)
+         {
+            GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+            MarkLearningQuarantine(pid,sym,"position volume increased outside recorded EA intent");
+            g_reconciliationBlocked=true;
+            g_reconciliationWhy=sym+" broker volume exceeds last reconciled EA volume";
+            WriteReconciliationRow("CRITICAL","UNEXPECTED_VOLUME_INCREASE",sym,pid,tk,magic,comment,g_reconciliationWhy);
+         }
+         if(oldVol>0 && vol<oldVol-0.5*step &&
+            !PositionFlag(pid,tk,"TP1PARTIAL") && !PositionFlag(pid,tk,"TP2PARTIAL") &&
+            GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         {
+            GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+            MarkLearningQuarantine(pid,sym,"unexplained broker-side/partial volume reduction");
+            WriteReconciliationRow("WARN","UNEXPLAINED_VOLUME_REDUCTION",sym,pid,tk,magic,comment,
+               StringFormat("volume %.4f -> %.4f without recorded partial state",oldVol,vol));
+         }
+         if(oldSL>0 && MathAbs(sl-oldSL)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         {
+            double tracked=GVRead(PosKey(pid,"LASTSL"),GVRead(PosKey(pid,"INITSL"),oldSL));
+            if(tracked>0 && MathAbs(sl-tracked)>0.5*tick)
+            {
+               GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+               MarkLearningQuarantine(pid,sym,"SL differs from EA-tracked protection state");
+               WriteReconciliationRow("WARN","UNEXPLAINED_SL_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("SL %.10f -> %.10f tracked %.10f",oldSL,sl,tracked));
+            }
+         }
+         if(oldTP>0 && MathAbs(tp-oldTP)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         {
+            int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),0);
+            bool expectedTrailRemoval=(stage>=4 && !InpKeepTP3WhileTrailing && tp<=0);
+            if(!expectedTrailRemoval)
+            {
+               GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+               MarkLearningQuarantine(pid,sym,"TP differs from EA-tracked target state");
+               WriteReconciliationRow("WARN","UNEXPLAINED_TP_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("TP %.10f -> %.10f",oldTP,tp));
+            }
+         }
+         GVWrite(PosKey(pid,"RECON_VOL"),vol);
+         GVWrite(PosKey(pid,"RECON_SL"),sl);
+         GVWrite(PosKey(pid,"RECON_TP"),tp);
+
          bool intentBound=(GVRead(PosKey(pid,"INTENT_BOUND"),0)>0.5 || ExtractIntentNonce(comment)!="");
          bool lifecycle=(GVRead(PosKey(pid,"LIFECYCLE_STATE"),0)>0);
          if(!lifecycle)
@@ -548,6 +604,16 @@ void HandleReliabilityTradeTransaction(const MqlTradeTransaction &trans,const Mq
    {
       if(GVRead(PosKey(pid,"STRATEGY"),0)>0 || GVRead(PosKey(pid,"INTENT_BOUND"),0)>0.5)
          MarkManualIntervention(pid,sym,"position modification originated outside EA magic");
+   }
+   else if(pid>0 && request.magic==InpMagic)
+   {
+      ulong tk=FindOpenTicketByIdentifier(pid);
+      if(tk>0 && PositionSelectByTicket(tk))
+      {
+         GVWrite(PosKey(pid,"RECON_VOL"),PositionGetDouble(POSITION_VOLUME));
+         GVWrite(PosKey(pid,"RECON_SL"),PositionGetDouble(POSITION_SL));
+         GVWrite(PosKey(pid,"RECON_TP"),PositionGetDouble(POSITION_TP));
+      }
    }
 
 }

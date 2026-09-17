@@ -356,6 +356,20 @@ Only a fully aligned candidate reaches **HIGH-CONFIDENCE TRADE SETUP**. Otherwis
 - `ADVANCED_INTELLIGENCE_CONTRACT.md`
 - `INTELLIGENCE_TEST_MATRIX.md`
 
+## Customer rollout, licensing and legal package
+
+Customer distribution is supported by:
+
+- `CUSTOMER_SUPPORT_RUNBOOK.md`
+- `CUSTOMER_RELEASE_READINESS_CHECKLIST.md`
+- `COMMERCIAL_LICENSE.md`
+- `TERMS_AND_CONDITIONS.md`
+- `TRADING_RISK_DISCLOSURE.md`
+- `DISCLAIMER.md`
+- `ANTI_PIRACY_LICENSE_ENFORCEMENT.md`
+
+The R8 legal acknowledgement gate sits on top of the existing R7 API/release gate. REAL-account new entries remain blocked until the customer explicitly accepts the current commercial terms and trading-risk disclosure, enters the exact acknowledgement phrase, and supplies the issued license reference. Demo/Strategy Tester remain available for evaluation. Legal/license failure must never be used to weaken management of already-open positions.
+
 ## Installation and onboarding
 
 New users should start with:

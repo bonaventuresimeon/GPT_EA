@@ -56,6 +56,24 @@ void WritePositionFlag(ulong pid,ulong ticket,const string field,double value)
    LegacyTicketWrite(ticket,field,value);
 }
 
+void EnsurePartialProtectionStartObserved(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(GVRead(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0)>0.5) return;
+   GVWrite(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),1);
+   RecordPartialProtectionObservation(ticket,"PARTIAL_PROTECTION_STARTED",reason);
+}
+
+void CompletePartialProtectionObservation(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(GVRead(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0)<=0.5) return;
+   RecordPartialProtectionObservation(ticket,"PARTIAL_PROTECTION_COMPLETED",reason);
+   GVWrite(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0);
+}
+
 bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
 {
    if(!PositionSelectByTicket(ticket)) return false;
@@ -90,6 +108,8 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
       double now=(double)TimeTradeServer();
       GVWrite(PosKey(pid,"TP1_TIME"),now);
       LegacyTicketWrite(ticket,"TP1_TIME",now);
+      if(InpMoveSLToBEAfterTP1 && !PositionProtectedAtOrBeyondBE(ticket))
+         EnsurePartialProtectionStartObserved(ticket,"TP1 scale-out completed; required breakeven protection is pending.");
       SafeUniversalCheckpointNow();
    }
 
@@ -103,11 +123,15 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
          protectionReady=true;
          ClearStopFailureState(ticket,"TP1 breakeven protection already satisfied");
       }
-      else if(StopUpdateRetryDue(pid))
+      else
       {
-         EnsureBreakEvenProtection(ticket,rNow,R,entry,liveBull);
-         protectionReady=PositionProtectedAtOrBeyondBE(ticket);
-         AuditStopUpdateAttempt(ticket,rNow,"TP1 breakeven");
+         EnsurePartialProtectionStartObserved(ticket,"TP1 partial remains complete while breakeven protection is pending.");
+         if(StopUpdateRetryDue(pid))
+         {
+            EnsureBreakEvenProtection(ticket,rNow,R,entry,liveBull);
+            protectionReady=PositionProtectedAtOrBeyondBE(ticket);
+            AuditStopUpdateAttempt(ticket,rNow,"TP1 breakeven");
+         }
       }
    }
 
@@ -120,6 +144,7 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
          GVWrite(PosKey(pid,"TP1_TIME"),now);
          LegacyTicketWrite(ticket,"TP1_TIME",now);
       }
+      CompletePartialProtectionObservation(ticket,"TP1 partial and required breakeven protection are complete.");
       SafeUniversalCheckpointNow();
       return true;
    }

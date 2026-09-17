@@ -59,7 +59,9 @@ bool StopUpdateRetryDue(ulong pid)
 {
    datetime last=StopFailureLastTime(pid);
    if(last<=0) return true;
-   return (TimeTradeServer()-last>=MathMax(1,InpStopUpdateRetrySeconds));
+   int adaptive=(int)GVRead(PosKey(pid,"STOP_FAIL_RETRY_SEC"),InpStopUpdateRetrySeconds);
+   if(adaptive<1) adaptive=InpStopUpdateRetrySeconds;
+   return (TimeTradeServer()-last>=adaptive);
 }
 
 int ActualProtectionStage(ulong ticket)
@@ -98,7 +100,7 @@ void StopFailurePauseNewEntries(const string reason)
    Print("GPT_EA STOP SAFETY PAUSE: ",reason);
 }
 
-void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical=false)
+void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical=false,double requestedSL=0,double rNow=0)
 {
    if(!PositionSelectByTicket(ticket)) return;
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
@@ -121,6 +123,7 @@ void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical=fa
       AppendJournal(critical?"STOP_FAIL_CRITICAL":"STOP_UPDATE_FAIL",sym,kind,0,pid,entry,sl,0,0,
                     GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
    }
+   RecordStopFailureObservation(ticket,critical?"CRITICAL_PROTECTION":"STOP_UPDATE",reason,critical,requestedSL,rNow);
 
    PrintFormat("%s: stop-update failure #%d | critical=%s | %s",sym,count,critical?"YES":"NO",reason);
 
@@ -153,6 +156,8 @@ void ClearStopFailureState(ulong ticket,const string note="protection recovered"
    GVWrite(PosKey(pid,"STOP_FAIL_FIRST"),0);
    GVWrite(PosKey(pid,"STOP_FAIL_LAST"),0);
    GVWrite(PosKey(pid,"STOP_FAIL_CRITICAL"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_HASH"),0);
    AppendJournal("STOP_UPDATE_RECOVERED",sym,kind,0,pid,entry,sl,0,0,
                  GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),note);
    PrintFormat("%s: stop protection recovered after %d failed update(s).",sym,oldCount);
@@ -207,7 +212,7 @@ void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
          double sl=PositionGetDouble(POSITION_SL);
          bool critical=(sl<=0);
          string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
-         RegisterStopUpdateFailure(ticket,why,critical);
+         RegisterStopUpdateFailure(ticket,why,critical,0,rNow);
          return;
       }
    }
@@ -215,7 +220,7 @@ void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
    string trailWhy="";
    if(TrailingImprovementStillExpected(ticket,rNow,trailWhy))
    {
-      RegisterStopUpdateFailure(ticket,context+": "+trailWhy,false);
+      RegisterStopUpdateFailure(ticket,context+": "+trailWhy,false,0,rNow);
       return;
    }
 
@@ -236,7 +241,7 @@ bool HandleUnprotectedStopFailure(ulong ticket,const string reason)
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    string sym=PositionGetString(POSITION_SYMBOL);
    double entry=PositionGetDouble(POSITION_PRICE_OPEN);
-   if(StopUpdateRetryDue(pid)) RegisterStopUpdateFailure(ticket,reason,true);
+   if(StopUpdateRetryDue(pid)) RegisterStopUpdateFailure(ticket,reason,true,0,0);
 
    datetime first=StopFailureFirstTime(pid);
    datetime now=TimeTradeServer();
@@ -256,13 +261,14 @@ bool HandleUnprotectedStopFailure(ulong ticket,const string reason)
       return true;
    }
 
+   RecordStopFailureObservation(ticket,"EMERGENCY_CLOSE_FAILED",reason,true,0,0);
    Print(sym,": emergency close of unprotected position failed - ",trade.ResultRetcodeDescription());
    return false;
 }
 
 string StopFailurePolicySummary()
 {
-   return StringFormat("retry %ds | warn %d | pause %d | unprotected emergency %ds | emergency close %s",
+   return StringFormat("default retry %ds | warn %d | pause %d | unprotected emergency %ds | emergency close %s | broker-adaptive retry ON",
       InpStopUpdateRetrySeconds,InpStopFailureWarnAfter,InpStopFailurePauseAfter,
       InpUnprotectedEmergencySeconds,InpEmergencyCloseUnprotected?"ON":"OFF");
 }

@@ -24,6 +24,8 @@ required_main = [
     '#define StopFailureObservabilityInit StopFailureObservabilityInitR7API',
     '#define AdvancedSafetyInit AdvancedSafetyInitR7API',
     '#define AdvancedSafetyTimer AdvancedSafetyTimerR7API',
+    '#define WebRequest GPTAPIWebRequest',
+    '#undef WebRequest',
 ]
 for token in required_main:
     if token not in MAIN:
@@ -61,12 +63,14 @@ for token in ["GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_SOAK_RECORD_
               "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted",
               "InpReleaseCIAttestationVerified", "InpReleaseSoakAcceptanceRecordDigest", "GPT_EA_R6SupplementalEvidence.csv"]:
     if token not in PART28B: errors.append(f"Part28B missing supplemental R6 evidence token: {token}")
-for token in ["APITransportReleaseEvidenceAllows", "ReleaseSafetyAllowsR7API", "InpReleaseAPITransportPassed", "GPTAPIWebRequest"]:
+for token in ["APITransportReleaseEvidenceAllows", "ReleaseSafetyAllowsR7API", "InpReleaseAPITransportPassed", "GPTAPIWebRequest",
+              "GPT_API_DIRECT_OPENAI", "GPT_API_SECURE_PROXY", "APITrustedDirectEndpoint", "X-Client-Request-Id", "X-GPT-EA-Token"]:
     if token not in PART37: errors.append(f"Part37 missing current API release token: {token}")
 
 docs = ["RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
         "CI_EVIDENCE_CONTRACT.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md",
-        "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md", "RELEASE_EVIDENCE_MANIFEST.md"]
+        "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md", "RELEASE_EVIDENCE_MANIFEST.md",
+        "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md"]
 combined = ""
 for name in docs:
     p = ROOT / name
@@ -83,6 +87,8 @@ else:
         if template.get("release_validation_id") != release_id: errors.append("release evidence template release ID mismatch")
         if template.get("ci_static", {}).get("schema_version") != "github_actions_static_evidence_v1": errors.append("release template missing CI evidence schema")
         if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
+        if template.get("api_transport", {}).get("schema_version") != "api_transport_evidence_v1": errors.append("release template missing API transport evidence schema")
+        if template.get("gates", {}).get("api_transport") is not False: errors.append("release template api_transport gate must default false")
         soak = template.get("demo_soak", {})
         for key in ("acceptance_record_id", "acceptance_record_digest", "acceptance_record_path"):
             if key not in soak: errors.append(f"release template demo_soak missing {key}")
@@ -113,6 +119,7 @@ for path_name, tokens in {
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "record_digest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
     "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW"],
+    "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
 }.items():
     p = ROOT / path_name
     if not p.exists(): errors.append(f"missing validator/tool: {path_name}"); continue
@@ -120,8 +127,9 @@ for path_name, tokens in {
     for token in tokens:
         if token not in text: errors.append(f"{path_name} missing required token: {token}")
 
-for concept in ["SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "artifact attestation", "five-day", "zero-tolerance", "champion/challenger", "lifecycle"]:
-    if concept.lower() not in combined.lower(): errors.append(f"R6 release docs missing concept: {concept}")
+for concept in ["SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "artifact attestation", "five-day",
+                "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy"]:
+    if concept.lower() not in combined.lower(): errors.append(f"release docs missing concept: {concept}")
 
 if errors:
     print("RELEASE CERTIFICATION STATIC CHECK: FAILED")

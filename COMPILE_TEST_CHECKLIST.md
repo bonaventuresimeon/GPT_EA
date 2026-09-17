@@ -18,6 +18,7 @@ This is the release gate for `GPT_EA.mq5`. Do not promote a build development �
   - `GPT_EA_Part12_SafetyStopManagement.mqh`
   - `GPT_EA_Part05.mqh`
   - `GPT_EA_Part06.mqh`
+  - `GPT_EA_Part14_StopFailurePolicy.mqh`
   - `GPT_EA_Part13_AdvancedPositionManager.mqh`
   - `GPT_EA_Part07.mqh`
 - [ ] Exactly one `OnInit`, `OnDeinit`, `OnTimer`, `OnTick`, `OnChartEvent`, and `OnTradeTransaction` is compiled.
@@ -205,7 +206,37 @@ For BUY and SELL:
 - [ ] optional runner mode removes fixed TP after trailing begins when configured
 - [ ] journal records `STOP_BREAKEVEN`, `STOP_PROFIT_LOCK`, `STOP_STRONG_LOCK`, `STOP_TRAIL`
 
-## 14. TP2 scale-out and runner
+## 14. Stop-update failure policy — RELEASE BLOCKING
+
+Follow both:
+
+- `STOP_UPDATE_FAILURE_POLICY.md`
+- `STOP_MANAGEMENT_TEST_MATRIX.md`
+
+Required policy checks:
+
+- [ ] failed update never weakens/removes an existing valid SL
+- [ ] no-op/non-improving trail does not count as a failure
+- [ ] expected BE/profit-lock failure is retried no faster than configured retry interval
+- [ ] `STOP_FAIL_COUNT`, first timestamp and last timestamp are position-identifier scoped
+- [ ] warning threshold generates configured alert/notification
+- [ ] repeated stop failures pause new entries at configured threshold
+- [ ] safety pause does not stop management of the existing position
+- [ ] later successful protection clears position-level failure state
+- [ ] safety pause is not silently auto-cleared after recovery
+- [ ] actual SL=0 is classified critical immediately
+- [ ] missing SL is first reconstructed/restored from durable state/history
+- [ ] unprotected position blocks new risk immediately
+- [ ] emergency close is attempted after configured timeout when enabled
+- [ ] failed emergency close leaves safety pause active and remains retryable
+- [ ] TP1 partial is never duplicated because BE failed
+- [ ] TP2 scale-out is never duplicated because a stop update failed
+- [ ] restart during stop-failure state does not regress protection
+- [ ] `STOP_UPDATE_FAIL`, `STOP_FAIL_CRITICAL`, `STOP_UPDATE_RECOVERED`, and `EMERGENCY_CLOSE_UNPROTECTED` are auditable
+
+**Live release requirement:** all applicable HIGH-priority cases in `STOP_MANAGEMENT_TEST_MATRIX.md` must pass on the intended broker/account type.
+
+## 15. TP2 scale-out and runner
 
 - [ ] TP2 partial uses percentage of remaining position
 - [ ] `TP2PARTIAL` prevents duplicate scale-out
@@ -215,7 +246,7 @@ For BUY and SELL:
 - [ ] post-TP1 stall timer begins at TP1 time, not original entry
 - [ ] stall + barrier + momentum/reversal condition can close remainder
 
-## 15. Portfolio/daily protection
+## 16. Portfolio/daily protection
 
 - [ ] symbol risk cap
 - [ ] total portfolio risk cap
@@ -226,7 +257,7 @@ For BUY and SELL:
 - [ ] consecutive-loss kill switch
 - [ ] blocked state does not stop protective management of existing trades
 
-## 16. Restart/crash recovery matrix
+## 17. Restart/crash recovery matrix
 
 - [ ] no-position/no-pending restart
 - [ ] pending approval still valid
@@ -239,6 +270,7 @@ For BUY and SELL:
 - [ ] restart after +1R lock
 - [ ] restart during trailing
 - [ ] restart after TP2 partial
+- [ ] restart while `STOP_FAIL_COUNT > 0`
 - [ ] position ticket change, same identifier
 - [ ] deliberate netting reversal
 - [ ] account/server/magic mismatch
@@ -247,7 +279,7 @@ For BUY and SELL:
 - [ ] missing globals rebuild from broker/history where possible
 - [ ] finalized analytics not duplicated
 
-## 17. Analytics
+## 18. Analytics
 
 Follow `ANALYTICS_SCHEMA.md`.
 
@@ -261,8 +293,9 @@ Follow `ANALYTICS_SCHEMA.md`.
 - [ ] profit factor calculation correct
 - [ ] `FINAL=1` idempotency works
 - [ ] protective-stop stage events contain position ID and current R
+- [ ] stop failure/recovery events contain durable position ID
 
-## 18. OpenAI / DOM / ONNX
+## 19. OpenAI / DOM / ONNX
 
 OpenAI:
 - [ ] blank/invalid key fails safely
@@ -278,18 +311,18 @@ ONNX:
 - [ ] `[1,12]` input and `[1,1]` output validated
 - [ ] missing/invalid model cannot bypass hard gates
 
-## 19. Strategy Tester / static gate
+## 20. Strategy Tester / static gate
 
 - [ ] no array-out-of-range
 - [ ] no divide-by-zero
 - [ ] no invalid indicator-handle leak
 - [ ] no duplicate position beyond configured limit
-- [ ] no runaway release-gate/trailing log spam
+- [ ] no runaway release-gate/trailing/failure log spam
 - [ ] historical risk per trade plausible
 - [ ] drawdown reviewed
 - [ ] pullback and breakout performance reviewed independently
 
-## 20. Demo soak and live release
+## 21. Demo soak and live release
 
 Demo:
 - [ ] multiple London/U.S. sessions
@@ -298,16 +331,20 @@ Demo:
 - [ ] spread expansion/rollover period
 - [ ] checkpoint + backup + execution CSV persist
 - [ ] at least one complete TP1 → BE → lock → trail lifecycle
+- [ ] at least one controlled stop-update failure/recovery lifecycle
+- [ ] at least one controlled missing-SL emergency-policy test on demo
 - [ ] `BROKER_MATRIX_TESTS.md` completed for intended broker
+- [ ] all applicable HIGH-priority `STOP_MANAGEMENT_TEST_MATRIX.md` cases passed
 
 Live:
 - [ ] compile gate passed
 - [ ] recovery invariants passed
 - [ ] release-gate tests passed
 - [ ] broker matrix passed on intended live account type
+- [ ] stop-management matrix release gate passed
 - [ ] demo soak passed
 - [ ] `InpRequireApproval=true` for initial live deployment
 - [ ] live arm phrase entered locally only after validation
 - [ ] conservative risk used initially
 - [ ] ONNX/DOM remain optional unless separately live-validated
-- [ ] archive `.ex5`, `.set`, commit SHA, MT5 build, analytics schema version and broker profile
+- [ ] archive `.ex5`, `.set`, commit SHA, MT5 build, analytics schema version, broker profile and stop-matrix evidence

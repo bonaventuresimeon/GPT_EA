@@ -9,9 +9,10 @@ The base release ID is read directly from `GPT_EA_Part28_ReleaseCertification.mq
 Use:
 
 - `RELEASE_EVIDENCE_TEMPLATE.json` → working `release_evidence.json`;
+- `RUNNER_RECOVERY_EVIDENCE_SCHEMA.json` and `RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json` → hosted-runner recovery proof;
 - `CI_EVIDENCE_SCHEMA.json` and `CI_EVIDENCE_BUNDLE_SCHEMA.json` → executed GitHub Actions evidence;
 - `SOAK_EVIDENCE_SCHEMA.json` → versioned machine soak contract;
-- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` → working five-day machine acceptance record;
+- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` → working five-day machine acceptance record (`five_day_soak_acceptance_v2`);\n- `SOAK_DAY_RECONCILIATION_CHECKLIST.md` → one completed reconciliation file per accepted day;
 - `FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md` → working human/operator reconciliation record;
 - `DEMO_SOAK_REPORT_TEMPLATE.md` → full soak report;
 - `FINAL_RELEASE_REVIEW_TEMPLATE.json` → working final review.
@@ -31,7 +32,20 @@ Populate the exact candidate identity:
 
 Production certification requires 0 compile errors and 0 accepted production warnings under `METAEDITOR_COMPILE_GATE.md`.
 
-## 2. Executed GitHub Actions CI evidence
+## 2. Hosted-runner recovery evidence
+
+Before CI can become release evidence, complete `runner_recovery_evidence_v1`. It must preserve the original pre-runner incident signature, prove a later successful minimal runner probe, and bind the exact candidate's successful static job/CI-bundle digest.
+
+Run:
+
+```text
+python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evidence.json --finalize
+python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evidence.json
+```
+
+Only the resulting PASS/digest may populate `runner_recovery` and `gates.runner_recovery=true`.
+
+## 3. Executed GitHub Actions CI evidence
 
 A created workflow run is not enough. Follow `CI_EVIDENCE_CONTRACT.md`.
 
@@ -70,7 +84,7 @@ python tools/validate_ci_bundle.py artifacts/ci-bundle-manifest.json \
 
 `ci_static.bundle_validated` may become true only after the final bundle validator passes.
 
-## 3. API/WebRequest transport evidence
+## 4. API/WebRequest transport evidence
 
 The active source routes release safety through the API transport guard. Complete `API_TRANSPORT_TEST_MATRIX.md` for the selected DIRECT_OPENAI or SECURE_PROXY mode.
 
@@ -84,7 +98,7 @@ python tools/validate_api_transport_evidence.py release_evidence.json
 
 `gates.api_transport` must be true before the aggregate release validator can pass.
 
-## 4. Five-day machine and operator acceptance
+## 5. Five-day machine, day-by-day and operator acceptance
 
 Part36 produces machine observations, but the five-day engineering acceptance also requires human reconciliation.
 
@@ -98,7 +112,9 @@ artifacts/demo-soak-report.md
 
 from their repository templates.
 
-The machine record must freeze the exact Git/EX5/SET and deployment identity, contain exactly five accepted trading-day rows, require all lifecycle assertions, all zero-tolerance counts equal zero, and reference both the completed operator record and demo-soak report.
+The machine record must freeze the exact Git/EX5/SET and deployment identity, contain exactly five accepted trading-day rows, require all lifecycle assertions and zero-tolerance counts, and reference the completed operator record and demo-soak report.
+
+Each accepted day must also reference a completed dated copy of `SOAK_DAY_RECONCILIATION_CHECKLIST.md`, with literal `ACCEPT DAY`, matching date and Git SHA, `day_reconciled=true`, reviewer and timestamp.
 
 The operator worksheet records the daily Experts/Journal, broker-history, Part36 and recovery/checkpoint evidence references supporting the JSON values.
 
@@ -111,7 +127,7 @@ python tools/validate_five_day_soak_record.py artifacts/five-day-soak-acceptance
 
 Only a passing finalization produces an acceptable `record_digest`.
 
-## 5. Soak schema and digest
+## 6. Soak schema and digest
 
 Import the completed Part36 snapshot and accepted five-day record into the release evidence using the repository importer, then validate:
 

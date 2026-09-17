@@ -34,6 +34,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part25_ThesisHardening.mqh",
     "GPT_EA_Part26_DeepGPTPolicy.mqh",
     "GPT_EA_Part27_StrategyCompletion.mqh",
+    "GPT_EA_Part28_ReleaseCertification.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -41,6 +42,8 @@ REQUIRED_FILES = [
     "STOP_MANAGEMENT_TEST_MATRIX.md",
     "PARTIAL_PROTECTION_RELEASE_TEST.md",
     "STOP_FAILURE_OBSERVABILITY.md",
+    "BROKER_STOP_RELEASE_EVIDENCE.md",
+    "RELEASE_CERTIFICATION.md",
 ]
 
 REQUIRED_TOKENS = {
@@ -84,6 +87,12 @@ REQUIRED_TOKENS = {
         "STRATEGY_COUNTER_TREND_SWING", "STATE_BREAKOUT_RETEST",
         "Mean-reversion validity repaired",
     ],
+    "GPT_EA_Part28_ReleaseCertification.mqh": [
+        "GPT_EA_REQUIRED_RELEASE_VALIDATION_ID", "ReleaseEvidenceAllows",
+        "ReleaseSafetyAllowsCertified", "InpReleaseMetaEditorCompilePassed",
+        "InpReleasePartialProtectionPassed", "InpReleaseDemoSoakPassed",
+        "GPT_EA_ReleaseEvidence.csv",
+    ],
 }
 
 REQUIRED_MAIN_WIRING = [
@@ -96,6 +105,10 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part25_ThesisHardening.mqh"',
     '#include "GPT_EA_Part26_DeepGPTPolicy.mqh"',
     '#include "GPT_EA_Part27_StrategyCompletion.mqh"',
+    '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsCertified",
+    "#define ReleaseGateSummary ReleaseGateSummaryCertified",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitCertified",
     "#define SelectDynamicStrategy SelectDynamicStrategyUltimate",
     "#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate",
     "#define GetLiveWebIntel GetLiveWebIntelHardened",
@@ -206,6 +219,8 @@ def main() -> int:
     if missing_points: errors.append("mandatory thesis points missing: " + ", ".join(missing_points))
 
     order = [
+        "GPT_EA_Part18_StopBrokerObservability.mqh",
+        "GPT_EA_Part28_ReleaseCertification.mqh",
         "GPT_EA_Part15_StrategyIntelligence.mqh",
         "GPT_EA_Part15D_StructureTargets.mqh",
         "GPT_EA_Part21_ResearchValidation.mqh",
@@ -223,10 +238,21 @@ def main() -> int:
     ]
     positions = [main_text.find(f'#include "{x}"') for x in order]
     if any(p < 0 for p in positions) or positions != sorted(positions):
-        errors.append("critical intelligence include order is invalid")
+        errors.append("critical intelligence/release include order is invalid")
 
     if main_text.count("#define ExtractOpenAIText ExtractOpenAITextWide") < 2:
         errors.append("wide intelligence response parser must cover both structured news and deep GPT review")
+
+    release_part = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+    for flag in [
+        "InpReleaseMetaEditorCompilePassed", "InpReleaseStrategyTesterPassed",
+        "InpReleaseBrokerMatrixPassed", "InpReleaseRecoveryTestsPassed",
+        "InpReleaseStopMatrixPassed", "InpReleasePartialProtectionPassed",
+        "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
+        "InpReleaseOperatorReviewPassed",
+    ]:
+        if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release_part):
+            errors.append(f"release attestation must default false: {flag}")
 
     if 'input string InpOpenAIAPIKey            = ""' not in (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8"):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")

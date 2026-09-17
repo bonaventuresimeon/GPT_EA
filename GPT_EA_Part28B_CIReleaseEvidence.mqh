@@ -9,6 +9,7 @@ input bool   InpReleaseCIStaticEvidencePassed          = false;
 input string InpReleaseCISchemaVersion                 = "";
 input long   InpReleaseCIRunId                         = 0;
 input int    InpReleaseCIRunAttempt                    = 0;
+input long   InpReleaseCIJobId                         = 0;
 input long   InpReleaseCIRunnerId                      = 0;
 input int    InpReleaseCIStepsExecuted                 = 0;
 input string InpReleaseCIHeadSha                       = "";
@@ -17,6 +18,9 @@ input string InpReleaseCIConclusion                    = "";
 input string InpReleaseCIArtifactName                  = "";
 input bool   InpReleaseCIArtifactArchived              = false;
 input bool   InpReleaseCIAttestationVerified           = false;
+input string InpReleaseCIBundleSchemaVersion           = "";
+input string InpReleaseCIBundleDigest                  = "";
+input bool   InpReleaseCIBundleValidated               = false;
 
 input string InpReleaseSoakAcceptanceRecordId          = "";
 input string InpReleaseSoakAcceptanceRecordDigest      = "";
@@ -24,8 +28,9 @@ input string InpReleaseSoakAcceptanceRecordDigest      = "";
 input bool   InpWriteR6SupplementalEvidenceSnapshot    = true;
 input string InpR6SupplementalEvidenceSnapshotFile     = "GPT_EA_R6SupplementalEvidence.csv";
 
-const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION = "github_actions_static_evidence_v1";
-const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA = "five_day_soak_acceptance_v1";
+const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION     = "github_actions_static_evidence_v1";
+const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA      = "ci_evidence_bundle_v1";
+const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA    = "five_day_soak_acceptance_v1";
 
 bool ReleaseCIStaticEvidenceAllows(string &why)
 {
@@ -40,9 +45,9 @@ bool ReleaseCIStaticEvidenceAllows(string &why)
       why="GitHub Actions evidence schema is missing or stale.";
       return false;
    }
-   if(InpReleaseCIRunId<=0 || InpReleaseCIRunAttempt<=0 || InpReleaseCIRunnerId<=0)
+   if(InpReleaseCIRunId<=0 || InpReleaseCIRunAttempt<=0 || InpReleaseCIJobId<=0 || InpReleaseCIRunnerId<=0)
    {
-      why="GitHub Actions evidence must identify an executed run/attempt with runner_id > 0.";
+      why="GitHub Actions evidence must identify an executed run/attempt/job with runner_id > 0.";
       return false;
    }
    if(InpReleaseCIStepsExecuted<7)
@@ -75,7 +80,17 @@ bool ReleaseCIStaticEvidenceAllows(string &why)
       why="GitHub artifact provenance attestation has not been verified.";
       return false;
    }
-   why="Executed GitHub Actions static evidence, archive and provenance attestation PASS.";
+   if(InpReleaseCIBundleSchemaVersion!=GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA)
+   {
+      why="GitHub Actions CI bundle schema is missing or stale.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseCIBundleDigest,64) || !InpReleaseCIBundleValidated)
+   {
+      why="GitHub Actions final CI evidence bundle has not been validated with a valid SHA-256 digest.";
+      return false;
+   }
+   why="Executed GitHub Actions static evidence, completed-job identity, archive, provenance attestation and final bundle PASS.";
    return true;
 }
 
@@ -171,15 +186,17 @@ void WriteR6SupplementalEvidenceSnapshot()
    int h=FileOpen(InpR6SupplementalEvidenceSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    if(FileSize(h)==0)
-      FileWrite(h,"time","required_release_id","source_commit","ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_runner_id",
+      FileWrite(h,"time","required_release_id","source_commit","ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id",
          "ci_steps","ci_head_sha","ci_digest","ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified",
+         "ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
          "soak_record_id","soak_record_digest","gate_result","reason");
    FileSeek(h,0,SEEK_END);
    string why=""; bool ok=ReleaseSafetyAllowsR6Evidence("",why);
    FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseSourceCommitSha,
       InpReleaseCIStaticEvidencePassed?"1":"0",InpReleaseCISchemaVersion,(string)InpReleaseCIRunId,(string)InpReleaseCIRunAttempt,
-      (string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,InpReleaseCIConclusion,
+      (string)InpReleaseCIJobId,(string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,InpReleaseCIConclusion,
       InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
+      InpReleaseCIBundleSchemaVersion,InpReleaseCIBundleDigest,InpReleaseCIBundleValidated?"1":"0",
       InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,ok?"PASS":"BLOCK",why);
    FileFlush(h); FileClose(h);
 }

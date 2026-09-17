@@ -8,6 +8,7 @@
 #include "GPT_EA_Part10_BrokerUniversalRecovery.mqh"
 #include "GPT_EA_Part11_PreflightRecoveryGuard.mqh"
 #include "GPT_EA_Part00_ForwardDeclarations.mqh"
+#include "GPT_EA_Part44_ChaosFaultInjection.mqh"
 #include "GPT_EA_Part12_SafetyStopManagement.mqh"
 #include "GPT_EA_Part14_StopFailurePolicy.mqh"
 #include "GPT_EA_Part18_StopBrokerObservability.mqh"
@@ -64,13 +65,20 @@
 #undef WebRequest
 #undef InpOpenAIAPIKey
 
-// Adaptive execution, portfolio risk, shadow validation, lifecycle, demo-soak evidence and dashboard stack.
+#include "GPT_EA_Part40_ModelClockTrust.mqh"
+#include "GPT_EA_Part41_PortfolioStressLatency.mqh"
+
+// Adaptive execution, portfolio risk, integrity/quarantine, shadow validation, lifecycle,
+// exactly-once reconciliation, causal analytics, demo-soak evidence and dashboard stack.
 #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
+#include "GPT_EA_Part39_DataIntegrityQuarantine.mqh"
 #include "GPT_EA_Part31_ExecutionLearning.mqh"
 #include "GPT_EA_Part31A_RegimeSizing.mqh"
 #include "GPT_EA_Part31B_ExecutionFinalizer.mqh"
 #include "GPT_EA_Part32_ChampionChallenger.mqh"
 #include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
+#include "GPT_EA_Part42_ExecutionReliability.mqh"
+#include "GPT_EA_Part43_CausalAttribution.mqh"
 #include "GPT_EA_Part34_StrategyHealthDashboard.mqh"
 #include "GPT_EA_Part36_DemoSoakEvidence.mqh"
 #include "GPT_EA_Part35_AdaptiveIntegration.mqh"

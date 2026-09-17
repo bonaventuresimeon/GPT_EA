@@ -169,7 +169,9 @@
     "demo_soak": false,
     "operator_review": false,
     "resilience_hardening": false,
-    "rollback_package": false
+    "rollback_package": false,
+    "compile_evidence": false,
+    "privacy_signoff": false
   },
   "final_review": {
     "schema_version": "final_release_review_v1",
@@ -178,5 +180,24 @@
     "decision": "HOLD",
     "reviewer": "",
     "review_timestamp": ""
+  },
+  "compile_evidence": {
+    "schema_version": "gpt_ea_compile_evidence_v1",
+    "evidence_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_path": "artifacts/compile-evidence.json",
+    "validated": false,
+    "validation_path": "artifacts/compile-evidence-validation.txt"
+  },
+  "privacy_signoff": {
+    "schema_version": "gpt_ea_privacy_signoff_v1",
+    "signoff_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_path": "artifacts/privacy-signoff.json",
+    "validated": false,
+    "validation_path": "artifacts/privacy-signoff-validation.txt",
+    "jurisdiction": "",
+    "telemetry_state": "UNSET",
+    "unresolved_critical_findings": 0
   }
 }

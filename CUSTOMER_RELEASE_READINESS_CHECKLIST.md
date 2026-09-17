@@ -76,6 +76,9 @@ Before live use:
 - [ ] Customer understands losses, including loss of all deposited trading capital, are possible.
 - [ ] Customer understands software/AI output can be wrong or unavailable.
 - [ ] Required in-EA legal/risk acknowledgement is completed for real-account arming.
+- [ ] Customer jurisdiction has a completed `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md` review.
+- [ ] Customer risk acknowledgement is bound to the current terms version and acknowledgement schema.
+- [ ] Machine-readable customer acknowledgement record validates successfully.
 
 ## G. First-run support readiness
 

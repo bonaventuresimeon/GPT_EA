@@ -3,7 +3,7 @@
 // ============================================================================
 
 input bool   InpUseExecutionQualityLearning       = true;
-input string InpExecutionLearningFile             = "GPT_EA_ExecutionLearning.csv";
+input string InpExecutionLearningFile             = "GPT_EA_ExecutionLearningV2.csv";
 input double InpExecutionEwmaAlpha                = 0.20;
 input int    InpExecutionForecastMinSamples       = 5;
 input double InpExecutionForecastRRBuffer         = 0.05;
@@ -236,7 +236,8 @@ void EnsureExecutionLearningHeader()
    if(!exists || FileSize(h)==0)
       FileWrite(h,"schema_version","time","event","broker","server","symbol","position_id","strategy","market_state","session","event_class",
                    "expected_entry","request_price","fill_price","spread_request_pts","spread_fill_pts","slippage_pts","latency_ms","lots","risk_money",
-                   "raw_confidence","calibrated_confidence","realized_r","mae_r","mfe_r","tp1_m15","commission","note");
+                   "raw_confidence","calibrated_confidence","realized_r","mae_r","mfe_r","tp1_m15","commission",
+                   "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","note");
    FileClose(h);
 }
 
@@ -252,7 +253,7 @@ void WriteExecutionLearningRow(const string eventName,const string sym,ulong pid
    int ses=(int)GVRead(PosKey(pid,"EXEC_SESSION"),ExecutionSessionCode(sym));
    int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
    double commission=GVRead(PosKey(pid,"ACTUAL_COMMISSION"),0);
-   FileWrite(h,"execution_learning_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
+   FileWrite(h,"execution_learning_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
       AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),sym,(string)pid,
       StrategyClassName((StrategyClass)cls),MarketStateName((MarketStateClass)state),(string)ses,AdaptiveEventName(ev),
       DoubleToString(GVRead(PosKey(pid,"EXEC_EXPECTED"),0),DigitsFor(sym)),DoubleToString(GVRead(PosKey(pid,"EXEC_REQUEST_PX"),0),DigitsFor(sym)),
@@ -262,7 +263,9 @@ void WriteExecutionLearningRow(const string eventName,const string sym,ulong pid
       DoubleToString(GVRead(PosKey(pid,"RISK"),0),2),DoubleToString(GVRead(PosKey(pid,"RAW_CONF"),0),0),
       DoubleToString(GVRead(PosKey(pid,"CAL_CONF"),0),0),DoubleToString(realizedR,3),
       DoubleToString(GVRead(PosKey(pid,"MAE_R"),0),3),DoubleToString(GVRead(PosKey(pid,"MFE_R"),0),3),
-      DoubleToString(GVRead(PosKey(pid,"TP1_M15"),0),1),DoubleToString(commission,2),note);
+      DoubleToString(GVRead(PosKey(pid,"TP1_M15"),0),1),DoubleToString(commission,2),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion((StrategyClass)cls),note);
    FileFlush(h); FileClose(h);
 }
 

@@ -10,5 +10,7 @@ string SetupSummaryLine(const TradeSetup &s);
 // Defined in Part13.
 bool PositionFlag(ulong pid,ulong ticket,const string field);
 
-// Defined in Part18 and called by Part14.
+// Defined in Part18 and called by Part14 / Part13.
 void RecordStopFailureObservation(ulong ticket,const string context,const string reason,bool critical,double requestedSL,double rNow);
+void RecordStopRecoveryObservation(ulong ticket,const string context,const string note);
+void RecordStopObservationEvent(ulong ticket,const string eventName,const string context,const string reason,bool critical,double requestedSL,double rNow);

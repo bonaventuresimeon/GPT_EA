@@ -1,303 +1,377 @@
 # GPT_EA
 
-Standalone MetaTrader 5 GPT-assisted Expert Advisor with multi-timeframe analysis, advanced confluence, OpenAI secondary review, broker-aware execution, portfolio risk controls, restart recovery, setup analytics, timed **APPROVE / DENY** authorization, release-blocking safety gates, and advanced protective-stop management.
+Standalone MetaTrader 5 GPT-assisted Expert Advisor with multi-timeframe market-state classification, regime-driven strategy selection, live news/intermarket intelligence, adversarial GPT validation, broker-aware execution, portfolio risk, restart recovery, setup analytics, advanced stop management and timed **APPROVE / DENY** authorization.
 
 Repository: https://github.com/bonaventuresimeon/GPT_EA.git
 
-## Clone
-
-```bash
-git clone https://github.com/bonaventuresimeon/GPT_EA.git
-cd GPT_EA
-```
-
 ## Main EA
 
-Compile `GPT_EA.mq5` in MetaEditor. The entry file includes only local files from this repository:
+Compile `GPT_EA.mq5` in MetaEditor. It includes only local project modules.
 
-- `GPT_EA_Part01.mqh` — inputs, OpenAI client and core types
-- `GPT_EA_Part02.mqh` — indicators, multi-timeframe scoring and London/New York scheduling
-- `GPT_EA_Part03.mqh` — ATR/opening-range adaptation, calendar, Treasury-yield and spread filters
-- `GPT_EA_Part04.mqh` — pullback/breakout-retest construction and equity/balance lot sizing
-- `GPT_EA_Part08_Advanced.mqh` — advanced confluence, dashboard and trade-level map
-- `GPT_EA_Part09_RiskRecoveryAnalytics.mqh` — portfolio risk, setup analytics, DOM, regime logic, journaling and optional ONNX
-- `GPT_EA_Part10_BrokerUniversalRecovery.mqh` — broker/symbol abstraction, contract/margin discovery and disk-backed restart recovery
-- `GPT_EA_Part11_PreflightRecoveryGuard.mqh` — MT5 `OrderCheck()` preflight, completed checkpoint backups and netting-reversal safety
-- `GPT_EA_Part12_SafetyStopManagement.mqh` — release-blocking gates, executable recovery invariants and advanced SL/BE/trailing helpers
-- `GPT_EA_Part05.mqh` — signal-card formatting and final broker/release-gated execution
-- `GPT_EA_Part06.mqh` — legacy management helpers and approval UI
-- `GPT_EA_Part13_AdvancedPositionManager.mqh` — idempotent TP1/TP2 partials, BE, profit locks, trailing and stale-trade management
-- `GPT_EA_Part07.mqh` — approval workflow, scanner lifecycle and MT5 event hooks
+Core/legacy-compatible modules:
 
-Release/test documents:
+- `GPT_EA_Part01.mqh` — inputs, OpenAI client and core execution-family types
+- `GPT_EA_Part02.mqh` — indicators, D1/H4/H1/M30/M15/M5 scoring and session scheduling
+- `GPT_EA_Part03.mqh` — ATR/opening-range adaptation, economic calendar, yield and spread filters
+- `GPT_EA_Part04.mqh` — base pullback/breakout-retest geometry and risk sizing
+- `GPT_EA_Part05.mqh` — signal card and final order path
+- `GPT_EA_Part06.mqh` — approval UI and legacy management helpers
+- `GPT_EA_Part07.mqh` — full-intelligence scanner, approval flow and MT5 event hooks
+- `GPT_EA_Part08_Advanced.mqh` — confluence, chart/dashboard and trade-level drawing
+- `GPT_EA_Part09_RiskRecoveryAnalytics.mqh` — portfolio risk, DOM/ONNX, regime base, recovery and analytics
+- `GPT_EA_Part10_BrokerUniversalRecovery.mqh` — broker/symbol abstraction and disk-backed recovery
+- `GPT_EA_Part11_PreflightRecoveryGuard.mqh` — `OrderCheck()`, validated checkpoint backup and netting safety
+- `GPT_EA_Part12_SafetyStopManagement.mqh` — hard release gates and advanced SL helpers
+- `GPT_EA_Part13_AdvancedPositionManager.mqh` — restart-safe TP1/TP2, BE, profit locks and trailing
+- `GPT_EA_Part14_StopFailurePolicy.mqh` — stop failure escalation and emergency protection
 
-- `COMPILE_TEST_CHECKLIST.md` — MetaEditor, broker, recovery, demo-soak and live release checklist
-- `BROKER_MATRIX_TESTS.md` — cross-broker/account/symbol/execution/recovery test matrix
-- `RECOVERY_INVARIANTS.md` — formal state invariants that must hold before new authorization
-- `RELEASE_SAFETY_GATES.md` — hard release blockers and enforcement points
-- `ANALYTICS_SCHEMA.md` — versioned execution, setup-statistics, recovery and broker-profile data contract
+Full-intelligence modules:
 
-## Broker-agnostic symbol support
+- `GPT_EA_Part15_StrategyIntelligence.mqh` — market-state taxonomy, counter-trend/reversal/range engines, dynamic selector and strategy evidence
+- `GPT_EA_Part15B_StrategyFrameworks.mqh` — named trend, retracement, session, breakout, reversal and mean-reversion frameworks
+- `GPT_EA_Part15C_StrategyContextAnalytics.mqh` — strategy statistics by session, direction, volatility, timeframe and news proximity
+- `GPT_EA_Part15D_StructureTargets.mqh` — liquidity/structure-aware TP refinement
+- `GPT_EA_Part16_NewsIntermarket.mqh` — local intermarket confirmation and OpenAI web-search news intelligence
+- `GPT_EA_Part16A_StrictRevalidation.mqh` — stale-strategy/direction/news/intermarket pre-entry cancellation
+- `GPT_EA_Part17_ThesisEngine.mqh` — mandatory 25-point thesis and adversarial GPT review prompt
+- `GPT_EA_Part18_StopBrokerObservability.mqh` — broker-specific stop failures, adaptive retry and partial-protection gate
+- `GPT_EA_Part19_ContinuousIntelligence.mqh` — new-M5-bar/configurable continuous rescanning
+- `GPT_EA_Part20_RealisticCostModel.mqh` — commission, spread, slippage and partial-weighted realistic R:R
+- `GPT_EA_Part00_ForwardDeclarations.mqh` — compile-order declarations for cross-module hooks
 
-GPT_EA adapts to the connected MT5 broker instead of assuming one naming convention, spread, leverage or contract specification.
+## Decision model
 
-At startup it resolves configured logical names against symbols actually offered by the terminal. Common aliases are recognized for FX, metals, major indices, energy and crypto, including names such as `XAUUSD/GOLD`, `US100/NAS100/USTEC`, `GER40/DE40/DAX40`, `WTI/USOIL` and `BRENT/UKOIL`. Prefixes and suffixes such as `.cash`, `.a`, `m`, `#` and broker-specific variants can be matched where the underlying instrument can be identified.
+The EA is designed to return one of three operational states:
 
-For proprietary instruments not covered by an alias, use the broker's actual MT5 symbol name directly. The EA relies primarily on the symbol properties exposed by the connected terminal rather than a fixed broker list.
+- **HIGH-CONFIDENCE TRADE SETUP**
+- **WAIT FOR CONFIRMATION / REANALYZE**
+- **NO TRADE**
 
-`InpSymbols` can contain normal requested instruments. `AUTO`/`ALL` can resolve the configurable major-instrument universe, and `InpUseMarketWatchUniverse=true` can add selected Market Watch instruments up to the configured cap.
+A scan request does not force a trade.
 
-## Runtime broker and contract discovery
+## Market-state intelligence
 
-For each resolved instrument GPT_EA can inspect and report:
+The strategy engine explicitly distinguishes:
 
-- broker company and trade server
-- account currency, account leverage and margin mode
-- symbol trade mode, execution mode and filling-policy flags
-- symbol description/path and normalized asset class
-- base, profit and margin currencies
-- digits, point and tick size
-- profit/loss tick values
-- contract size
-- minimum, maximum, step and directional-limit volume
-- fixed/floating spread and live Bid/Ask spread
-- minimum stop level and freeze level
-- symbol calculation mode
-- buy/sell one-lot margin estimate
-- initial/maintenance margin rates where supplied by the broker
+- trend continuation
+- healthy retracement
+- deep retracement
+- correction
+- counter-trend movement
+- trend failure
+- reversal
+- breakout
+- breakout-retest
+- false breakout
+- liquidity sweep
+- range expansion
+- range reversal
+- mean reversion
+- momentum continuation
+- exhaustion
+- possible accumulation
+- possible distribution
+- consolidation
 
-Account leverage is environment information only. GPT_EA does not assume one universal `notional ÷ leverage` formula; risk uses `OrderCalcProfit()` and authorization uses MT5/broker margin calculations.
+These classifications describe current evidence; they are not guarantees of future direction.
 
-## Broker and server execution gates
+## First-class strategy classifications
 
-Before APPROVE can become ready, and again immediately before order send, GPT_EA checks:
+Before any entry recommendation the scanner assigns one of:
 
-- account, terminal and EA trading permission
-- disabled / close-only / long-only / short-only symbol states
-- market-order and protective-SL capability
-- minimum/maximum/step/directional volume rules
-- current stop/freeze distance
-- tick-size-normalized SL/TP
-- free margin and configured free-margin usage cap
-- supported filling policy
-- `OrderCalcMargin()` result
-- complete MT5 `OrderCheck()` result
-- projected free margin and configurable post-trade margin-level floor
+1. Trend Continuation
+2. Retracement Entry
+3. Counter-Trend Scalp
+4. Counter-Trend Swing
+5. Potential Reversal
+6. Breakout
+7. Breakout-Retest
+8. Range Trade
+9. Mean-Reversion Setup
+10. No Trade
 
-The same request must still pass after the user clicks APPROVE; approval is authorization, not a bypass.
+The original `SetupKind` remains as a backward-compatible execution/recovery family for pullback versus breakout-retest state. The new `StrategyClass` is the actual market-strategy classification.
 
-## Release-blocking safety gates
+## Strategy library and regime selection
 
-`GPT_EA_Part12_SafetyStopManagement.mqh` adds a higher-level release gate on top of normal trading filters. A release blocker prevents **new positions** while existing GPT_EA positions continue to be managed.
+The selector can identify frameworks such as:
 
-Default blockers include:
+- HH/HL or LH/LL continuation
+- multi-timeframe trend alignment
+- EMA/dynamic-support continuation
+- pullback-to-structure
+- momentum/volatility-expansion continuation
+- support/resistance breakout
+- breakout/retest
+- opening-range breakout/retest
+- previous-day high/low breakout
+- Asian-range / London-open breakout
+- U.S. cash opening-range breakout
+- consolidation breakout
+- moving-average retracement
+- Fibonacci 38.2–61.8% retracement/value zone
+- previous-breakout / previous-day structure retracement
+- liquidity-sweep retracement
+- failed breakout reversal
+- liquidity sweep reversal
+- double top/bottom + structural confirmation
+- exhaustion + RSI divergence + CHOCH/BOS
+- major support/resistance reversal
+- London liquidity sweep reversal
+- U.S. cash-session sweep/reversal
+- range support/resistance trade
+- failed range breakout
+- session-range reversal
+- mean reversion toward equilibrium/VWAP
 
-- disconnected terminal
-- terminal/EA/account trading permission failure
-- required D1/H4/H1/M30/M15/M5 history not synchronized
-- insufficient required bars
-- stale quote beyond `InpMaxQuoteAgeSeconds`
-- broker does not support market orders or protective SL
-- recovery invariant failure
-- real account not explicitly armed
-- real account with approval disabled when approval is required
+The current regime is evaluated first; strategies are then ranked for that regime rather than forcing one pattern onto every chart.
 
-On real accounts, with `InpBlockRealUnlessExplicitlyArmed=true`, execution remains blocked until the user deliberately enters the local arm phrase:
+## Retracement intelligence
 
-`GPT_EA_LIVE_ARMED`
+A move against the dominant trend is not automatically called a reversal. The engine checks HTF votes, M15/M5 structure, EMA20/EMA50, ATR-normalized depth, swing range, Fibonacci value zone, previous-day/session structure, liquidity sweeps, divergence and lower-timeframe structure changes to distinguish healthy retracement, deep retracement, trend failure and reversal.
 
-The phrase is deliberately not committed as an armed default. It does not bypass any other gate.
+It also detects overextension/chasing risk and can return WAIT when a better retracement entry is structurally preferable.
 
-See `RELEASE_SAFETY_GATES.md`.
+## Counter-trend intelligence
 
-## Recovery invariants
+Counter-trend setups use a higher score threshold and require stronger evidence such as exhaustion, overextension, major structure, sweep/fakeout, divergence, double top/bottom, CHOCH/BOS and M5 rejection. Strong HTF ADX penalizes counter-trend scoring.
 
-Before new authorization, recovered state is checked for conditions such as:
+A counter-trend candidate is explicitly labelled **COUNTER-TREND TRADE** and uses more conservative target geometry/expiry than ordinary trend-following setups.
 
-- every open GPT_EA position has a valid identifier, entry, volume and protective SL
-- original SL is recoverable and remains on the correct original risk side of entry
-- open position is not already marked analytics FINAL
-- BUY/SELL TP geometry is directional and ordered
-- no duplicate active pending approval exists per symbol
-- pending approval timestamps/geometry remain valid
-- risk-session equity state is valid
-- current broker state and durable persistence do not conflict materially
+## Multi-timeframe and technical evidence
 
-A missing current SL is actively restored from trustworthy durable state/history when possible. If protection cannot be reconstructed, the recovery safety policy can pause new trading.
+Each scan uses **D1 / H4 / H1 / M30 / M15 / M5** and can evaluate:
 
-See `RECOVERY_INVARIANTS.md`.
+- EMA20/EMA50
+- RSI
+- ATR
+- ADX/+DI/-DI
+- HH/HL/LH/LL swing structure
+- break of structure / change of character
+- liquidity sweeps
+- FVGs
+- sweep → displacement → retest
+- rejection candles
+- tick-volume impulse
+- rolling VWAP
+- previous-day highs/lows
+- Asian/session ranges
+- opening-range behavior
+- level touches/rejections
+- Fibonacci retracement context
+- supply/demand structural proxies
+- DOM where supplied by the broker
+- optional ONNX probability
 
-## Analysis engine
+## Continuous and scheduled scanning
 
-Every scan evaluates **D1 / H4 / H1 / M30 / M15 / M5**. The engine combines EMA20/EMA50 structure, RSI, ATR, higher-timeframe voting, M15/M5 swing structure, ADX/+DI/-DI, volume, rolling VWAP, fair-value gaps, rejection candles, opening-range state, liquidity sweeps, level quality, regime classification and spread/slippage-adjusted R:R.
+In addition to manual **SCAN NOW**, the EA supports continuous new-M5-bar/configurable interval scans and the session schedule:
 
-Breakout-retest can require the stricter **sweep → displacement → retest** sequence. Optional broker DOM and local ONNX remain secondary confirmation layers and cannot override hard risk/release gates.
+- 08:55 London — pre-open
+- 09:00 London — open
+- configured hourly London scans
+- 09:25 New York — pre-U.S.-cash-open
+- 09:30 New York — U.S. cash open
 
-## Scheduled chart re-checks
+New M5 bars can trigger a fresh full-intelligence scan while the web-news cache prevents unnecessary repeated web requests.
 
-Default schedule:
+## Live news and fundamental intelligence
 
-- **08:55 London** — pre-London scan
-- **09:00 London** — London-open scan
-- hourly through the configured London window
-- **09:25 New York** — pre-U.S.-cash-open scan
-- **09:30 New York** — U.S. cash open
+Before approval/execution the EA can combine:
 
-The U.S. open is anchored to New York local time so UK/U.S. DST transition differences are handled correctly. **SCAN NOW** performs an immediate re-check.
+1. MT5 native economic calendar;
+2. Treasury-yield shock detection;
+3. broker-local intermarket data;
+4. OpenAI Responses API web search when enabled.
 
-## Economic-event, spread and Treasury-yield invalidation
+The live web layer requests current information on central-bank decisions and communication, CPI/PPI/inflation, NFP/employment/unemployment, GDP, PMI, retail sales, bond/yield changes, USD strength, geopolitical and unexpected economic/political headlines, company/sector developments where relevant, commodity/OPEC/inventory/supply-demand developments and other instrument-specific high-impact events.
 
-Before authorization the EA can block for mapped high-impact news, configured moderate events, Treasury-yield shock, opening-range expansion, stale price displacement, spread widening, dynamic R:R deterioration, session invalidation, portfolio risk, cooldown, recovery/release safety, broker execution failure or `OrderCheck()` failure.
+The response must explain the **invalidation channel** rather than merely reporting that news exists. It returns a CLEAR/WATCH/BLOCK verdict. Configurable fail-open/fail-closed behavior applies if web intelligence is unavailable.
 
-## Portfolio and daily risk controls
+## Intermarket intelligence
 
-Configurable protections include:
+Where the broker exposes relevant instruments, direction is cross-checked against combinations of:
 
-- maximum total GPT_EA open risk %
-- maximum proposed symbol risk %
-- maximum correlated directional risk %
-- correlated equity-index grouping such as US100/GER40
-- block when an existing GPT_EA position has no protective SL
-- daily equity-loss kill switch
-- equity high-water drawdown kill switch
-- consecutive-loss kill switch
-- manual **PAUSE TRADING / RESUME TRADING**
+- DXY/USD index
+- U.S. 10-year yield
+- VIX/volatility
+- gold
+- WTI/oil
+- US100
+- US500
+- related FX behavior
+
+Examples: gold can be checked against DXY/yields; U.S. indices against yields/VIX; FX against DXY and relevant rate context; crypto against USD/risk sentiment. Unavailable instruments are reported as unavailable rather than fabricated. A severe contradiction can block authorization.
+
+## Realistic risk-to-reward
+
+The final R:R gate models more than theoretical price distance. `GPT_EA_Part20_RealisticCostModel.mqh` incorporates:
+
+- Bid/Ask spread
+- dynamic modeled slippage / entry deviation
+- historical per-symbol commission estimate where enough broker history exists
+- configurable fallback round-turn commission per lot
+- TP1 partial weighting
+- TP2 partial weighting
+- remaining runner/TP3 weighting
+
+The execution path uses this realistic weighted ratio for final validation. Historical commission is evidence from the connected account; if unavailable the configured fallback is used rather than invented.
+
+## Structure/liquidity-aware targets
+
+Selected setups refine TP1/TP2/TP3 against available M15 swing, previous-day and Asian/session liquidity objectives, with measured-R fallback when no suitable structural objective exists. Counter-trend targets remain conservatively capped.
+
+## Historical/internal strategy validation
+
+Finalized strategy results are tracked by:
+
+- strategy class
+- market state
+- long vs short
+- volatility bucket
+- session
+- setup/execution timeframe context
+- proximity to high-impact news
+
+Metrics include trade count, win rate, average R/expectancy, profit factor, cumulative R, maximum drawdown in R and maximum consecutive losses.
+
+Before the minimum sample, evidence is explicitly treated as developing—not proof of edge. After the configured sample threshold, negative expectancy/profit-factor evidence can block a strategy. Past results never guarantee future performance.
+
+## Mandatory 25-point thesis
+
+Every selected setup builds all required sections:
+
+1. Multi-Timeframe Alignment
+2. Market Regime
+3. Market Structure
+4. Strategy Selection
+5. Trend vs Retracement Assessment
+6. Entry Logic
+7. Confirmation Logic
+8. Stop-Loss Logic
+9. Take-Profit Logic
+10. Risk-to-Reward Analysis
+11. Pullback vs Breakout-Retest
+12. Counter-Trend Assessment
+13. Liquidity & Fakeout Assessment
+14. Volatility Analysis
+15. News Risk Assessment
+16. Treasury-Yield & Intermarket Analysis
+17. Session Analysis
+18. Time-Based Invalidation
+19. Price-Based Invalidation
+20. Counterargument Analysis
+21. Setup Quality Filtering
+22. Confidence Validation
+23. Historical Strategy Validation
+24. Pre-Entry Revalidation
+25. Detailed Trade Thesis
+
+The GPT secondary review is explicitly adversarial: it is instructed to attempt to disprove the trade, identify opposing evidence, distinguish retracement from reversal and breakout from fakeout/sweep, and return VALID / WAIT / INVALID. GPT never overrides deterministic safety/risk/broker gates.
+
+## Pre-entry revalidation
+
+Immediately before execution the EA rechecks:
+
+- strategy identity and direction
+- D1/H4/H1/M30/M15/M5 synchronized market data
+- current price/entry-zone integrity
+- strategy-specific M5 confirmation
+- spread and realistic R:R
+- ATR/opening range
+- native economic calendar
+- forced fresh live web news intelligence
+- Treasury-yield shock
+- local intermarket contradiction
+- historical strategy evidence gate
+- release/recovery invariants
+- partial-protection stop hazard
+- portfolio/daily risk
+- broker rules and `OrderCheck()`
+
+If the strategy class or direction changes, stale approval is cancelled and the market must be reanalyzed.
+
+## Broker-universal execution
+
+The EA resolves common broker aliases/suffixes/prefixes and reads actual runtime symbol/account properties: point/tick size, tick values, contract size, volume rules, spread, stops/freeze levels, trade/execution/filling modes, margin currencies, account leverage/margin mode and broker margin requirements.
+
+Risk sizing uses `OrderCalcProfit()`. Margin validation uses broker calculations and `OrderCheck()` instead of assuming one leverage formula fits all instruments.
+
+## Portfolio/risk/release controls
+
+Protections include:
+
+- symbol/portfolio/correlated-risk caps
+- daily equity-loss limit
+- equity high-water drawdown limit
+- consecutive-loss limit
+- cooldowns
+- stale/unsynchronized-data gate
+- terminal/account/EA permission gate
+- explicit real-account arm phrase
+- broker capability/margin/filling gates
+- stop/recovery invariants
+- manual PAUSE/RESUME
 
 Existing positions continue to be managed when new entries are blocked.
 
-## Advanced SL, breakeven and profit-trailing logic
+## Advanced stop management
 
-The advanced manager is now the timer-driven position manager. The protection sequence is monotonic: it may tighten risk, never intentionally loosen it.
+The monotonic protection sequence is:
 
-### Before TP1
+**Initial structural SL → cost-aware BE → profit lock → strong lock → ATR/M5-structure trail**.
 
-- original protective SL remains active;
-- if SL disappears after a restart/broker-state issue, the EA attempts to restore the durable original SL when broker-valid;
-- if TP1 is not reached inside the adaptive M15 budget, the stale trade can be closed.
+TP1/TP2 partials are idempotent by `POSITION_IDENTIFIER`. BUY SL never intentionally moves down; SELL SL never intentionally moves up. Broker stop/freeze rules are rechecked before every modification. A missing SL is critical and can trigger emergency closure if repair fails.
 
-### TP1 / breakeven
+## Broker-specific stop failures and observability
 
-At TP1:
+`GPT_EA_Part18_StopBrokerObservability.mqh` classifies stop failures such as invalid stops, frozen zone, market closed, requote/price changed, no quotes, connection, rate limit, trading disabled, invalid volume/price/fill and other broker rejection.
 
-1. the configured TP1 partial is attempted once;
-2. successful partial state is persisted separately as `TP1PARTIAL`;
-3. the BE stop uses the larger of the ATR cost buffer or current spread + dynamic-slippage cost;
-4. if the broker stop/freeze distance temporarily prevents BE modification, the partial is **not repeated** — BE is retried later;
-5. `TP1DONE` is set only when the required partial state and protection state are complete.
+Retry cadence adapts to the failure class. Material failures are written to `GPT_EA_StopFailures.csv` with broker/server, position ID, retcode, spread, stop/freeze level, current/proposed protection, TP state, failure count and retry policy.
 
-### Profit locks
+A TP1 partial that remains without completed BE protection beyond `InpPartialProtectionMaxSeconds` becomes a **partial-protection hazard** and can block all new entries while the existing position continues repair/management.
 
-Defaults are configurable:
+## Restart/VPS recovery
 
-- at `InpProfitLockTriggerR` (default 1.5R), lock `InpProfitLockR` (default +0.5R);
-- at `InpStrongLockTriggerR` (default 2R), lock `InpStrongLockR` (default +1R).
+Recovery reconciles current broker positions/history, position-identifier globals, ticket-scoped state, account/magic-specific checkpoint and validated `.bak`. Completed snapshots carry an `END` marker. Pending approvals are never blindly executed after restart; they must pass fresh full-intelligence validation.
 
-Every stop change is normalized to broker tick size and checked against the current stop/freeze distance.
+## Approval flow
 
-### TP2 scale-out
+**Continuous/scheduled scan → market-state classification → strategy selection → technical/confluence analysis → historical evidence → calendar/yield → live web news → intermarket → mandatory 25-point thesis → adversarial GPT review → release/stop/portfolio/broker gates → strategy-specific entry trigger → APPROVE/DENY → forced fresh revalidation → OrderCheck → execution.**
 
-At TP2 / 2R, the EA can close `InpPartialAtTP2Percent` of the **remaining** volume. `TP2PARTIAL` makes the operation restart-safe and prevents duplicate reductions.
+Only a fully aligned candidate reaches **HIGH-CONFIDENCE TRADE SETUP**. Otherwise the correct output is WAIT/REANALYZE or NO TRADE.
 
-### ATR + structure trailing
+## Release/test documents
 
-From `InpTrailStartR` (default 2R):
-
-- M5 ATR supplies a volatility trail;
-- recent M5 structure supplies a swing-based trail;
-- the wider of ATR/structure is used to avoid excessive noise tightening;
-- the stop never gives back below the strong-lock floor;
-- trail-stage changes require at least `InpTrailMinStepR` improvement;
-- BUY SL never moves down; SELL SL never moves up;
-- TP3 remains attached by default while trailing; it can be disabled for a pure runner through configuration.
-
-Stop-stage changes are written to the execution journal as `STOP_BREAKEVEN`, `STOP_PROFIT_LOCK`, `STOP_STRONG_LOCK` and `STOP_TRAIL` events.
-
-### Post-TP1 stall exit
-
-The stall timer now starts from TP1 completion rather than original entry. If the remainder stalls near the next M15 barrier and momentum deteriorates / M5 reverses, the remaining position can close early.
-
-## Restart / VPS recovery
-
-Recovery combines:
-
-1. current broker positions and position/deal history;
-2. MT5 terminal Global Variables;
-3. account/magic-specific Common Files checkpoint;
-4. completed validated `.bak` checkpoint.
-
-The checkpoint includes a completed `END` marker. An incomplete/truncated primary snapshot is not promoted to backup. If the primary is invalid and a completed matching backup exists, the backup can be restored before reconciliation.
-
-Recovery handles pending approvals, approval expiry, ticket changes, `POSITION_IDENTIFIER`, original SL, TP state, adaptive expiry, partial-state reconstruction, initial monetary risk, MAE/MFE, analytics finalization guards, day-risk state, pause state, account/server/magic isolation and symbol re-resolution.
-
-### Netting reversal safety
-
-On non-hedging accounts, MT5 can retain the same `POSITION_IDENTIFIER` through a reversal. GPT_EA compares original lifecycle direction with current direction and can PAUSE new trading when they differ instead of applying stale directional management state.
-
-## Trade approval flow
-
-Signal scan → advanced setup comparison → confluence/regime/institutional filters → event/yield/session filters → optional AI review → release-safety gate → portfolio/kill-switch gate → broker contract/margin gate → MT5 `OrderCheck()` → M5 trigger → timed **APPROVE / DENY** → fresh validation → final release/broker/risk validation → order send.
-
-A failing release gate suppresses APPROVE readiness, suppresses queueing, rejects an already-open approval during fresh validation, and rejects final order send.
-
-## Execution journal and analytics
-
-`GPT_EA_Execution.csv` records entry/exit lifecycle data and now also accepts protective-stop stage events. Core fields include server time, event, symbol, setup type, deal, stable position identifier, requested/reference price, actual price, slippage points, R, MAE_R, MFE_R and note.
-
-Persistent performance remains separate for **PULLBACK** and **BREAKOUT-RETEST**.
-
-See `ANALYTICS_SCHEMA.md`.
-
-## Broker matrix validation
-
-`BROKER_MATRIX_TESTS.md` includes explicit cases for:
-
-- exact/prefix/suffix/alias symbol names
-- hedging, netting and exchange accounts
-- market/request/instant/exchange execution
-- FOK/IOC/RETURN filling behavior
-- full/long-only/short-only/close-only/disabled trade modes
-- market/SL order capability flags
-- fixed/floating/widened spreads
-- FX/JPY/metals/indices/energy/crypto/stocks/futures tick sizes
-- nonzero stop/freeze levels
-- unusual volume steps and directional limits
-- low/high leverage and symbol-specific margins
-- multiple account currencies
-- stale/unsynchronized data
-- truncated recovery checkpoints
-- TP1→BE→profit-lock→trail restart scenarios
-- explicit real-account release arming
-
-The matrix must be run on the intended broker/account combination rather than assumed from another broker's demo.
-
-## Optional Depth of Market
-
-DOM confirmation is disabled by default because availability/quality differs by broker and CFD instrument. When enabled, GPT_EA subscribes to the broker market book and can use directional imbalance as an additional confirmation. It cannot override hard gates.
-
-## Optional ONNX model
-
-Native ONNX confirmation is disabled by default. If enabled, the EA expects float input `[1,12]`, float output `[1,1]`, with the output treated as setup-validity probability. ONNX cannot override portfolio limits, broker rules, release safety, R:R, cooldown or approval requirements.
+- `COMPILE_TEST_CHECKLIST.md`
+- `BROKER_MATRIX_TESTS.md`
+- `RECOVERY_INVARIANTS.md`
+- `RELEASE_SAFETY_GATES.md`
+- `STOP_MANAGEMENT_TEST_MATRIX.md`
+- `STOP_UPDATE_FAILURE_POLICY.md`
+- `BROKER_STOP_FAILURE_POLICY.md`
+- `PARTIAL_PROTECTION_RELEASE_TEST.md`
+- `STOP_FAILURE_OBSERVABILITY.md`
+- `ANALYTICS_SCHEMA.md`
+- `ADVANCED_INTELLIGENCE_CONTRACT.md`
+- `INTELLIGENCE_TEST_MATRIX.md`
 
 ## OpenAI configuration
 
-Enter the API key locally in MT5 inputs and never commit it. Add this endpoint under **Tools → Options → Expert Advisors → Allow WebRequest for listed URL**:
+Enter the API key locally in MT5 inputs and never commit it. Add under **Tools → Options → Expert Advisors → Allow WebRequest for listed URL**:
 
 ```text
 https://api.openai.com
 ```
 
-OpenAI is a secondary review/veto layer. Broker prices, positions, indicators, spread, calendar and risk calculations come from MT5.
+WebRequest/web-search intelligence is unavailable in Strategy Tester; test deterministic logic there and validate live-news behavior on demo.
 
-## Compilation and release testing
+## Release rule
 
-Use `COMPILE_TEST_CHECKLIST.md`, `BROKER_MATRIX_TESTS.md`, `RECOVERY_INVARIANTS.md` and `RELEASE_SAFETY_GATES.md` together.
+Source presence is not proof of a production-ready EA. Required progression:
 
-Recommended release flow:
-
-**MetaEditor 0-error compile → static/Strategy Tester checks → broker matrix on demo → restart/crash matrix → TP1/BE/lock/trail lifecycle tests → multi-session demo soak → explicit real-account arming → conservative live release with approval required.**
-
-The project should not be treated as production-ready merely because source code is present on GitHub. MetaEditor compilation and broker-specific demo validation are still required.
+**MetaEditor 0-error compile → warnings reviewed → Strategy Tester/static checks → intelligence matrix → broker matrix → recovery matrix → stop-management HIGH-priority matrix → partial-protection test → live-news/intermarket demo test → multi-session demo soak → explicit real-account arming → conservative live release with approval required.**
 
 ## Project separation
 
-`GPT_EA` is independent and has no runtime dependency on CelestialNexus or another repository.
+`GPT_EA` is independent and has no runtime dependency on CelestialNexus or any other repository.

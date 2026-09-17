@@ -10,7 +10,9 @@
     "git_sha": "0000000000000000000000000000000000000000",
     "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
     "set_sha256": "NONE",
-    "release_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    "release_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "compile_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "privacy_signoff_digest": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "deployment": {
     "broker_company": "",
@@ -43,7 +45,9 @@
     "initial_live_risk_conservative": false,
     "approval_required_initially": true,
     "resilience_hardening_pass": false,
-    "rollback_package_ready": false
+    "rollback_package_ready": false,
+    "compile_evidence_pass": false,
+    "privacy_signoff_pass": false
   },
   "unresolved_critical_count": 0,
   "zero_tolerance_failure_count": 0,

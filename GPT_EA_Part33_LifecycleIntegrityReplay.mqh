@@ -3,9 +3,9 @@
 // ============================================================================
 
 input bool   InpUseLifecycleStateMachine          = true;
-input string InpLifecycleJournalFile              = "GPT_EA_Lifecycle.csv";
+input string InpLifecycleJournalFile              = "GPT_EA_LifecycleV2.csv";
 input bool   InpWriteDecisionSnapshots            = true;
-input string InpDecisionSnapshotFile              = "GPT_EA_DecisionSnapshots.csv";
+input string InpDecisionSnapshotFile              = "GPT_EA_DecisionSnapshotsV2.csv";
 input int    InpDecisionSnapshotMaxText            = 1600;
 input bool   InpUseGPTDisagreementGate            = true;
 input int    InpGPTStrongDisagreementScore        = 2;
@@ -71,7 +71,8 @@ void EnsureLifecycleHeader()
    int h=FileOpen(InpLifecycleJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    if(!exists || FileSize(h)==0)
-      FileWrite(h,"schema_version","time","symbol","position_id","from_state","to_state","strategy","reason");
+      FileWrite(h,"schema_version","time","symbol","position_id","from_state","to_state","strategy",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
    FileClose(h);
 }
 
@@ -82,8 +83,10 @@ void WriteLifecycleEvent(const string sym,ulong pid,int from,int to,StrategyClas
    int h=FileOpen(InpLifecycleJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    FileSeek(h,0,SEEK_END);
-   FileWrite(h,"lifecycle_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),sym,(string)pid,
-      LifecycleStateName(from),LifecycleStateName(to),StrategyClassName(c),reason);
+   FileWrite(h,"lifecycle_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),sym,(string)pid,
+      LifecycleStateName(from),LifecycleStateName(to),StrategyClassName(c),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion(c),reason);
    FileFlush(h); FileClose(h);
 }
 
@@ -277,7 +280,8 @@ void EnsureDecisionSnapshotHeader()
    if(!exists || FileSize(h)==0)
       FileWrite(h,"schema_version","time","symbol","strategy","market_state","decision","side","entry","zone_low","zone_high","sl","tp1","tp2","tp3",
          "confidence","strategy_score","atr_ratio","opening_range_ratio","adx","rsi15","overextension_atr","volume_ratio","realistic_rr","risk_multiplier",
-         "broker_health","strategy_mode","regime_transition","filters","web_summary","gpt_checksum","gpt_excerpt","reason");
+         "broker_health","strategy_mode","regime_transition","filters","web_summary","gpt_checksum","gpt_excerpt",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
    FileClose(h);
 }
 
@@ -298,13 +302,15 @@ void WriteDecisionSnapshot(const TradeSetup &s,const StrategyDecision &d,const s
    int h=FileOpen(InpDecisionSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    FileSeek(h,0,SEEK_END);
-   FileWrite(h,"decision_snapshot_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),s.symbol,StrategyClassName(d.strategy),MarketStateName(d.state),finalDecision,
+   FileWrite(h,"decision_snapshot_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),s.symbol,StrategyClassName(d.strategy),MarketStateName(d.state),finalDecision,
       s.bullish?"BUY":"SELL",DoubleToString(s.preferred,DigitsFor(s.symbol)),DoubleToString(s.zoneLow,DigitsFor(s.symbol)),DoubleToString(s.zoneHigh,DigitsFor(s.symbol)),
       DoubleToString(s.sl,DigitsFor(s.symbol)),DoubleToString(s.tp1,DigitsFor(s.symbol)),DoubleToString(s.tp2,DigitsFor(s.symbol)),DoubleToString(s.tp3,DigitsFor(s.symbol)),
       s.confidence,d.score,DoubleToString(x.atrRatio,3),DoubleToString(x.openingRangeRatio,3),DoubleToString(x.adx,2),DoubleToString(x.rsi15,2),
       DoubleToString(x.overextensionATR,3),DoubleToString(x.volumeRatio,3),DoubleToString(RealisticRiskReward(s).rr,3),DoubleToString(mult,3),DoubleToString(health,1),
       AdaptiveStrategyModeName(StrategyHealthMode(d.strategy)),SnapshotText(RegimeTransitionText(s.symbol)),SnapshotText(filters),SnapshotText(webText),
-      TextChecksum(aiAnswer),SnapshotText(aiAnswer),SnapshotText(reason+" | "+rm+" | "+bh));
+      TextChecksum(aiAnswer),SnapshotText(aiAnswer),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,
+      CurrentConfigFingerprint(),SymbolContractFingerprint(s.symbol),StrategyConfigVersion(d.strategy),
+      SnapshotText(reason+" | "+rm+" | "+bh));
    FileFlush(h); FileClose(h);
 }
 

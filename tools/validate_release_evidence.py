@@ -12,6 +12,8 @@ from validate_api_transport_evidence import validate_api_transport
 from validate_ci_bundle import validate_bundle
 from validate_ci_evidence import validate_ci_value
 from validate_five_day_soak_record import validate_record
+from validate_mt5_validation_evidence import validate_mt5
+from validate_runner_recovery_acceptance import validate_acceptance
 from validate_runner_recovery_evidence import validate_runner_recovery
 from validate_soak_evidence import validate_soak
 
@@ -156,8 +158,78 @@ def validate_runner_release_record(rr:dict,build_sha:str,ci_bundle_digest:str,ci
         if p.exists(): require(errors,"RUNNER RECOVERY EVIDENCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),"runner recovery validation output does not contain PASS marker")
     return errors,digest
 
+def validate_runner_acceptance_release_record(ra:dict,build_sha:str,ci_bundle_digest:str,rr:dict)->tuple[list[str],str]:
+    errors:list[str]=[]
+    require(errors,ra.get("schema_version")=="runner_recovery_acceptance_v1","runner_recovery_acceptance.schema_version must be runner_recovery_acceptance_v1")
+    require(errors,len(str(ra.get("acceptance_id","")).strip())>=8,"runner_recovery_acceptance.acceptance_id is required")
+    expected=str(ra.get("acceptance_digest",""))
+    require(errors,bool(HEX64.fullmatch(expected)),"runner_recovery_acceptance.acceptance_digest must be SHA-256")
+    require(errors,ra.get("validated") is True,"runner_recovery_acceptance.validated must be true")
+    path_raw=str(ra.get("acceptance_path","")).strip()
+    require(errors,bool(path_raw),"runner_recovery_acceptance.acceptance_path is required")
+    digest=""
+    if path_raw:
+        p=resolve(path_raw)
+        require(errors,p.exists(),f"runner recovery acceptance file not found: {p}")
+        if p.exists():
+            try:
+                value=json.loads(p.read_text(encoding="utf-8"))
+                ra_errors,digest=validate_acceptance(value,True,expected_sha=build_sha,expected_bundle_digest=ci_bundle_digest)
+                errors.extend(f"runner_recovery_acceptance evidence: {e}" for e in ra_errors)
+                require(errors,digest.lower()==expected.lower(),"runner_recovery_acceptance.acceptance_digest does not match acceptance file")
+                require(errors,str(value.get("acceptance_id",""))==str(ra.get("acceptance_id","")),"runner_recovery_acceptance.acceptance_id does not match acceptance file")
+                require(errors,str(value.get("runner_recovery_evidence_id",""))==str(rr.get("evidence_id","")),"runner acceptance recovery evidence ID must match runner_recovery")
+                require(errors,str(value.get("runner_recovery_evidence_digest","")).lower()==str(rr.get("evidence_digest","")).lower(),"runner acceptance recovery digest must match runner_recovery")
+            except Exception as exc: errors.append(f"could not validate runner recovery acceptance: {exc}")
+    validation_raw=str(ra.get("validation_path","")).strip()
+    require(errors,bool(validation_raw),"runner_recovery_acceptance.validation_path is required")
+    if validation_raw:
+        p=resolve(validation_raw)
+        require(errors,p.exists(),f"runner recovery acceptance validation output not found: {p}")
+        if p.exists(): require(errors,"RUNNER RECOVERY ACCEPTANCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),"runner recovery acceptance validation output does not contain PASS marker")
+    return errors,digest
+
+def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list[str],str]:
+    errors:list[str]=[]
+    require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v1","mt5_validation.schema_version must be mt5_validation_evidence_v1")
+    require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"mt5_validation.evidence_id is required")
+    expected=str(mt5.get("evidence_digest",""))
+    require(errors,bool(HEX64.fullmatch(expected)),"mt5_validation.evidence_digest must be SHA-256")
+    require(errors,mt5.get("validated") is True,"mt5_validation.validated must be true")
+    path_raw=str(mt5.get("evidence_path","")).strip()
+    require(errors,bool(path_raw),"mt5_validation.evidence_path is required")
+    digest=""
+    if path_raw:
+        p=resolve(path_raw)
+        require(errors,p.exists(),f"MT5 validation evidence file not found: {p}")
+        if p.exists():
+            try:
+                value=json.loads(p.read_text(encoding="utf-8"))
+                mt5_errors,digest=validate_mt5(
+                    value,True,
+                    expected_sha=str(build.get("git_sha","")),
+                    expected_ex5=str(build.get("ex5_sha256","")),
+                    expected_set=str(build.get("set_sha256","")),
+                )
+                errors.extend(f"mt5_validation evidence: {e}" for e in mt5_errors)
+                require(errors,digest.lower()==expected.lower(),"mt5_validation.evidence_digest does not match evidence file")
+                require(errors,str(value.get("evidence_id",""))==str(mt5.get("evidence_id","")),"mt5_validation.evidence_id does not match evidence file")
+                env=value.get("environment",{})
+                require(errors,str(env.get("metaeditor_build",""))==str(build.get("metaeditor_build","")),"MT5 evidence MetaEditor build must match build")
+                require(errors,str(env.get("mt5_build",""))==str(build.get("mt5_build","")),"MT5 evidence terminal build must match build")
+                for key in ("broker_company","trade_server","account_currency","margin_mode"):
+                    require(errors,str(env.get(key,""))==str(deployment.get(key,"")),f"MT5 evidence environment.{key} must match deployment.{key}")
+            except Exception as exc: errors.append(f"could not validate MT5 validation evidence: {exc}")
+    validation_raw=str(mt5.get("validation_path","")).strip()
+    require(errors,bool(validation_raw),"mt5_validation.validation_path is required")
+    if validation_raw:
+        p=resolve(validation_raw)
+        require(errors,p.exists(),f"MT5 validation output not found: {p}")
+        if p.exists(): require(errors,"MT5 VALIDATION EVIDENCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),"MT5 validation output does not contain PASS marker")
+    return errors,digest
+
 def main()->int:
-    ap=argparse.ArgumentParser(description="Validate GPT_EA current compile/runner/CI/API/demo-soak/final-review release evidence")
+    ap=argparse.ArgumentParser(description="Validate GPT_EA current compile/runner/CI/MT5/API/demo-soak/final-review release evidence")
     ap.add_argument("evidence",nargs="?",default="release_evidence.json")
     args=ap.parse_args()
     evidence_path=Path(args.evidence)
@@ -209,14 +281,26 @@ def main()->int:
 
     rr=data.get("runner_recovery")
     runner_digest=""
-    if not isinstance(rr,dict): errors.append("runner_recovery must be an object")
+    if not isinstance(rr,dict): errors.append("runner_recovery must be an object"); rr={}
     else:
         rr_errors,runner_digest=validate_runner_release_record(rr,git_sha,ci_bundle_digest,ci); errors.extend(rr_errors)
+
+    ra=data.get("runner_recovery_acceptance")
+    runner_acceptance_digest=""
+    if not isinstance(ra,dict): errors.append("runner_recovery_acceptance must be an object")
+    else:
+        ra_errors,runner_acceptance_digest=validate_runner_acceptance_release_record(ra,git_sha,ci_bundle_digest,rr); errors.extend(ra_errors)
 
     deployment=data.get("deployment",{})
     for key in ("broker_company","trade_server","account_currency","margin_mode","account_leverage"):
         require(errors,bool(str(deployment.get(key,"")).strip()),f"deployment.{key} is required")
     require(errors,isinstance(deployment.get("symbols"),list) and len(deployment.get("symbols",[]))>0,"deployment.symbols must contain at least one validated symbol")
+
+    mt5=data.get("mt5_validation")
+    mt5_digest=""
+    if not isinstance(mt5,dict): errors.append("mt5_validation must be an object")
+    else:
+        mt5_errors,mt5_digest=validate_mt5_release_record(mt5,build,deployment); errors.extend(mt5_errors)
 
     api_errors,api_digest=validate_api_transport(data); errors.extend(api_errors)
 
@@ -247,10 +331,11 @@ def main()->int:
 
     gates=data.get("gates",{})
     required_gates=[
-        "metaeditor_compile","artifact_identity","runner_recovery","ci_static","strategy_tester","intelligence_matrix",
-        "adaptive_portfolio","execution_learning","champion_challenger","lifecycle_integrity","broker_matrix",
-        "deployment_profile","recovery","stop_matrix","broker_stop_policy","partial_protection","stop_observability",
-        "live_news_intermarket","web_failure_injection","api_transport","demo_soak","operator_review",
+        "metaeditor_compile","artifact_identity","runner_recovery","runner_recovery_acceptance","ci_static","mt5_validation",
+        "strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger",
+        "lifecycle_integrity","broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy",
+        "partial_protection","stop_observability","live_news_intermarket","web_failure_injection","api_transport",
+        "demo_soak","operator_review",
     ]
     for key in required_gates: require(errors,gates.get(key) is True,f"gates.{key} must be true")
 
@@ -267,14 +352,17 @@ def main()->int:
     if errors:
         text="RELEASE EVIDENCE VALIDATION: FAILED\n"+"\n".join(f"ERROR: {e}" for e in errors)
         if runner_digest: text+=f"\nRUNNER_RECOVERY_SHA256: {runner_digest}"
+        if runner_acceptance_digest: text+=f"\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}"
         if ci_bundle_digest: text+=f"\nCI_BUNDLE_SHA256: {ci_bundle_digest}"
+        if mt5_digest: text+=f"\nMT5_VALIDATION_SHA256: {mt5_digest}"
         if api_digest: text+=f"\nAPI_TRANSPORT_SHA256: {api_digest}"
         if soak_digest: text+=f"\nSOAK_EVIDENCE_SHA256: {soak_digest}"
         text+=f"\nEVIDENCE_JSON_SHA256: {digest}\n"
         out.write_text(text,encoding="utf-8"); print(text,end=""); return 1
     text=(f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\n"
-          f"RUNNER_RECOVERY_SHA256: {runner_digest}\nCI_EVIDENCE_SHA256: {ci['evidence_digest']}\n"
-          f"CI_BUNDLE_SHA256: {ci_bundle_digest}\nAPI_TRANSPORT_SHA256: {api_digest}\n"
+          f"RUNNER_RECOVERY_SHA256: {runner_digest}\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}\n"
+          f"CI_EVIDENCE_SHA256: {ci['evidence_digest']}\nCI_BUNDLE_SHA256: {ci_bundle_digest}\n"
+          f"MT5_VALIDATION_SHA256: {mt5_digest}\nAPI_TRANSPORT_SHA256: {api_digest}\n"
           f"SOAK_EVIDENCE_SHA256: {soak_digest}\nEVIDENCE_JSON_SHA256: {digest}\n")
     out.write_text(text,encoding="utf-8"); print(text,end=""); return 0
 

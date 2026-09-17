@@ -35,7 +35,7 @@ void EnsureModelHealthHeader()
    if(h==INVALID_HANDLE) return;
    if(!exists || FileSize(h)==0)
       FileWrite(h,"schema_version","time","mode","requests","failures","schema_failures","stale","provenance_failures",
-         "contradictions","clock_offset_seconds","clock_drift_seconds","note");
+         "contradictions","latency_ewma_ms","last_latency_ms","clock_offset_seconds","clock_drift_seconds","note");
    FileClose(h);
 }
 
@@ -168,6 +168,7 @@ void WriteModelHealthSnapshot(const string note)
       DoubleToString(GVRead(SysKey("MODEL_REQ"),0),0),DoubleToString(GVRead(SysKey("MODEL_FAIL"),0),0),
       DoubleToString(GVRead(SysKey("MODEL_SCHEMA_FAIL"),0),0),DoubleToString(GVRead(SysKey("MODEL_STALE"),0),0),
       DoubleToString(GVRead(SysKey("MODEL_PROV_FAIL"),0),0),DoubleToString(GVRead(SysKey("MODEL_CONTRADICTION"),0),0),
+      DoubleToString(GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0),0),DoubleToString(GVRead(SysKey("MODEL_LAST_LATENCY_MS"),0),0),
       (string)offset,(string)(offset-base),note+" | "+detail);
    FileFlush(h); FileClose(h);
 }

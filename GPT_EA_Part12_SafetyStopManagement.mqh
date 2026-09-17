@@ -314,6 +314,12 @@ bool ApplyAdvancedStop(ulong ticket,double candidate,int stage,double rNow,const
    if(!StopBrokerSafe(sym,bull,candidate,safeWhy)) return false;
    double currentTP=PositionGetDouble(POSITION_TP);
    double tp=((stage>=4 && !InpKeepTP3WhileTrailing)?0:currentTP);
+   if(ChaosInjectStopModifyFailure())
+   {
+      GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
+      Print(sym,": CHAOS synthetic stop-modification failure.");
+      return false;
+   }
    if(!trade.PositionModify(ticket,candidate,tp))
    {
       Print(sym,": stop modification failed - ",trade.ResultRetcodeDescription());

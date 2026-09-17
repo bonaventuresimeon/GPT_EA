@@ -1,6 +1,6 @@
 # GPT_EA R6 Five-Day Soak Acceptance Record
 
-The five-day record is the release-blocking human/machine reconciliation layer between `GPT_EA_DemoSoakSnapshot.json` and final R6 release evidence. It is not a profitability scorecard and it cannot be completed before the observations actually occur.
+The five-day record (acceptance schema `five_day_soak_acceptance_v2`) is the release-blocking human/machine reconciliation layer between `GPT_EA_DemoSoakSnapshot.json` and final R6 release evidence. It is not a profitability scorecard and it cannot be completed before the observations actually occur.
 
 ## Candidate freeze
 
@@ -18,7 +18,9 @@ The machine record's `operator_record_path` and `report_path` must point to the 
 
 Exactly five accepted trading-day objects are required. For each day record the date, fresh-quote observation, London/New York/overlap coverage, relevant high-impact news, rollover spread expansion, scheduled/continuous/manual scan counts, checkpoint and backup-checkpoint counts, restart/reconnect counts, HIGH-CONFIDENCE/WAIT/NO-TRADE observations, zero-tolerance failures, unresolved critical states at day end and presence of execution/stop/release logs.
 
-Use the operator worksheet to retain the daily Experts/Journal, Part36 snapshot, broker-history and checkpoint references that support each JSON row.
+Before an individual day may be counted, copy `SOAK_DAY_RECONCILIATION_CHECKLIST.md` to a dated artifact such as `artifacts/soak-day-2026-09-18.md`. Complete it against broker history, terminal logs and runtime CSVs, change its decision to literal `Decision: **ACCEPT DAY**`, and place that path in the day object's `reconciliation_checklist_path`. The same day object must set `day_reconciled=true`, `reconciled_by` and `reconciled_at`.
+
+Use the five-day operator worksheet to retain the daily Experts/Journal, Part36 snapshot, broker-history and checkpoint references that support each JSON row.
 
 Dates must be unique and increasing. The validator treats the next weekday as the normal next trading day, including Friday to Monday. A holiday or exceptional market closure gap is allowed only when the later day contains a non-empty `gap_justification`; the operator must retain supporting terminal/broker evidence.
 

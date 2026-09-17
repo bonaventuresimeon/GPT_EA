@@ -34,6 +34,10 @@ Complete one copy for every production candidate. A commit, checkbox, green-look
 - Compile warnings: **0 required for production certification**
 - Compile log path:
 - Compile timestamp:
+- Compile evidence schema: `gpt_ea_compile_evidence_v1`
+- Compile evidence JSON path:
+- Compile evidence SHA-256:
+- Compile evidence validator: PASS / FAIL
 
 Concrete Part28 inputs:
 
@@ -190,6 +194,39 @@ Concrete Part28B inputs:
 - deployment-drift evidence archived:
 
 Verify stable-environment PASS, controlled structural-drift block and continued position management during a new-entry block.
+
+## 🔐 Privacy sign-off evidence
+
+Complete `PRIVACY_DATA_RETENTION_REVIEW.md`, `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md` and `PRIVACY_SIGN_OFF.md`.
+
+Record:
+
+- privacy schema: `gpt_ea_privacy_signoff_v1`
+- privacy sign-off ID:
+- privacy sign-off SHA-256:
+- reviewer:
+- reviewer role:
+- signed timestamp:
+- approved jurisdiction:
+- telemetry state: `DISABLED` / `APPROVED`
+- unresolved critical findings: **0 required**
+- validator output path:
+
+Required:
+
+- [ ] data inventory approved;
+- [ ] retention schedule approved;
+- [ ] customer notice approved;
+- [ ] secret handling approved;
+- [ ] cross-border review approved;
+- [ ] deletion workflow approved;
+- [ ] incident response approved;
+- [ ] telemetry state valid;
+- [ ] zero unresolved critical findings;
+- [ ] `tools/validate_privacy_signoff.py` PASS;
+- [ ] `gates.privacy_signoff=true`.
+
+R10 runtime inputs must match the archived privacy record exactly.
 
 ## 7. API/WebRequest transport evidence
 
@@ -380,6 +417,10 @@ python tools/validate_api_transport_evidence.py release_evidence.json
 python tools/validate_final_release_review.py release_evidence.json final_release_review.json
 python tools/validate_release_evidence.py release_evidence.json
 python tools/validate_release_evidence_r7.py release_evidence.json
+python tools/validate_compile_evidence.py artifacts/compile-evidence.json
+python tools/validate_privacy_signoff.py artifacts/privacy-signoff.json
+python tools/validate_release_evidence_r10.py release_evidence.json
+python tools/validate_final_release_review_r10.py release_evidence.json final_release_review.json
 ```
 
 Final checklist:
@@ -389,6 +430,8 @@ Final checklist:
 - [ ] executed CI bundle PASS;
 - [ ] MT5 validation evidence PASS;
 - [ ] compile PASS;
+- [ ] compile evidence JSON + validator PASS;
+- [ ] privacy sign-off PASS for the target jurisdiction;
 - [ ] Strategy Tester/matrices PASS;
 - [ ] deployment/broker/recovery/stop PASS;
 - [ ] API transport PASS;

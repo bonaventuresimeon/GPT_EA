@@ -438,11 +438,12 @@ double AdaptiveRiskMultiplier(const TradeSetup &s,string &detail)
       else if(n>=8) histF=0.85;
    }
    double eventF=HighImpactEventWithin(s.symbol,InpStrategyNewsContextMinutes)?0.60:1.0;
-   double f=confF*healthF*brokerF*ddF*histF*eventF;
+   double modelF=ModelTrustRiskMultiplier();
+   double f=confF*healthF*brokerF*ddF*histF*eventF*modelF;
    f=MathMax(InpMinAdaptiveRiskMultiplier,MathMin(InpMaxAdaptiveRiskMultiplier,f));
-   if(healthF<=0) f=0;
-   detail=StringFormat("adaptive risk x%.2f | conf %.2f health %.2f broker %.2f DD %.2f history %.2f event %.2f",
-                       f,confF,healthF,brokerF,ddF,histF,eventF);
+   if(healthF<=0 || modelF<=0) f=0;
+   detail=StringFormat("adaptive risk x%.2f | conf %.2f health %.2f broker %.2f DD %.2f history %.2f event %.2f model %.2f",
+                       f,confF,healthF,brokerF,ddF,histF,eventF,modelF);
    return f;
 }
 
@@ -473,12 +474,16 @@ double AdaptiveLotSizeForRisk(const TradeSetup &s,double &riskMoney,double &oneL
 
 bool AdaptivePreEntryAllows(const TradeSetup &s,double lots,string &why)
 {
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string modelClock="";
+   if(!ModelClockExecutionAllows(s,c,modelClock)){ why="Model/clock trust: "+modelClock; return false; }
+
    string sup=""; if(!IndependentRiskSupervisorAllows(s,sup)){ why=sup; return false; }
    double proposed=ProposedRiskMoney(s,lots);
-   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
    string budget=""; if(!StrategyRiskBudgetAllows(c,proposed,budget)){ why="Strategy budget: "+budget; return false; }
    string portfolio=""; if(!AdvancedPortfolioRiskAllows(s,lots,portfolio)){ why="Adaptive portfolio: "+portfolio; return false; }
-   why=sup+" | "+budget+" | "+portfolio;
+   string stress=""; if(!PortfolioStressLatencyAllows(s,lots,stress)){ why="Scenario/latency supervisor: "+stress; return false; }
+   why=modelClock+" | "+sup+" | "+budget+" | "+portfolio+" | "+stress;
    return true;
 }
 

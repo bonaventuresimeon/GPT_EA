@@ -60,9 +60,11 @@
 
 // Part05 order execution consumes final adaptive sizing and learned slippage.
 #define LotSizeForRisk AdaptiveLotSizeForRiskFinal
+#define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal
 #define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5
 #include "GPT_EA_Part05.mqh"
 #undef DynamicSlippagePoints
+#undef AdaptiveLotSizeForRisk
 #undef LotSizeForRisk
 
 #include "GPT_EA_Part23_IntelligenceObservability.mqh"

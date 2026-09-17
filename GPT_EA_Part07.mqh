@@ -145,7 +145,9 @@ void ScanSymbol(const string sym,const string scanReason)
    ApplyAdvancedConfluence(br,brReport);
 
    TradeSetup primary=ChoosePrimary(pb,br);
-   ConfluenceReport primaryReport=(primary.kind==SETUP_BREAKOUT_RETEST?brReport:pbReport);
+   ConfluenceReport primaryReport;
+   if(primary.kind==SETUP_BREAKOUT_RETEST) primaryReport=brReport;
+   else primaryReport=pbReport;
 
    string newsText="",yieldText="",spreadText="",sessionText="";
    bool newsBlock=CalendarBlock(sym,newsText);
@@ -177,12 +179,12 @@ void ScanSymbol(const string sym,const string scanReason)
    bool aiAllows=AIReviewAllowsExecution(aiAnswer,aiAvailable,aiGateWhy);
    if(!requestAI && InpAICanVetoTrade)
    {
-      // If AI was intentionally skipped by the high-confidence-only rule, do not invent a veto.
       aiAllows=true;
       aiGateWhy="AI review not requested for this scan.";
    }
 
-   bool hardValid=(primary.valid && primaryReport.valid && !newsBlock && !yieldBlock && !sessionBlock &&
+   bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
+   bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
                    spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows);
    bool approvalReady=(hardValid && readyNow);
 

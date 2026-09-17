@@ -58,6 +58,26 @@ def parse_date(value:str)->date|None:
     try: return date.fromisoformat(value[:10])
     except Exception: return None
 
+def validate_matrix_bundle(path:Path)->list[str]:
+    errors:list[str]=[]
+    text=path.read_text(encoding="utf-8",errors="replace")
+    lines=text.splitlines()
+    for n in range(1,35):
+        mid=f"M5-{n:03d}"
+        matches=[line for line in lines if f"| {mid} |" in line]
+        if len(matches)!=1:
+            errors.append(f"MT5 matrix must contain exactly one row for {mid}")
+            continue
+        cells=[c.strip() for c in matches[0].split("|")]
+        if len(cells)<7:
+            errors.append(f"MT5 matrix row {mid} is malformed")
+            continue
+        status=cells[4]
+        evidence=cells[5]
+        if status!="PASS": errors.append(f"MT5 matrix {mid} status must be PASS")
+        if not evidence: errors.append(f"MT5 matrix {mid} evidence/reference is required")
+    return errors
+
 def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str="",expected_ex5:str="",expected_set:str="")->tuple[list[str],str]:
     errors:list[str]=[]
     require(errors,data.get("schema_version")==SCHEMA_VERSION,f"schema_version must be {SCHEMA_VERSION}")
@@ -116,6 +136,12 @@ def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str=""
         ("matrix_bundle_path","matrix_bundle_sha256","MT5 matrix bundle"),
     ):
         check_hashed_file(errors,artifacts,pk,hk,label)
+
+    matrix_raw=str(artifacts.get("matrix_bundle_path","")).strip()
+    if matrix_raw:
+        matrix_path=resolve(matrix_raw)
+        if matrix_path.exists():
+            errors.extend(validate_matrix_bundle(matrix_path))
 
     operator=data.get("operator_review",{})
     require(errors,operator.get("decision")=="ACCEPT","operator_review.decision must be ACCEPT")

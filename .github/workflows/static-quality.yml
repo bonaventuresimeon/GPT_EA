@@ -4,13 +4,19 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: gpt-ea-static-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   static-release-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,22 +24,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run GPT_EA static release checks
+      - name: Run GPT_EA aggregate static release checks
         id: static_check
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          {
-            python tools/check_mql_static.py
-            python tools/check_release_certification.py
-          } 2>&1 | tee static-check.txt
+          python tools/run_release_checks.py 2>&1 | tee static-check-ci.txt
       - name: Upload static diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gpt-ea-static-check
-          path: static-check.txt
+          path: |
+            static-check.txt
+            static-check-ci.txt
           if-no-files-found: warn
       - name: Enforce static release gate
         if: steps.static_check.outcome != 'success'

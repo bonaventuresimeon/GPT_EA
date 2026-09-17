@@ -42,6 +42,7 @@
     "restart_reconstruction_passed": false,
     "no_illegal_transition_accepted": false
   },
+  "operator_record_path": "artifacts/five-day-soak-operator-record.md",
   "report_path": "artifacts/demo-soak-report.md",
   "operator_review": {
     "decision": "HOLD",

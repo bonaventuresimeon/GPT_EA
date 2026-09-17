@@ -36,7 +36,7 @@ TradeSetup BuildDirectBreakoutCandidate(const StrategySnapshot &x,int score)
 
    SetConservativeTargets(s,1.0,2.0,3.0);
    RefineTargetsToStructure(s);
-   s.confidence=MathMin(95,score);
+   s.confidence=(score>95?95:score);
    s.expiryM15=StrategyAdaptiveExpiry(x.symbol,STRATEGY_BREAKOUT);
    RealisticRRReport rr=RealisticRiskReward(s);
    bool breakout=(bull?x.breakoutUp:x.breakoutDown);
@@ -95,25 +95,29 @@ void SelectDynamicStrategyUltimate(const string sym,TradeSetup &pb,TradeSetup &b
       return;
    }
 
-   // Trend failure is not yet the same thing as a completed reversal. Treat a qualified
-   // multi-candle move against the dominant trend as a distinct counter-trend swing.
+   // Trend failure is not yet a completed reversal. Always keep this state classified
+   // as Counter-Trend Swing; if its stricter score/trigger is insufficient the result is WAIT.
    if(x.state==STATE_TREND_FAILURE && InpAllowCounterTrendSwing)
    {
       bool counterBull=!x.dominantBull;
       int ct=CounterTrendScore(x,counterBull);
-      if(ct>=InpMinCounterTrendScore)
+      int reversalScore=StrategyBaseScore(x,STRATEGY_POTENTIAL_REVERSAL);
+      d.strategy=STRATEGY_COUNTER_TREND_SWING;
+      d.counterTrend=true;
+      d.counterTrendScore=ct;
+      d.score=(ct>reversalScore?ct:reversalScore);
+      d.state=STATE_TREND_FAILURE;
+      d.stateText=MarketStateName(d.state);
+      d.setup=BuildCounterTrendCandidate(x,counterBull,ct,true);
+      d.strategyName=StrategyClassName(d.strategy);
+      d.rationale+=" | Trend failure is classified as COUNTER-TREND SWING until full reversal acceptance is established.";
+      d.confirmation="COUNTER-TREND TRADE: require major-level/sweep rejection plus M5 BOS/CHOCH and rejection; targets remain conservative until reversal structure proves durable.";
+      CompleteOverrideDecision(sym,d);
+      if(ct<InpMinCounterTrendScore)
       {
-         d.strategy=STRATEGY_COUNTER_TREND_SWING;
-         d.counterTrend=true;
-         d.counterTrendScore=ct;
-         d.score=MathMax(ct,StrategyBaseScore(x,STRATEGY_POTENTIAL_REVERSAL));
-         d.state=STATE_TREND_FAILURE;
-         d.stateText=MarketStateName(d.state);
-         d.setup=BuildCounterTrendCandidate(x,counterBull,d.score,true);
-         d.strategyName=StrategyClassName(d.strategy);
-         d.rationale+=" | Trend failure is being treated as COUNTER-TREND SWING until full reversal acceptance is established.";
-         d.confirmation="COUNTER-TREND TRADE: require major-level/sweep rejection plus M5 BOS/CHOCH and rejection; targets remain conservative until reversal structure proves durable.";
-         CompleteOverrideDecision(sym,d);
+         d.action=STRATEGY_ACTION_WAIT;
+         d.setup.valid=false;
+         d.rationale+=StringFormat(" | Counter-trend swing score %d/100 is below strict threshold %d; WAIT, do not relabel as reversal.",ct,InpMinCounterTrendScore);
       }
    }
 

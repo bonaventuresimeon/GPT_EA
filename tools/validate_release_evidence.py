@@ -219,6 +219,17 @@ def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list
                 require(errors,str(env.get("mt5_build",""))==str(build.get("mt5_build","")),"MT5 evidence terminal build must match build")
                 for key in ("broker_company","trade_server","account_currency","margin_mode"):
                     require(errors,str(env.get(key,""))==str(deployment.get(key,"")),f"MT5 evidence environment.{key} must match deployment.{key}")
+                mt5_compile=value.get("compile",{})
+                build_compile=str(build.get("compile_log_path","")).strip()
+                evidence_compile=str(mt5_compile.get("compile_log_path","")).strip()
+                if build_compile and evidence_compile:
+                    require(errors,resolve(build_compile).resolve()==resolve(evidence_compile).resolve(),
+                            "MT5 compile log path must be the same compile artifact referenced by build.compile_log_path")
+                tested=set(str(x) for x in value.get("strategy_tester",{}).get("symbols",[]) if str(x))
+                deployed=set(str(x) for x in deployment.get("symbols",[]) if str(x))
+                require(errors,bool(tested),"MT5 Strategy Tester symbols are required")
+                if tested and deployed:
+                    require(errors,tested.issubset(deployed),"MT5 Strategy Tester symbols must be a subset of deployment.symbols")
             except Exception as exc: errors.append(f"could not validate MT5 validation evidence: {exc}")
     validation_raw=str(mt5.get("validation_path","")).strip()
     require(errors,bool(validation_raw),"mt5_validation.validation_path is required")
@@ -303,6 +314,25 @@ def main()->int:
         mt5_errors,mt5_digest=validate_mt5_release_record(mt5,build,deployment); errors.extend(mt5_errors)
 
     api_errors,api_digest=validate_api_transport(data); errors.extend(api_errors)
+    if isinstance(mt5,dict):
+        mt5_path_raw=str(mt5.get("evidence_path","")).strip()
+        if mt5_path_raw and resolve(mt5_path_raw).exists():
+            try:
+                mt5_value=json.loads(resolve(mt5_path_raw).read_text(encoding="utf-8"))
+                live=mt5_value.get("live_api_news",{})
+                api=data.get("api_transport",{})
+                require(errors,live.get("webrequest_allow_list_verified") is api.get("webrequest_allow_list_verified"),
+                        "MT5 WebRequest allow-list result must match api_transport evidence")
+                require(errors,live.get("deep_review_path_passed") is api.get("deep_review_path_passed"),
+                        "MT5 deep-review result must match api_transport evidence")
+                require(errors,live.get("web_search_path_passed") is api.get("web_search_path_passed"),
+                        "MT5 web-search result must match api_transport evidence")
+                require(errors,live.get("request_trace_observed") is api.get("request_id_trace_tested"),
+                        "MT5 request-trace result must match api_transport evidence")
+                require(errors,int(live.get("secret_leak_count",-1))==int(api.get("secret_leak_count",-2)),
+                        "MT5 secret-leak count must match api_transport evidence")
+            except Exception as exc:
+                errors.append(f"could not cross-check MT5 live API evidence against api_transport: {exc}")
 
     schema=json.loads(SOAK_SCHEMA.read_text(encoding="utf-8"))
     soak=data.get("demo_soak")

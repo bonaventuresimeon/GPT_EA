@@ -10,6 +10,36 @@ input int  InpUnprotectedEmergencySeconds     = 30;
 input bool InpEmergencyCloseUnprotected       = true;
 input bool InpAlertOnStopFailureEscalation    = true;
 
+bool g_stopPolicyConfigBlocked=false;
+string g_stopPolicyConfigReason="Not evaluated";
+
+bool StopFailurePolicyConfigSafe(string &why)
+{
+   why="";
+   if(InpStopUpdateRetrySeconds<1){ why="InpStopUpdateRetrySeconds must be >= 1."; return false; }
+   if(InpStopFailureWarnAfter<1){ why="InpStopFailureWarnAfter must be >= 1."; return false; }
+   if(InpStopFailurePauseAfter<InpStopFailureWarnAfter)
+   { why="InpStopFailurePauseAfter must be >= warning threshold."; return false; }
+   if(InpEmergencyCloseUnprotected && InpUnprotectedEmergencySeconds<1)
+   { why="InpUnprotectedEmergencySeconds must be >= 1 when emergency close is enabled."; return false; }
+   return true;
+}
+
+void RefreshStopFailurePolicyConfigGate()
+{
+   string why="";
+   bool ok=StopFailurePolicyConfigSafe(why);
+   bool old=g_stopPolicyConfigBlocked;
+   string oldWhy=g_stopPolicyConfigReason;
+   g_stopPolicyConfigBlocked=!ok;
+   g_stopPolicyConfigReason=(ok?"Stop failure policy configuration valid.":why);
+   if(!ok)
+   {
+      StopFailurePauseNewEntries("stop failure policy configuration invalid: "+why);
+      if(!old || oldWhy!=why) Print("GPT_EA STOP POLICY CONFIG BLOCK: ",why);
+   }
+}
+
 int StopFailureCount(ulong pid)
 {
    return (int)GVRead(PosKey(pid,"STOP_FAIL_COUNT"),0);
@@ -141,7 +171,6 @@ void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
       return;
    }
 
-   string sym=PositionGetString(POSITION_SYMBOL);
    double sl=PositionGetDouble(POSITION_SL);
    bool critical=(sl<=0);
    string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
@@ -161,6 +190,7 @@ bool HandleUnprotectedStopFailure(ulong ticket,const string reason)
 
    ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
    string sym=PositionGetString(POSITION_SYMBOL);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
    if(StopUpdateRetryDue(pid)) RegisterStopUpdateFailure(ticket,reason,true);
 
    datetime first=StopFailureFirstTime(pid);
@@ -168,14 +198,14 @@ bool HandleUnprotectedStopFailure(ulong ticket,const string reason)
    int elapsed=(first>0?(int)(now-first):0);
    if(!InpEmergencyCloseUnprotected || elapsed<MathMax(1,InpUnprotectedEmergencySeconds)) return false;
 
+   int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
+   double mae=GVRead(PosKey(pid,"MAE"),0);
+   double mfe=GVRead(PosKey(pid,"MFE"),0);
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(DynamicSlippagePoints(sym));
    if(trade.PositionClose(ticket,DynamicSlippagePoints(sym)))
    {
-      int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
-      AppendJournal("EMERGENCY_CLOSE_UNPROTECTED",sym,kind,0,pid,
-                    PositionGetDouble(POSITION_PRICE_OPEN),0,0,0,
-                    GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
+      AppendJournal("EMERGENCY_CLOSE_UNPROTECTED",sym,kind,0,pid,entry,0,0,0,mae,mfe,reason);
       PrintFormat("%s: emergency close sent after %d sec without a protective SL.",sym,elapsed);
       SafeUniversalCheckpointNow();
       return true;
@@ -190,4 +220,15 @@ string StopFailurePolicySummary()
    return StringFormat("retry %ds | warn %d | pause %d | unprotected emergency %ds | emergency close %s",
       InpStopUpdateRetrySeconds,InpStopFailureWarnAfter,InpStopFailurePauseAfter,
       InpUnprotectedEmergencySeconds,InpEmergencyCloseUnprotected?"ON":"OFF");
+}
+
+void StopFailurePolicyInit()
+{
+   RefreshStopFailurePolicyConfigGate();
+   Print("GPT_EA stop failure policy: ",StopFailurePolicySummary());
+}
+
+void StopFailurePolicyTimer()
+{
+   RefreshStopFailurePolicyConfigGate();
 }

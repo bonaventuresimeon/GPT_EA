@@ -9,6 +9,16 @@ input double InpChallengerMinAvgRAdvantage        = 0.10;
 input double InpChallengerMinPFAdvantage          = 0.15;
 input double InpChallengerMaxExtraDrawdownR       = 0.25;
 input double InpChallengerMaxInstabilityR         = 1.50;
+input bool   InpUsePromotionSignificance          = true;
+input double InpPromotionSignificanceZ            = 1.64; // conservative one-sided ~95% lower bound
+input double InpPromotionMinLowerAdvantageR       = 0.02;
+input bool   InpUsePromotionProbationRollback     = true;
+input int    InpPromotionProbationTrades          = 15;
+input int    InpPromotionRollbackMinTrades        = 5;
+input double InpPromotionRollbackMinAvgR          = 0.00;
+input double InpPromotionRollbackMinPF            = 1.00;
+input double InpPromotionRollbackMaxExtraDDR      = 0.50;
+input int    InpRollbackRequalifyNewSamples       = 20;
 input int    InpShadowMaxExpiryM15                = 12;
 input string InpShadowValidationFile              = "GPT_EA_ShadowValidation.csv";
 input bool   InpTrackRejectedCounterfactuals      = true;
@@ -170,10 +180,115 @@ void ChampionChallengerMetrics(StrategyClass c,int variant,double &n,double &avg
    dev=GVRead(k+"_DEV",0);
 }
 
+bool ChallengerRollbackCooldownAllows(StrategyClass c,int variant,string &why)
+{
+   double rollbackN=GVRead(SysKey(StringFormat("CC_ROLLBACK_N_%d_V%d",(int)c,variant)),0);
+   if(rollbackN<=0){ why="no rollback cooldown"; return true; }
+   double n=0,a=0,pf=0,dd=0,dev=0;
+   ChampionChallengerMetrics(c,variant,n,a,pf,dd,dev);
+   double added=n-rollbackN;
+   if(added<MathMax(1,InpRollbackRequalifyNewSamples))
+   {
+      why=StringFormat("rollback cooldown: %.0f/%d new shadow samples",added,InpRollbackRequalifyNewSamples);
+      return false;
+   }
+   why=StringFormat("rollback cooldown cleared after %.0f new samples",added);
+   return true;
+}
+
+bool ChallengerSignificanceAllows(StrategyClass c,int variant,string &why)
+{
+   why="";
+   if(!InpUsePromotionSignificance){ why="statistical significance gate disabled"; return true; }
+   double cn=0,ca=0,cp=0,cdd=0,cdev=0,nn=0,na=0,np=0,ndd=0,ndev=0;
+   ChampionChallengerMetrics(c,SHADOW_CHAMPION,cn,ca,cp,cdd,cdev);
+   ChampionChallengerMetrics(c,variant,nn,na,np,ndd,ndev);
+   if(cn<2 || nn<2){ why="insufficient sample for significance"; return false; }
+
+   // DEV is an EWMA absolute deviation. Multiplying by 1.253 approximates
+   // sigma from mean absolute deviation and intentionally errs conservatively.
+   double cs=MathMax(0.05,cdev*1.253);
+   double ns=MathMax(0.05,ndev*1.253);
+   double se=MathSqrt(cs*cs/cn+ns*ns/nn);
+   double advantage=na-ca;
+   double lower=advantage-MathMax(0.0,InpPromotionSignificanceZ)*se;
+   why=StringFormat("promotion significance: advantage %.3fR | SE %.3f | lower bound %.3fR vs %.3fR",
+                    advantage,se,lower,InpPromotionMinLowerAdvantageR);
+   return lower>=InpPromotionMinLowerAdvantageR;
+}
+
+void CapturePromotionProbationBaseline(StrategyClass c,int variant)
+{
+   string k=ShadowStatsKey(c,variant);
+   string p=SysKey(StringFormat("CC_PROB_%d_V%d",(int)c,variant));
+   GVWrite(p+"_N",GVRead(k+"_N",0));
+   GVWrite(p+"_SUMR",GVRead(k+"_SUMR",0));
+   GVWrite(p+"_POSR",GVRead(k+"_POSR",0));
+   GVWrite(p+"_NEGR",GVRead(k+"_NEGR",0));
+   GVWrite(p+"_MAXDD",GVRead(k+"_MAXDD",0));
+   GVWrite(p+"_TIME",(double)TimeTradeServer());
+   GVWrite(p+"_PASSED",0);
+}
+
+bool PromotionProbationShouldRollback(StrategyClass c,int variant,string &why)
+{
+   why="";
+   if(!InpUsePromotionProbationRollback || variant==SHADOW_CHAMPION) return false;
+   string k=ShadowStatsKey(c,variant);
+   string p=SysKey(StringFormat("CC_PROB_%d_V%d",(int)c,variant));
+   double baseN=GVRead(p+"_N",-1);
+   if(baseN<0){ CapturePromotionProbationBaseline(c,variant); why="probation baseline initialized"; return false; }
+
+   double n=GVRead(k+"_N",0);
+   double postN=n-baseN;
+   if(postN<MathMax(1,InpPromotionRollbackMinTrades))
+   {
+      why=StringFormat("promotion probation %.0f/%d minimum review trades",postN,InpPromotionRollbackMinTrades);
+      return false;
+   }
+
+   double sum=GVRead(k+"_SUMR",0)-GVRead(p+"_SUMR",0);
+   double pos=GVRead(k+"_POSR",0)-GVRead(p+"_POSR",0);
+   double neg=GVRead(k+"_NEGR",0)-GVRead(p+"_NEGR",0);
+   double avg=(postN>0?sum/postN:0);
+   double pf=(neg>0?pos/neg:(pos>0?99.0:0.0));
+   double ddNow=GVRead(k+"_MAXDD",0),ddBase=GVRead(p+"_MAXDD",0);
+   bool bad=(avg<InpPromotionRollbackMinAvgR ||
+             pf<InpPromotionRollbackMinPF ||
+             ddNow>ddBase+InpPromotionRollbackMaxExtraDDR);
+   why=StringFormat("promotion probation N %.0f | avg %.2fR | PF %.2f | DD %.2f vs base %.2f",
+                    postN,avg,pf,ddNow,ddBase);
+   if(bad) return true;
+   if(postN>=MathMax(InpPromotionRollbackMinTrades,InpPromotionProbationTrades))
+      GVWrite(p+"_PASSED",1);
+   return false;
+}
+
+void EvaluateChampionRollback(StrategyClass c)
+{
+   if(!InpUseChampionChallenger || !InpAutoPromoteChallenger || !InpUsePromotionProbationRollback) return;
+   string promotedKey=SysKey(StringFormat("CC_PROMOTED_%d",(int)c));
+   int current=(int)GVRead(promotedKey,SHADOW_CHAMPION);
+   if(current==SHADOW_CHAMPION) return;
+   string why="";
+   if(PromotionProbationShouldRollback(c,current,why))
+   {
+      double n=0,a=0,pf=0,dd=0,dev=0;
+      ChampionChallengerMetrics(c,current,n,a,pf,dd,dev);
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_N_%d_V%d",(int)c,current)),n);
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_TIME_%d",(int)c)),(double)TimeTradeServer());
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_VARIANT_%d",(int)c)),current);
+      GVWrite(promotedKey,SHADOW_CHAMPION);
+      Print("GPT_EA champion rollback: ",StrategyClassName(c)," ",ShadowVariantName(current)," -> CHAMPION | ",why);
+   }
+}
+
 bool ChallengerEligibleForPromotion(StrategyClass c,int variant,string &why)
 {
    why="";
    if(variant!=SHADOW_PULLBACK && variant!=SHADOW_BREAKOUT_RETEST) return false;
+   string cooldown="";
+   if(!ChallengerRollbackCooldownAllows(c,variant,cooldown)){ why=cooldown; return false; }
    double cn=0,ca=0,cp=0,cdd=0,cdev=0,nn=0,na=0,np=0,ndd=0,ndev=0;
    ChampionChallengerMetrics(c,SHADOW_CHAMPION,cn,ca,cp,cdd,cdev);
    ChampionChallengerMetrics(c,variant,nn,na,np,ndd,ndev);
@@ -186,9 +301,11 @@ bool ChallengerEligibleForPromotion(StrategyClass c,int variant,string &why)
    bool pfOK=(np>=cp+InpChallengerMinPFAdvantage);
    bool ddOK=(ndd<=cdd+InpChallengerMaxExtraDrawdownR);
    bool stable=(ndev<=InpChallengerMaxInstabilityR);
-   why=StringFormat("champ avg %.2f PF %.2f DD %.2f dev %.2f | challenger %s avg %.2f PF %.2f DD %.2f dev %.2f",
-      ca,cp,cdd,cdev,ShadowVariantName(variant),na,np,ndd,ndev);
-   return avgOK && pfOK && ddOK && stable;
+   string sig="";
+   bool significant=ChallengerSignificanceAllows(c,variant,sig);
+   why=StringFormat("champ avg %.2f PF %.2f DD %.2f dev %.2f | challenger %s avg %.2f PF %.2f DD %.2f dev %.2f | %s | %s",
+      ca,cp,cdd,cdev,ShadowVariantName(variant),na,np,ndd,ndev,sig,cooldown);
+   return avgOK && pfOK && ddOK && stable && significant;
 }
 
 int PromotedChallengerVariant(StrategyClass c)
@@ -202,6 +319,8 @@ void RefreshChampionChallengerPromotion()
    for(int ci=1;ci<=9;ci++)
    {
       StrategyClass c=(StrategyClass)ci;
+      EvaluateChampionRollback(c);
+      int current=(int)GVRead(SysKey(StringFormat("CC_PROMOTED_%d",ci)),SHADOW_CHAMPION);
       string p="",b="";
       bool pb=ChallengerEligibleForPromotion(c,SHADOW_PULLBACK,p);
       bool br=ChallengerEligibleForPromotion(c,SHADOW_BREAKOUT_RETEST,b);
@@ -216,6 +335,14 @@ void RefreshChampionChallengerPromotion()
       else if(pb) chosen=SHADOW_PULLBACK;
       else if(br) chosen=SHADOW_BREAKOUT_RETEST;
       if(!InpAutoPromoteChallenger) chosen=SHADOW_CHAMPION;
+      if(chosen!=current && chosen!=SHADOW_CHAMPION)
+      {
+         CapturePromotionProbationBaseline(c,chosen);
+         GVWrite(SysKey(StringFormat("CC_PREVIOUS_%d",ci)),current);
+         GVWrite(SysKey(StringFormat("CC_PROMOTION_TIME_%d",ci)),(double)TimeTradeServer());
+      }
+      // A rollback performed above is not immediately undone unless the
+      // challenger has cleared its requalification sample cooldown.
       GVWrite(SysKey(StringFormat("CC_PROMOTED_%d",ci)),chosen);
       GVWrite(SysKey(StringFormat("CC_PB_ELIGIBLE_%d",ci)),pb?1:0);
       GVWrite(SysKey(StringFormat("CC_BRT_ELIGIBLE_%d",ci)),br?1:0);

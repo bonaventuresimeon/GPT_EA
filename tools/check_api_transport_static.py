@@ -8,27 +8,34 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
 PART37=(ROOT/"GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37_APITransport.mqh").exists() else ""
+COMPAT=(ROOT/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37A_APICompat.mqh").exists() else ""
 TEMPLATE=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
 errors=[]
 
 for token in [
+    '#include "GPT_EA_Part37A_APICompat.mqh"',
     '#include "GPT_EA_Part37_APITransport.mqh"',
     '#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API',
     '#define ReleaseGateSummary ReleaseGateSummaryR7API',
     '#define StopFailureObservabilityInit StopFailureObservabilityInitR7API',
     '#define AdvancedSafetyInit AdvancedSafetyInitR7API',
     '#define AdvancedSafetyTimer AdvancedSafetyTimerR7API',
+    '#define InpOpenAIAPIKey APITransportLegacyCredential()',
     '#define WebRequest GPTAPIWebRequest',
     '#undef WebRequest',
+    '#undef InpOpenAIAPIKey',
 ]:
     if token not in MAIN:
         errors.append(f"GPT_EA.mq5 missing API transport wiring: {token}")
 
+if "APITrim" not in COMPAT or "StringTrimLeft" not in COMPAT or "StringTrimRight" not in COMPAT:
+    errors.append("Part37A compatibility helper is missing self-contained MQL5 trimming")
+
 for token in [
     "GPT_API_DIRECT_OPENAI","GPT_API_SECURE_PROXY","InpAPIProxyEndpoint","InpAPIProxyToken",
     "InpAPIRequireProxyOnReal","InpReleaseAPITransportPassed","APITrustedDirectEndpoint",
-    "APITransportConfigurationAllows","GPTAPIWebRequest","X-Client-Request-Id","X-GPT-EA-Token",
-    "ReleaseSafetyAllowsR7API","GPT_EA_APIHealth.csv",
+    "APITransportLegacyCredential","APITransportConfigurationAllows","GPTAPIWebRequest",
+    "X-Client-Request-Id","X-GPT-EA-Token","ReleaseSafetyAllowsR7API","GPT_EA_APIHealth.csv",
 ]:
     if token not in PART37:
         errors.append(f"Part37 missing API transport contract token: {token}")

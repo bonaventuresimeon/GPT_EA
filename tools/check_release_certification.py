@@ -124,6 +124,21 @@ else:
         if not str(rt.get("operator_record_path", "")).strip(): errors.append("five-day template must reference operator_record_path")
     except Exception as exc: errors.append(f"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json invalid: {exc}")
 
+final_template = ROOT / "FINAL_RELEASE_REVIEW_TEMPLATE.json"
+if not final_template.exists():
+    errors.append("FINAL_RELEASE_REVIEW_TEMPLATE.json missing")
+else:
+    try:
+        fr = json.loads(final_template.read_text(encoding="utf-8"))
+        if fr.get("schema_version") != "final_release_review_v1": errors.append("final review template schema mismatch")
+        if fr.get("decision") != "HOLD": errors.append("final review template must default decision to HOLD")
+        checks = fr.get("review", {})
+        for key in ("ci_bundle_pass", "ci_attestation_verified", "api_transport_pass", "five_day_acceptance_pass", "five_day_operator_record_complete"):
+            if key not in checks: errors.append(f"final review template missing {key}")
+            elif checks.get(key) is not False: errors.append(f"final review template {key} must default false")
+    except Exception as exc:
+        errors.append(f"FINAL_RELEASE_REVIEW_TEMPLATE.json invalid: {exc}")
+
 for path_name, expected in [
     ("SOAK_EVIDENCE_SCHEMA.json", "demo_soak_evidence_v1"),
     ("CI_EVIDENCE_SCHEMA.json", "github_actions_static_evidence_v1"),
@@ -151,7 +166,7 @@ if ci_schema_path.exists():
 
 for path_name, tokens in {
     "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_bundle", "validate_api_transport", "ci_static", "api_transport"],
-    "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN"],
+    "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN", "/attempts/{args.run_attempt}/jobs"],
     "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
     "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],
     "tools/build_ci_bundle_manifest.py": ["ci_evidence_bundle_v1", "CI ATTESTATION VERIFY: PASS", "bundle_digest"],
@@ -159,7 +174,7 @@ for path_name, tokens in {
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "operator_record_path", "record_digest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
-    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW"],
+    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"ci_static": data.get("ci_static", {})', '"api_transport": data.get("api_transport", {})', "ci_bundle_pass", "five_day_operator_record_complete"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
 }.items():
     p = ROOT / path_name

@@ -3,7 +3,7 @@
 // ============================================================================
 // This gate does not replace testing. It prevents a REAL account from being
 // armed unless the operator explicitly attests that the release evidence for
-// the current release ID has been completed and archived.
+// the current release ID has been completed, validated and archived.
 
 input bool   InpRequireReleaseEvidenceOnReal          = true;
 input string InpReleaseValidationId                   = "";
@@ -27,18 +27,18 @@ input bool   InpReleaseWebFailureInjectionPassed      = false;
 input bool   InpReleaseDemoSoakPassed                 = false;
 input bool   InpReleaseOperatorReviewPassed           = false;
 
-// Concrete compile/artifact identity. These fields make it harder to arm a
-// different EX5/SET/source candidate using booleans copied from an older build.
+// Concrete compile/artifact identity.
 input string InpReleaseSourceCommitSha                = "";
 input string InpReleaseEx5Sha256                      = "";
-input string InpReleaseSetSha256                      = ""; // 64 hex or literal NONE when no preset is used
+input string InpReleaseSetSha256                      = ""; // 64 hex or literal NONE
 input string InpReleaseCompileEvidenceId              = "";
 input string InpReleaseMetaEditorBuild                = "";
 input string InpReleaseMT5Build                       = "";
 
-// Measurable demo-soak evidence. The full report still lives outside the EA,
-// but real arming cannot rely on InpReleaseDemoSoakPassed alone.
+// Versioned demo-soak evidence.
+input string InpReleaseSoakSchemaVersion              = "";
 input string InpReleaseSoakEvidenceId                 = "";
+input string InpReleaseSoakEvidenceDigest             = "";
 input int    InpReleaseSoakTradingDays                = 0;
 input int    InpReleaseSoakLondonSessions             = 0;
 input int    InpReleaseSoakNYSessions                 = 0;
@@ -47,13 +47,38 @@ input bool   InpReleaseSoakNewsDayObserved            = false;
 input bool   InpReleaseSoakRolloverObserved           = false;
 input bool   InpReleaseSoakRestartObserved            = false;
 input bool   InpReleaseSoakReconnectObserved          = false;
+input int    InpReleaseSoakScheduledScans             = 0;
+input int    InpReleaseSoakContinuousScans            = 0;
+input int    InpReleaseSoakCheckpointUpdates          = 0;
+input int    InpReleaseSoakBackupCheckpointUpdates    = 0;
 input int    InpReleaseSoakZeroToleranceFailures      = 0;
 input int    InpReleaseSoakUnresolvedCriticalStates   = 0;
+input int    InpReleaseSoakDuplicateOrders            = 0;
+input int    InpReleaseSoakDuplicatePartials          = 0;
+input int    InpReleaseSoakSLRegressions              = 0;
+input int    InpReleaseSoakUnprotectedAuthorizations  = 0;
+input int    InpReleaseSoakReleaseGateBypasses        = 0;
+input int    InpReleaseSoakAnalyticsDuplicateFinal    = 0;
+input int    InpReleaseSoakStopJoinFailures           = 0;
+input int    InpReleaseSoakDashboardMismatches        = 0;
+input int    InpReleaseSoakRuntimeCriticalErrors      = 0;
+input int    InpReleaseSoakSecretsExposed             = 0;
+input bool   InpReleaseSoakExecutionLogPresent        = false;
+input bool   InpReleaseSoakStopLogPresent             = false;
+input bool   InpReleaseSoakReleaseLogPresent          = false;
+
+// Final GO/NO-GO review identity.
+input string InpReleaseFinalReviewEvidenceId          = "";
+input string InpReleaseFinalReviewDigest              = "";
+input string InpReleaseFinalDecision                  = ""; // must be GO
+input string InpReleaseFinalReviewer                  = "";
+input string InpReleaseFinalReviewTimestamp           = "";
 
 input bool   InpWriteReleaseEvidenceSnapshot          = true;
 input string InpReleaseEvidenceSnapshotFile           = "GPT_EA_ReleaseEvidence.csv";
 
-const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID = "GPT_EA_FULL_INTELLIGENCE_R5_20260917";
+const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917";
+const string GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1";
 
 bool ReleaseHexString(const string value,const int expectedLen)
 {
@@ -87,7 +112,7 @@ bool ReleaseArtifactIdentityAllows(string &why)
    }
    if(InpReleaseSetSha256!="NONE" && !ReleaseHexString(InpReleaseSetSha256,64))
    {
-      why="SET SHA-256 must be 64 hexadecimal characters or literal NONE when no preset is used.";
+      why="SET SHA-256 must be 64 hexadecimal characters or literal NONE.";
       return false;
    }
    if(StringLen(InpReleaseCompileEvidenceId)<4)
@@ -112,9 +137,19 @@ bool ReleaseDemoSoakEvidenceAllows(string &why)
       why="Demo-soak acceptance has not been attested.";
       return false;
    }
+   if(InpReleaseSoakSchemaVersion!=GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION)
+   {
+      why="Demo-soak schema version is missing or stale.";
+      return false;
+   }
    if(StringLen(InpReleaseSoakEvidenceId)<4)
    {
       why="Demo-soak evidence ID/reference is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseSoakEvidenceDigest,64))
+   {
+      why="Demo-soak evidence digest must be a 64-character SHA-256 value.";
       return false;
    }
    if(InpReleaseSoakTradingDays<5)
@@ -130,20 +165,66 @@ bool ReleaseDemoSoakEvidenceAllows(string &why)
    if(!InpReleaseSoakOverlapObserved || !InpReleaseSoakNewsDayObserved || !InpReleaseSoakRolloverObserved ||
       !InpReleaseSoakRestartObserved || !InpReleaseSoakReconnectObserved)
    {
-      why="Demo soak is missing required overlap/news/rollover/restart/reconnect coverage.";
+      why="Demo soak is missing overlap/news/rollover/restart/reconnect coverage.";
       return false;
    }
-   if(InpReleaseSoakZeroToleranceFailures!=0)
+   if(InpReleaseSoakScheduledScans<1 || InpReleaseSoakContinuousScans<1)
    {
-      why=StringFormat("Demo soak recorded %d zero-tolerance failure(s).",InpReleaseSoakZeroToleranceFailures);
+      why="Demo soak must observe both scheduled and continuous scanning.";
       return false;
    }
-   if(InpReleaseSoakUnresolvedCriticalStates!=0)
+   if(InpReleaseSoakCheckpointUpdates<1 || InpReleaseSoakBackupCheckpointUpdates<1)
    {
-      why=StringFormat("Demo soak ended with %d unresolved critical state(s).",InpReleaseSoakUnresolvedCriticalStates);
+      why="Demo soak must observe primary and backup recovery checkpoint updates.";
       return false;
    }
-   why="Demo-soak quantitative acceptance fields pass.";
+   if(InpReleaseSoakZeroToleranceFailures!=0 || InpReleaseSoakUnresolvedCriticalStates!=0 ||
+      InpReleaseSoakDuplicateOrders!=0 || InpReleaseSoakDuplicatePartials!=0 || InpReleaseSoakSLRegressions!=0 ||
+      InpReleaseSoakUnprotectedAuthorizations!=0 || InpReleaseSoakReleaseGateBypasses!=0 ||
+      InpReleaseSoakAnalyticsDuplicateFinal!=0 || InpReleaseSoakStopJoinFailures!=0 ||
+      InpReleaseSoakDashboardMismatches!=0 || InpReleaseSoakRuntimeCriticalErrors!=0 || InpReleaseSoakSecretsExposed!=0)
+   {
+      why="Demo soak contains a non-zero zero-tolerance, critical, duplicate, protection, release, analytics, observability, runtime or secret-exposure count.";
+      return false;
+   }
+   if(!InpReleaseSoakExecutionLogPresent || !InpReleaseSoakStopLogPresent || !InpReleaseSoakReleaseLogPresent)
+   {
+      why="Demo soak is missing required execution/stop/release evidence logs.";
+      return false;
+   }
+   why="Demo-soak schema and quantitative acceptance fields pass.";
+   return true;
+}
+
+bool ReleaseFinalReviewAllows(string &why)
+{
+   why="";
+   if(!InpReleaseOperatorReviewPassed)
+   {
+      why="Final operator release review has not been attested.";
+      return false;
+   }
+   if(StringLen(InpReleaseFinalReviewEvidenceId)<4)
+   {
+      why="Final GO/NO-GO review evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseFinalReviewDigest,64))
+   {
+      why="Final review digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(InpReleaseFinalDecision!="GO")
+   {
+      why="Final release decision must be literal GO.";
+      return false;
+   }
+   if(StringLen(InpReleaseFinalReviewer)<2 || StringLen(InpReleaseFinalReviewTimestamp)<8)
+   {
+      why="Final reviewer identity/timestamp is incomplete.";
+      return false;
+   }
+   why="Final GO/NO-GO review identity is structurally valid.";
    return true;
 }
 
@@ -169,7 +250,7 @@ bool ReleaseEvidenceAllows(string &why)
 
    if(InpReleaseValidationId!=GPT_EA_REQUIRED_RELEASE_VALIDATION_ID)
    {
-      why="REAL account blocked: release validation ID is missing or does not match the current release contract.";
+      why="REAL account blocked: release validation ID is missing or stale.";
       return false;
    }
    if(!InpReleaseMetaEditorCompilePassed){ why="REAL account blocked: MetaEditor compile gate has not been attested."; return false; }
@@ -183,19 +264,19 @@ bool ReleaseEvidenceAllows(string &why)
 
    if(!InpReleaseStrategyTesterPassed){ why="REAL account blocked: Strategy Tester validation has not been attested."; return false; }
    if(!InpReleaseIntelligenceMatrixPassed){ why="REAL account blocked: full-intelligence matrix has not been attested."; return false; }
-   if(!InpReleaseAdaptivePortfolioPassed){ why="REAL account blocked: adaptive portfolio/correlation/strategy-budget/risk-supervisor matrix has not been attested."; return false; }
-   if(!InpReleaseExecutionLearningPassed){ why="REAL account blocked: execution learning/confidence/event/MAE-MFE/expiry/regime-transition matrix has not been attested."; return false; }
-   if(!InpReleaseChampionChallengerPassed){ why="REAL account blocked: champion/challenger shadow and counterfactual validation matrix has not been attested."; return false; }
-   if(!InpReleaseLifecycleIntegrityPassed){ why="REAL account blocked: trade lifecycle/GPT-disagreement/model-integrity/replay matrix has not been attested."; return false; }
+   if(!InpReleaseAdaptivePortfolioPassed){ why="REAL account blocked: adaptive portfolio/risk-supervisor matrix has not been attested."; return false; }
+   if(!InpReleaseExecutionLearningPassed){ why="REAL account blocked: execution-learning matrix has not been attested."; return false; }
+   if(!InpReleaseChampionChallengerPassed){ why="REAL account blocked: champion/challenger validation has not been attested."; return false; }
+   if(!InpReleaseLifecycleIntegrityPassed){ why="REAL account blocked: lifecycle/integrity/replay validation has not been attested."; return false; }
    if(!InpReleaseBrokerMatrixPassed){ why="REAL account blocked: broker/account/symbol matrix has not been attested."; return false; }
    if(!InpReleaseDeploymentProfilePassed){ why="REAL account blocked: deployment profile/drift validation has not been attested."; return false; }
    if(!InpReleaseRecoveryTestsPassed){ why="REAL account blocked: restart/recovery tests have not been attested."; return false; }
    if(!InpReleaseStopMatrixPassed){ why="REAL account blocked: HIGH-priority stop-management matrix has not been attested."; return false; }
-   if(!InpReleaseBrokerStopPolicyPassed){ why="REAL account blocked: broker-specific stop-failure policy tests have not been attested."; return false; }
+   if(!InpReleaseBrokerStopPolicyPassed){ why="REAL account blocked: broker-specific stop policy tests have not been attested."; return false; }
    if(!InpReleasePartialProtectionPassed){ why="REAL account blocked: partial-protection release test has not been attested."; return false; }
-   if(!InpReleaseStopObservabilityPassed){ why="REAL account blocked: stop-failure observability contract/matrix has not been attested."; return false; }
+   if(!InpReleaseStopObservabilityPassed){ why="REAL account blocked: stop observability validation has not been attested."; return false; }
    if(!InpReleaseLiveNewsIntermarketPassed){ why="REAL account blocked: live news/intermarket validation has not been attested."; return false; }
-   if(!InpReleaseWebFailureInjectionPassed){ why="REAL account blocked: OpenAI/WebRequest failure-injection test has not been attested."; return false; }
+   if(!InpReleaseWebFailureInjectionPassed){ why="REAL account blocked: OpenAI/WebRequest failure-injection has not been attested."; return false; }
 
    string soakWhy="";
    if(!ReleaseDemoSoakEvidenceAllows(soakWhy))
@@ -204,9 +285,14 @@ bool ReleaseEvidenceAllows(string &why)
       return false;
    }
 
-   if(!InpReleaseOperatorReviewPassed){ why="REAL account blocked: final operator release review has not been attested."; return false; }
+   string reviewWhy="";
+   if(!ReleaseFinalReviewAllows(reviewWhy))
+   {
+      why="REAL account blocked: "+reviewWhy;
+      return false;
+   }
 
-   why="Release evidence attested for "+GPT_EA_REQUIRED_RELEASE_VALIDATION_ID+" | "+artifactWhy+" | "+soakWhy;
+   why="Release evidence attested for "+GPT_EA_REQUIRED_RELEASE_VALIDATION_ID+" | "+artifactWhy+" | "+soakWhy+" | "+reviewWhy;
    return true;
 }
 
@@ -271,8 +357,12 @@ void WriteReleaseEvidenceSnapshot()
          "source_commit","ex5_sha256","set_sha256","compile_evidence_id","metaeditor_build","mt5_build",
          "compile","artifact_identity","strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger","lifecycle_integrity",
          "broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy","partial_protection","stop_observability","live_news_intermarket",
-         "web_failure_injection","demo_soak","soak_evidence_id","soak_trading_days","soak_london_sessions","soak_ny_sessions","soak_overlap","soak_news_day",
-         "soak_rollover","soak_restart","soak_reconnect","soak_zero_tolerance_failures","soak_unresolved_critical","operator_review","gate_result","reason");
+         "web_failure_injection","demo_soak","soak_schema","soak_evidence_id","soak_digest","soak_trading_days","soak_london_sessions","soak_ny_sessions",
+         "soak_overlap","soak_news_day","soak_rollover","soak_restart","soak_reconnect","soak_scheduled_scans","soak_continuous_scans",
+         "soak_checkpoint_updates","soak_backup_updates","soak_zero_tolerance_failures","soak_unresolved_critical","soak_duplicate_orders","soak_duplicate_partials",
+         "soak_sl_regressions","soak_unprotected_authorizations","soak_gate_bypasses","soak_analytics_duplicate_final","soak_stop_join_failures",
+         "soak_dashboard_mismatches","soak_runtime_critical_errors","soak_secrets_exposed","soak_execution_log","soak_stop_log","soak_release_log",
+         "operator_review","final_review_id","final_review_digest","final_decision","final_reviewer","final_review_timestamp","gate_result","reason");
    FileSeek(h,0,SEEK_END);
    string why=""; bool ok=ReleaseSafetyAllowsCertified("",why);
    FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseValidationId,
@@ -284,10 +374,18 @@ void WriteReleaseEvidenceSnapshot()
       InpReleaseDeploymentProfilePassed?"1":"0",InpReleaseRecoveryTestsPassed?"1":"0",InpReleaseStopMatrixPassed?"1":"0",
       InpReleaseBrokerStopPolicyPassed?"1":"0",InpReleasePartialProtectionPassed?"1":"0",InpReleaseStopObservabilityPassed?"1":"0",
       InpReleaseLiveNewsIntermarketPassed?"1":"0",InpReleaseWebFailureInjectionPassed?"1":"0",InpReleaseDemoSoakPassed?"1":"0",
-      InpReleaseSoakEvidenceId,(string)InpReleaseSoakTradingDays,(string)InpReleaseSoakLondonSessions,(string)InpReleaseSoakNYSessions,
-      InpReleaseSoakOverlapObserved?"1":"0",InpReleaseSoakNewsDayObserved?"1":"0",InpReleaseSoakRolloverObserved?"1":"0",
-      InpReleaseSoakRestartObserved?"1":"0",InpReleaseSoakReconnectObserved?"1":"0",(string)InpReleaseSoakZeroToleranceFailures,
-      (string)InpReleaseSoakUnresolvedCriticalStates,InpReleaseOperatorReviewPassed?"1":"0",ok?"PASS":"BLOCK",why);
+      InpReleaseSoakSchemaVersion,InpReleaseSoakEvidenceId,InpReleaseSoakEvidenceDigest,(string)InpReleaseSoakTradingDays,
+      (string)InpReleaseSoakLondonSessions,(string)InpReleaseSoakNYSessions,InpReleaseSoakOverlapObserved?"1":"0",
+      InpReleaseSoakNewsDayObserved?"1":"0",InpReleaseSoakRolloverObserved?"1":"0",InpReleaseSoakRestartObserved?"1":"0",
+      InpReleaseSoakReconnectObserved?"1":"0",(string)InpReleaseSoakScheduledScans,(string)InpReleaseSoakContinuousScans,
+      (string)InpReleaseSoakCheckpointUpdates,(string)InpReleaseSoakBackupCheckpointUpdates,(string)InpReleaseSoakZeroToleranceFailures,
+      (string)InpReleaseSoakUnresolvedCriticalStates,(string)InpReleaseSoakDuplicateOrders,(string)InpReleaseSoakDuplicatePartials,
+      (string)InpReleaseSoakSLRegressions,(string)InpReleaseSoakUnprotectedAuthorizations,(string)InpReleaseSoakReleaseGateBypasses,
+      (string)InpReleaseSoakAnalyticsDuplicateFinal,(string)InpReleaseSoakStopJoinFailures,(string)InpReleaseSoakDashboardMismatches,
+      (string)InpReleaseSoakRuntimeCriticalErrors,(string)InpReleaseSoakSecretsExposed,InpReleaseSoakExecutionLogPresent?"1":"0",
+      InpReleaseSoakStopLogPresent?"1":"0",InpReleaseSoakReleaseLogPresent?"1":"0",InpReleaseOperatorReviewPassed?"1":"0",
+      InpReleaseFinalReviewEvidenceId,InpReleaseFinalReviewDigest,InpReleaseFinalDecision,InpReleaseFinalReviewer,InpReleaseFinalReviewTimestamp,
+      ok?"PASS":"BLOCK",why);
    FileFlush(h); FileClose(h);
 }
 

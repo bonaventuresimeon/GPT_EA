@@ -36,5 +36,7 @@
     "reviewer": "",
     "timestamp": "",
     "notes": ""
-  }
+  },
+  "matrix_path": "artifacts/runner-recovery-acceptance.md",
+  "matrix_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
 }

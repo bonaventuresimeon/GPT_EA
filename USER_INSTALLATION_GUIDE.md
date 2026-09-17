@@ -332,12 +332,21 @@ Real-account arming is intentionally stricter than demo operation.
 
 ## 16. Real-account activation
 
-Before live arming, read the legal package. The R8 legal gate requires the customer to personally acknowledge the current terms and trading risk; a vendor preset should never pre-accept these fields.
+Before live arming, read the legal package and `CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md`. The R9 customer-risk gate requires the customer to personally acknowledge each material risk item and the exact current terms/risk versions; a vendor preset must never pre-accept these fields.
 
 Required live acknowledgement inputs:
 
     InpAcceptGPTCommercialTerms = true
     InpAcceptGPTTradingRisk = true
+    InpAcknowledgeNoProfitGuarantee = true
+    InpAcknowledgePossibleTotalLoss = true
+    InpAcknowledgeAILimitations = true
+    InpAcknowledgeBrokerThirdPartyRisk = true
+    InpAcknowledgePersonalResponsibility = true
+    InpAcknowledgeDemoFirst = true
+    InpCustomerJurisdiction = <JURISDICTION CODE>
+    InpAcceptedGPTTermsVersion = GPT_EA_TERMS_20260917_V1
+    InpAcceptedGPTRiskAckVersion = GPT_EA_RISK_ACK_V1
     InpGPTTermsAcceptancePhrase = I ACCEPT GPT_EA TERMS AND TRADING RISK
     InpCustomerLicenseReference = <YOUR ISSUED LICENSE REFERENCE>
 

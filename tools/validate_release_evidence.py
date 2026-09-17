@@ -9,8 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from validate_soak_evidence import validate_soak
+
 ROOT = Path(__file__).resolve().parents[1]
 PART28 = ROOT / "GPT_EA_Part28_ReleaseCertification.mqh"
+SOAK_SCHEMA = ROOT / "SOAK_EVIDENCE_SCHEMA.json"
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -45,7 +48,7 @@ def require(errors: list[str], cond: bool, msg: str) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Validate GPT_EA compile/demo-soak release evidence")
+    ap = argparse.ArgumentParser(description="Validate GPT_EA R6 compile/demo-soak/final-review release evidence")
     ap.add_argument("evidence", nargs="?", default="release_evidence.json")
     args = ap.parse_args()
 
@@ -82,10 +85,10 @@ def main() -> int:
         require(errors, head.lower() == git_sha.lower(), f"evidence Git SHA {git_sha} does not match repository HEAD {head}")
 
     ex5_path_raw = str(build.get("ex5_path", "")).strip()
+    require(errors, bool(ex5_path_raw), "build.ex5_path is required")
     if ex5_path_raw:
         ex5_path = Path(ex5_path_raw)
-        if not ex5_path.is_absolute():
-            ex5_path = ROOT / ex5_path
+        if not ex5_path.is_absolute(): ex5_path = ROOT / ex5_path
         require(errors, ex5_path.exists(), f"EX5 file not found: {ex5_path}")
         if ex5_path.exists() and HEX64.fullmatch(ex5_hash):
             actual = sha256_file(ex5_path)
@@ -96,8 +99,7 @@ def main() -> int:
         require(errors, bool(set_path_raw), "set_path is required when set_sha256 is not NONE")
         if set_path_raw:
             set_path = Path(set_path_raw)
-            if not set_path.is_absolute():
-                set_path = ROOT / set_path
+            if not set_path.is_absolute(): set_path = ROOT / set_path
             require(errors, set_path.exists(), f"SET file not found: {set_path}")
             if set_path.exists() and HEX64.fullmatch(set_hash):
                 actual = sha256_file(set_path)
@@ -107,23 +109,23 @@ def main() -> int:
     require(errors, bool(compile_log_raw), "compile_log_path is required")
     if compile_log_raw:
         compile_log = Path(compile_log_raw)
-        if not compile_log.is_absolute():
-            compile_log = ROOT / compile_log
+        if not compile_log.is_absolute(): compile_log = ROOT / compile_log
         require(errors, compile_log.exists(), f"compile log not found: {compile_log}")
-
-    soak = data.get("demo_soak", {})
-    require(errors, bool(str(soak.get("evidence_id", "")).strip()), "demo_soak.evidence_id is required")
-    require(errors, int(soak.get("trading_days", 0)) >= 5, "demo soak requires at least 5 consecutive trading days")
-    require(errors, int(soak.get("london_sessions", 0)) >= 3, "demo soak requires at least 3 London sessions")
-    require(errors, int(soak.get("ny_sessions", 0)) >= 3, "demo soak requires at least 3 New York/U.S. cash sessions")
-    for key in ["overlap_observed", "news_day_observed", "rollover_observed", "restart_observed", "reconnect_observed"]:
-        require(errors, soak.get(key) is True, f"demo_soak.{key} must be true")
-    require(errors, int(soak.get("zero_tolerance_failures", -1)) == 0, "demo soak zero_tolerance_failures must be 0")
-    require(errors, int(soak.get("unresolved_critical_states", -1)) == 0, "demo soak unresolved_critical_states must be 0")
 
     deployment = data.get("deployment", {})
     for key in ["broker_company", "trade_server", "account_currency", "margin_mode", "account_leverage"]:
         require(errors, bool(str(deployment.get(key, "")).strip()), f"deployment.{key} is required")
+    require(errors, isinstance(deployment.get("symbols"), list) and len(deployment.get("symbols", [])) > 0,
+            "deployment.symbols must contain at least one validated symbol")
+
+    schema = json.loads(SOAK_SCHEMA.read_text(encoding="utf-8"))
+    soak = data.get("demo_soak")
+    if not isinstance(soak, dict):
+        errors.append("demo_soak must be an object")
+        soak_digest = ""
+    else:
+        soak_errors, soak_digest = validate_soak(soak, schema)
+        errors.extend(soak_errors)
 
     gates = data.get("gates", {})
     required_gates = [
@@ -136,17 +138,31 @@ def main() -> int:
     for key in required_gates:
         require(errors, gates.get(key) is True, f"gates.{key} must be true")
 
+    final_review = data.get("final_review", {})
+    require(errors, final_review.get("schema_version") == "final_release_review_v1",
+            "final_review.schema_version must be final_release_review_v1")
+    require(errors, len(str(final_review.get("review_evidence_id", "")).strip()) >= 4,
+            "final_review.review_evidence_id is required")
+    require(errors, bool(HEX64.fullmatch(str(final_review.get("review_digest", "")))),
+            "final_review.review_digest must be 64 hexadecimal characters")
+    require(errors, final_review.get("decision") == "GO", "final_review.decision must be GO")
+    require(errors, len(str(final_review.get("reviewer", "")).strip()) >= 2, "final_review.reviewer is required")
+    require(errors, len(str(final_review.get("review_timestamp", "")).strip()) >= 8, "final_review.review_timestamp is required")
+
     canonical = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(canonical).hexdigest()
 
     out = ROOT / "release-evidence-validation.txt"
     if errors:
-        text = "RELEASE EVIDENCE VALIDATION: FAILED\n" + "\n".join(f"ERROR: {e}" for e in errors) + f"\nEVIDENCE_JSON_SHA256: {digest}\n"
+        text = "RELEASE EVIDENCE VALIDATION: FAILED\n" + "\n".join(f"ERROR: {e}" for e in errors)
+        if soak_digest:
+            text += f"\nSOAK_EVIDENCE_SHA256: {soak_digest}"
+        text += f"\nEVIDENCE_JSON_SHA256: {digest}\n"
         out.write_text(text, encoding="utf-8")
         print(text, end="")
         return 1
 
-    text = f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\nEVIDENCE_JSON_SHA256: {digest}\n"
+    text = f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\nSOAK_EVIDENCE_SHA256: {soak_digest}\nEVIDENCE_JSON_SHA256: {digest}\n"
     out.write_text(text, encoding="utf-8")
     print(text, end="")
     return 0

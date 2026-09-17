@@ -21,6 +21,7 @@ required=[
     "RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json",
     "RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json",
     "tools/validate_runner_recovery_acceptance.py",
+    "tools/build_runner_recovery_acceptance.py",
     "GPT_EA_Part28B_CIReleaseEvidence.mqh",
     "RELEASE_EVIDENCE_TEMPLATE.json",
 ]
@@ -46,6 +47,7 @@ if not errors:
     acceptance_matrix=(ROOT/"RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
     acceptance_template=json.loads((ROOT/"RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json").read_text(encoding="utf-8"))
     acceptance_validator=(ROOT/"tools/validate_runner_recovery_acceptance.py").read_text(encoding="utf-8")
+    acceptance_builder=(ROOT/"tools/build_runner_recovery_acceptance.py").read_text(encoding="utf-8")
     for token in ["PRE_RUNNER_NO_STEPS","runner_id","steps_executed","ci_bundle_digest","expected_bundle_digest","RUNNER RECOVERY EVIDENCE"]:
         if token not in validator: errors.append(f"runner recovery validator missing token: {token}")
     for token in ["attempts/{attempt}/jobs","ci_bundle_manifest","runner-probe","static-release-gate","GITHUB_TOKEN"]:
@@ -58,8 +60,12 @@ if not errors:
         errors.append("runner recovery acceptance template schema mismatch")
     if acceptance_template.get("operator_review",{}).get("decision")!="HOLD":
         errors.append("runner recovery acceptance template must default HOLD")
-    for token in ["runner_recovery_acceptance_v1","validate_runner_recovery","ci_bundle_digest","RUNNER RECOVERY ACCEPTANCE"]:
+    for key in ("matrix_path","matrix_sha256"):
+        if key not in acceptance_template: errors.append(f"runner recovery acceptance template missing {key}")
+    for token in ["runner_recovery_acceptance_v1","validate_runner_recovery","ci_bundle_digest","matrix_sha256","validate_matrix","RA-","RUNNER RECOVERY ACCEPTANCE"]:
         if token not in acceptance_validator: errors.append(f"runner recovery acceptance validator missing token: {token}")
+    for token in ["--runner-recovery","--matrix","--candidate-sha","--ci-bundle-digest","matrix_sha256"]:
+        if token not in acceptance_builder: errors.append(f"runner recovery acceptance builder missing token: {token}")
 
     part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for token in ["GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA","ReleaseRunnerRecoveryEvidenceAllows",

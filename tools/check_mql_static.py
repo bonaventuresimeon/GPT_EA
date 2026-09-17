@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Repository-level static release checks for GPT_EA R6.
+"""Repository-level static release checks for the current GPT_EA release chain.
 
-This is not a substitute for MetaEditor compilation, Strategy Tester, broker
-validation, WebRequest failure injection or the required demo soak. It catches
-repository-level wiring regressions, missing modules, duplicate inputs,
-unbalanced source, stale release IDs and committed API secrets.
+Base evidence identity remains R6 while the active runtime additionally layers
+supplemental CI/five-day evidence and the Part37 API transport guard. This is
+not a substitute for MetaEditor compilation, Strategy Tester, broker validation,
+WebRequest failure injection or the required demo soak.
 """
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part26_DeepGPTPolicy.mqh",
     "GPT_EA_Part27_StrategyCompletion.mqh",
     "GPT_EA_Part28_ReleaseCertification.mqh",
+    "GPT_EA_Part28B_CIReleaseEvidence.mqh",
     "GPT_EA_Part29_DeploymentDriftGuard.mqh",
     "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
     "GPT_EA_Part31_ExecutionLearning.mqh",
@@ -47,6 +48,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part34_StrategyHealthDashboard.mqh",
     "GPT_EA_Part35_AdaptiveIntegration.mqh",
     "GPT_EA_Part36_DemoSoakEvidence.mqh",
+    "GPT_EA_Part37_APITransport.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -60,18 +62,35 @@ REQUIRED_FILES = [
     "DEMO_SOAK_ACCEPTANCE.md",
     "DEMO_SOAK_EVIDENCE.md",
     "DEMO_SOAK_REPORT_TEMPLATE.md",
+    "FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
+    "FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json",
+    "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md",
+    "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
+    "CI_EVIDENCE_SCHEMA.json",
+    "CI_EVIDENCE_BUNDLE_SCHEMA.json",
+    "CI_EVIDENCE_CONTRACT.md",
     "SOAK_EVIDENCE_SCHEMA.json",
     "DEPLOYMENT_DRIFT_TESTS.md",
+    "API_TRANSPORT_ARCHITECTURE.md",
+    "API_TRANSPORT_TEST_MATRIX.md",
+    "MT5_WEBREQUEST_REQUIREMENTS.md",
     "RELEASE_GO_NO_GO.md",
     "RELEASE_EVIDENCE_MANIFEST.md",
     "ADAPTIVE_EXECUTION_ARCHITECTURE.md",
     "ADAPTIVE_EXECUTION_TEST_MATRIX.md",
     "tools/import_soak_snapshot.py",
+    "tools/fetch_ci_job_metadata.py",
+    "tools/build_ci_evidence.py",
+    "tools/validate_ci_evidence.py",
+    "tools/build_ci_bundle_manifest.py",
+    "tools/validate_ci_bundle.py",
 ]
 
 REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
     '#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"',
+    '#include "GPT_EA_Part28B_CIReleaseEvidence.mqh"',
+    '#include "GPT_EA_Part37_APITransport.mqh"',
     '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
     '#include "GPT_EA_Part31_ExecutionLearning.mqh"',
     '#include "GPT_EA_Part31A_RegimeSizing.mqh"',
@@ -81,11 +100,13 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
     '#include "GPT_EA_Part36_DemoSoakEvidence.mqh"',
     '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
-    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR6",
-    "#define ReleaseGateSummary ReleaseGateSummaryR6",
-    "#define StopFailureObservabilityInit StopFailureObservabilityInitR6",
-    "#define AdvancedSafetyInit AdvancedSafetyInitR6",
-    "#define AdvancedSafetyTimer AdvancedSafetyTimerR6",
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API",
+    "#define ReleaseGateSummary ReleaseGateSummaryR7API",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitR7API",
+    "#define AdvancedSafetyInit AdvancedSafetyInitR7API",
+    "#define AdvancedSafetyTimer AdvancedSafetyTimerR7API",
+    "#define WebRequest GPTAPIWebRequest",
+    "#undef WebRequest",
     "#define SelectDynamicStrategy SelectDynamicStrategyR5",
     "#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5",
     "#define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal",
@@ -125,6 +146,11 @@ REQUIRED_TOKENS = {
         "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
         "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
     ],
+    "GPT_EA_Part28B_CIReleaseEvidence.mqh": [
+        "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA",
+        "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted",
+        "InpReleaseCIBundleDigest", "InpReleaseCIBundleValidated", "ReleaseSafetyAllowsR6Evidence",
+    ],
     "GPT_EA_Part29_DeploymentDriftGuard.mqh": [
         "ReleaseSafetyAllowsR6", "ReleaseGateSummaryR6", "AdvancedSafetyInitR6",
         "AdvancedSafetyTimerR6", "StopFailureObservabilityInitR6",
@@ -160,6 +186,11 @@ REQUIRED_TOKENS = {
         "SCHEDULED_SCANS", "CONTINUOUS_SCANS", "CHECKPOINT_UPDATES", "BACKUP_CHECKPOINT_UPDATES",
         "RecordDemoSoakIncident", "InpExecutionJournalFile", "InpStopFailureObservabilityFile",
         "InpReleaseEvidenceSnapshotFile",
+    ],
+    "GPT_EA_Part37_APITransport.mqh": [
+        "GPTAPIWebRequest", "APITransportReleaseEvidenceAllows", "ReleaseSafetyAllowsR7API",
+        "InpReleaseAPITransportPassed", "GPT_API_DIRECT_OPENAI", "GPT_API_SECURE_PROXY",
+        "APITrustedDirectEndpoint", "X-Client-Request-Id", "X-GPT-EA-Token",
     ],
 }
 
@@ -224,7 +255,7 @@ def main() -> int:
     errors: list[str] = []
     warnings: list[str] = []
     if not MAIN.exists():
-        print("STATIC R6 RELEASE CHECK: FAILED\nERROR: GPT_EA.mq5 missing")
+        print("STATIC CURRENT RELEASE CHECK: FAILED\nERROR: GPT_EA.mq5 missing")
         return 1
 
     main_text = MAIN.read_text(encoding="utf-8")
@@ -264,6 +295,7 @@ def main() -> int:
 
     critical_order = [
         "GPT_EA_Part28_ReleaseCertification.mqh", "GPT_EA_Part29_DeploymentDriftGuard.mqh",
+        "GPT_EA_Part28B_CIReleaseEvidence.mqh", "GPT_EA_Part37_APITransport.mqh",
         "GPT_EA_Part15_StrategyIntelligence.mqh", "GPT_EA_Part21_ResearchValidation.mqh",
         "GPT_EA_Part27_StrategyCompletion.mqh", "GPT_EA_Part16_NewsIntermarket.mqh",
         "GPT_EA_Part22_IntelligenceFreshness.mqh", "GPT_EA_Part16A_StrictRevalidation.mqh",
@@ -289,9 +321,18 @@ def main() -> int:
             errors.append(f"release attestation must default false: {flag}")
     m = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', release)
     if not m or m.group(1) != RELEASE_ID:
-        errors.append(f"release validation ID must be {RELEASE_ID}")
+        errors.append(f"base release validation ID must be {RELEASE_ID}")
     if 'GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1"' not in release:
         errors.append("R6 soak schema version contract is missing")
+
+    part28b = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+    for flag in ("InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"):
+        if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', part28b):
+            errors.append(f"supplemental release attestation must default false: {flag}")
+
+    part37 = (ROOT / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
+    if not re.search(r'input\s+bool\s+InpReleaseAPITransportPassed\s*=\s*false\s*;', part37):
+        errors.append("API transport release attestation must default false")
 
     p32 = (ROOT / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
     if not re.search(r'InpAutoPromoteChallenger\s*=\s*false\s*;', p32):
@@ -306,15 +347,15 @@ def main() -> int:
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")
 
     if errors:
-        print("STATIC R6 RELEASE CHECK: FAILED")
+        print("STATIC CURRENT RELEASE CHECK: FAILED")
         for e in errors: print("ERROR:", e)
         for w in warnings: print("WARNING:", w)
         return 1
 
-    print("STATIC R6 RELEASE CHECK: PASS")
+    print("STATIC CURRENT RELEASE CHECK: PASS")
     print(f"Checked {len(source_files)} directly included MQL files and {len(seen_inputs)} unique inputs.")
     for w in warnings: print("WARNING:", w)
-    print("MetaEditor compile, Strategy Tester, adaptive matrix, broker tests, WebRequest failure injection and demo soak remain external hard gates.")
+    print("MetaEditor compile, Strategy Tester, adaptive matrix, broker tests, API/WebRequest validation and five-day demo soak remain external hard gates.")
     return 0
 
 

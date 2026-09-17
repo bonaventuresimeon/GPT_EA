@@ -22,10 +22,12 @@
   },
   "review": {
     "compile_contract_pass": false,
+    "runner_recovery_pass": false,
     "ci_bundle_pass": false,
     "ci_attestation_verified": false,
     "api_transport_pass": false,
     "five_day_acceptance_pass": false,
+    "soak_day_reconciliation_pass": false,
     "five_day_operator_record_complete": false,
     "soak_schema_pass": false,
     "release_evidence_validator_pass": false,

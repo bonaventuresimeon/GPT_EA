@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 👤 Customer Operations
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 👤 **Document:** `USER_INSTALLATION_GUIDE.md`
+
+---
+
 # GPT_EA — New User Installation & Setup Guide
 
 This guide is for a new GPT_EA user installing the Expert Advisor on MetaTrader 5 for the first time.

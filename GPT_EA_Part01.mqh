@@ -69,7 +69,7 @@ input bool   InpAIReviewHighConfidenceOnly = true;
 input int    InpAIMaxOutputChars         = 1800;
 
 // ----------------------------- Types ------------------------------
-enum SetupKind { SETUP_NONE=0, SETUP_PULLBACK=1, SETUP_BREAKOUT_RETEST=2 };
+enum SetupKind { SETUP_NONE=0, SETUP_PULLBACK=1, SETUP_BREAKOUT_RETEST=2, SETUP_BREAKOUT=3 };
 
 struct TradeSetup
 {

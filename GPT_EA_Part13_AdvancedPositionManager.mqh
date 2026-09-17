@@ -21,18 +21,20 @@ bool RestoreMissingProtectiveStop(ulong ticket)
    }
 
    string why="";
-   if(!StopBrokerSafe(sym,bull,NormalizePriceToTick(sym,initSL),why))
+   double restoredSL=NormalizePriceToTick(sym,initSL);
+   if(!StopBrokerSafe(sym,bull,restoredSL,why))
    {
       Print(sym,": cannot restore missing protective SL yet - ",why);
       return false;
    }
    double tp=PositionGetDouble(POSITION_TP);
-   if(!trade.PositionModify(ticket,NormalizePriceToTick(sym,initSL),tp))
+   if(!trade.PositionModify(ticket,restoredSL,tp))
    {
       Print(sym,": failed to restore missing protective SL - ",trade.ResultRetcodeDescription());
       return false;
    }
    Print(sym,": CRITICAL recovery action - protective SL restored from durable state/history.");
+   ClearStopFailureState(ticket,"missing protective SL restored");
    SafeUniversalCheckpointNow();
    return true;
 }
@@ -96,11 +98,16 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
    bool protectionReady=!InpMoveSLToBEAfterTP1;
    if(InpMoveSLToBEAfterTP1)
    {
-      if(PositionProtectedAtOrBeyondBE(ticket)) protectionReady=true;
-      else
+      if(PositionProtectedAtOrBeyondBE(ticket))
+      {
+         protectionReady=true;
+         ClearStopFailureState(ticket,"TP1 breakeven protection already satisfied");
+      }
+      else if(StopUpdateRetryDue(pid))
       {
          EnsureBreakEvenProtection(ticket,rNow,R,entry,liveBull);
          protectionReady=PositionProtectedAtOrBeyondBE(ticket);
+         AuditStopUpdateAttempt(ticket,rNow,"TP1 breakeven");
       }
    }
 
@@ -117,7 +124,7 @@ bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
       return true;
    }
 
-   Print(sym,": TP1 partial completed, but BE protection is waiting for a broker-valid modification distance; will retry.");
+   Print(sym,": TP1 partial completed, but BE protection is not yet broker-valid; retry policy remains active.");
    return false;
 }
 
@@ -172,14 +179,10 @@ void ManagePositionsAdvanced()
       double entry=PositionGetDouble(POSITION_PRICE_OPEN);
       datetime opened=(datetime)PositionGetInteger(POSITION_TIME);
 
-      // Open positions are always managed even when release gates block new entries.
+      // Existing positions remain managed even when release gates block new entries.
       if(!RestoreMissingProtectiveStop(ticket))
       {
-         if(InpPauseOnRecoveryInconsistency)
-         {
-            GVWrite(SysKey("PAUSED"),1);
-            g_manualPaused=true;
-         }
+         HandleUnprotectedStopFailure(ticket,"protective SL missing and restoration did not succeed");
          continue;
       }
       if(!PositionSelectByTicket(ticket)) continue;
@@ -217,7 +220,11 @@ void ManagePositionsAdvanced()
 
       if(tp1done)
       {
-         AdvanceProfitProtection(ticket,rNow,liveR,liveEntry,livePx,liveBull);
+         if(StopUpdateRetryDue(pid))
+         {
+            AdvanceProfitProtection(ticket,rNow,liveR,liveEntry,livePx,liveBull);
+            AuditStopUpdateAttempt(ticket,rNow,"post-TP1 profit protection");
+         }
          ticket=RefreshTicketFromPositionId(pid,ticket);
          if(!PositionSelectByTicket(ticket)) continue;
 

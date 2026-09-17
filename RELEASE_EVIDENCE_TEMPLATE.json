@@ -1,0 +1,61 @@
+{
+  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R5_20260917",
+  "build": {
+    "git_sha": "0000000000000000000000000000000000000000",
+    "ex5_path": "artifacts/GPT_EA.ex5",
+    "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "set_path": "",
+    "set_sha256": "NONE",
+    "compile_errors": 0,
+    "compile_warnings": 0,
+    "metaeditor_build": "",
+    "mt5_build": "",
+    "compile_evidence_id": "",
+    "compile_log_path": "artifacts/metaeditor-compile.log"
+  },
+  "deployment": {
+    "broker_company": "",
+    "trade_server": "",
+    "account_currency": "",
+    "margin_mode": "",
+    "account_leverage": "",
+    "symbols": []
+  },
+  "demo_soak": {
+    "evidence_id": "",
+    "trading_days": 5,
+    "london_sessions": 3,
+    "ny_sessions": 3,
+    "overlap_observed": true,
+    "news_day_observed": true,
+    "rollover_observed": true,
+    "restart_observed": true,
+    "reconnect_observed": true,
+    "zero_tolerance_failures": 0,
+    "unresolved_critical_states": 0,
+    "start": "",
+    "end": "",
+    "report_path": ""
+  },
+  "gates": {
+    "metaeditor_compile": false,
+    "artifact_identity": false,
+    "strategy_tester": false,
+    "intelligence_matrix": false,
+    "adaptive_portfolio": false,
+    "execution_learning": false,
+    "champion_challenger": false,
+    "lifecycle_integrity": false,
+    "broker_matrix": false,
+    "deployment_profile": false,
+    "recovery": false,
+    "stop_matrix": false,
+    "broker_stop_policy": false,
+    "partial_protection": false,
+    "stop_observability": false,
+    "live_news_intermarket": false,
+    "web_failure_injection": false,
+    "demo_soak": false,
+    "operator_review": false
+  }
+}

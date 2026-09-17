@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### ⚖️ Legal, Risk & Governance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> ⚖️ **Document:** `COMMERCIAL_LICENSE.md`
+
+---
+
 # GPT_EA Commercial Software License
 
 **Important:** This is a commercial software-license template and should be reviewed by qualified counsel for the jurisdictions in which GPT_EA will be sold or distributed. Nothing here guarantees enforceability in every country.

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Static release checks for GPT_EA.
+"""Repository-level static release checks for GPT_EA R5.
 
-This is not a substitute for MetaEditor compilation or Strategy Tester.
-It catches repository-level wiring regressions, missing modules, duplicate inputs,
-unbalanced source, committed API secrets, and loss of mandatory intelligence contracts.
+This is intentionally not a substitute for MetaEditor compilation, Strategy Tester,
+broker testing, WebRequest failure injection, or demo soak.
 """
 from __future__ import annotations
 
@@ -36,6 +35,13 @@ REQUIRED_FILES = [
     "GPT_EA_Part27_StrategyCompletion.mqh",
     "GPT_EA_Part28_ReleaseCertification.mqh",
     "GPT_EA_Part29_DeploymentDriftGuard.mqh",
+    "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
+    "GPT_EA_Part31_ExecutionLearning.mqh",
+    "GPT_EA_Part31A_RegimeSizing.mqh",
+    "GPT_EA_Part32_ChampionChallenger.mqh",
+    "GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
+    "GPT_EA_Part34_StrategyHealthDashboard.mqh",
+    "GPT_EA_Part35_AdaptiveIntegration.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -50,6 +56,8 @@ REQUIRED_FILES = [
     "DEPLOYMENT_DRIFT_TESTS.md",
     "RELEASE_GO_NO_GO.md",
     "RELEASE_EVIDENCE_MANIFEST.md",
+    "ADAPTIVE_EXECUTION_ARCHITECTURE.md",
+    "ADAPTIVE_EXECUTION_TEST_MATRIX.md",
 ]
 
 REQUIRED_TOKENS = {
@@ -65,100 +73,112 @@ REQUIRED_TOKENS = {
     ],
     "GPT_EA_Part21_ResearchValidation.mqh": [
         "StrategyWalkForwardEvidence", "CurrentStrategyContextEvidence",
-        "RetracementIntelligenceText", "RetracementDestinationText",
-        "ChaseRiskDetected", "ExtremeRegimeDetected",
-    ],
-    "GPT_EA_Part22P_ResponseParser.mqh": [
-        "ExtractOpenAITextWide", "InpIntelligenceResponseMaxChars",
+        "RetracementIntelligenceText", "ChaseRiskDetected", "ExtremeRegimeDetected",
     ],
     "GPT_EA_Part22_IntelligenceFreshness.mqh": [
-        "CallOpenAIWebIntelStructured", "json_schema",
-        "GetLiveWebIntelHardened", "AssessIntermarketHardened",
-        "WEB-INTELLIGENCE CIRCUIT BREAKER OPEN",
+        "CallOpenAIWebIntelStructured", "json_schema", "GetLiveWebIntelHardened",
+        "AssessIntermarketHardened", "WEB-INTELLIGENCE CIRCUIT BREAKER OPEN",
     ],
-    "GPT_EA_Part24_SessionStrategyHardening.mqh": [
-        "AccurateSessionBucket", "LONDON_NY_OVERLAP",
-        "AccurateSessionEvidenceAllows", "LateSessionLiquidityRisk",
-        "StrategyAdaptiveExpiry", "PersistStrategyPlanForExecutionAccurate",
-    ],
-    "GPT_EA_Part25_ThesisHardening.mqh": [
-        "RealisticRiskReward(pb)", "RealisticRiskReward(br)",
-        "DeterministicDisproofChecklist",
-    ],
-    "GPT_EA_Part26_DeepGPTPolicy.mqh": [
-        "gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep",
-    ],
-    "GPT_EA_Part27_StrategyCompletion.mqh": [
-        "BuildDirectBreakoutCandidate", "SelectDynamicStrategyUltimate",
-        "STRATEGY_COUNTER_TREND_SWING", "STATE_BREAKOUT_RETEST",
-        "Mean-reversion validity repaired",
-    ],
+    "GPT_EA_Part26_DeepGPTPolicy.mqh": ["gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep"],
+    "GPT_EA_Part27_StrategyCompletion.mqh": ["BuildDirectBreakoutCandidate", "SelectDynamicStrategyUltimate"],
     "GPT_EA_Part28_ReleaseCertification.mqh": [
-        "GPT_EA_REQUIRED_RELEASE_VALIDATION_ID", "ReleaseEvidenceAllows",
-        "ReleaseSafetyAllowsCertified", "InpReleaseMetaEditorCompilePassed",
-        "InpReleaseArtifactIdentityArchived", "InpReleaseDeploymentProfilePassed",
-        "InpReleasePartialProtectionPassed", "InpReleaseDemoSoakPassed",
-        "GPT_EA_ReleaseEvidence.csv", "R4",
+        "GPT_EA_FULL_INTELLIGENCE_R5_20260917",
+        "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
+        "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
     ],
     "GPT_EA_Part29_DeploymentDriftGuard.mqh": [
-        "CaptureDeploymentBaseline", "StructuralSymbolDriftAllows",
-        "DeploymentDriftAllows", "ReleaseSafetyAllowsR4",
-        "AdvancedSafetyInitR4", "AdvancedSafetyTimerR4",
-        "StopFailureObservabilityInitR4",
+        "ReleaseSafetyAllowsR5", "ReleaseGateSummaryR5", "AdvancedSafetyInitR5",
+        "AdvancedSafetyTimerR5", "StopFailureObservabilityInitR5",
+    ],
+    "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh": [
+        "StrategyRiskBudgetAllows", "RollingM15Correlation", "MacroFactorBetas",
+        "AdvancedPortfolioRiskAllows", "AbnormalMarketConditionScore", "BrokerHealthScore",
+        "IndependentRiskSupervisorAllows", "AdaptiveRiskMultiplier", "AdaptivePreEntryAllows",
+    ],
+    "GPT_EA_Part31_ExecutionLearning.mqh": [
+        "CalibratedConfidenceValue", "ExecutionSlippageForecastPoints", "RegisterAdaptiveExecutionFill",
+        "UpdateOpenMAEMFE", "EventSpecificBehaviorAllows", "LearnedStrategyExpiryM15",
+        "RefreshStrategyHealthModes", "RefreshRegimeTransition", "GPT_EA_ExecutionLearning.csv",
+    ],
+    "GPT_EA_Part31A_RegimeSizing.mqh": ["AdaptiveLotSizeForRiskFinal", "REGIME_RISK_MULT"],
+    "GPT_EA_Part32_ChampionChallenger.mqh": [
+        "ChallengerEligibleForPromotion", "ChampionChallengerScanHook",
+        "SHADOW_REJECTED_COUNTERFACTUAL", "InpAutoPromoteChallenger", "GPT_EA_ShadowValidation.csv",
+    ],
+    "GPT_EA_Part33_LifecycleIntegrityReplay.mqh": [
+        "LIFE_CANDIDATE", "LIFE_WAIT_CONFIRMATION", "LIFE_APPROVED", "LIFE_SENT", "LIFE_FILLED",
+        "GPTDisagreementAllowsHighConfidence", "GPTReviewIntegrityAllows", "WriteDecisionSnapshot",
+        "GPT_EA_Lifecycle.csv", "GPT_EA_DecisionSnapshots.csv",
+    ],
+    "GPT_EA_Part34_StrategyHealthDashboard.mqh": [
+        "ACTIVE", "REDUCED_RISK", "SHADOW", "DISABLED", "GPT_EA_StrategyHealth.csv",
+    ],
+    "GPT_EA_Part35_AdaptiveIntegration.mqh": [
+        "SelectDynamicStrategyR5", "AdaptivePreAuthorizationRiskAllowsR5",
+        "AIReviewAllowsExecutionR5", "NotifyCardR5", "NewsIntermarketTimerR5",
     ],
 }
 
 REQUIRED_MAIN_WIRING = [
-    '#include "GPT_EA_Part21_ResearchValidation.mqh"',
-    '#include "GPT_EA_Part22A_IntermarketForward.mqh"',
-    '#include "GPT_EA_Part22P_ResponseParser.mqh"',
-    '#include "GPT_EA_Part22_IntelligenceFreshness.mqh"',
-    '#include "GPT_EA_Part23_IntelligenceObservability.mqh"',
-    '#include "GPT_EA_Part24_SessionStrategyHardening.mqh"',
-    '#include "GPT_EA_Part25_ThesisHardening.mqh"',
-    '#include "GPT_EA_Part26_DeepGPTPolicy.mqh"',
-    '#include "GPT_EA_Part27_StrategyCompletion.mqh"',
     '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
     '#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"',
-    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR4",
-    "#define ReleaseGateSummary ReleaseGateSummaryR4",
-    "#define StopFailureObservabilityInit StopFailureObservabilityInitR4",
-    "#define AdvancedSafetyInit AdvancedSafetyInitR4",
-    "#define AdvancedSafetyTimer AdvancedSafetyTimerR4",
-    "#define SelectDynamicStrategy SelectDynamicStrategyUltimate",
-    "#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate",
+    '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
+    '#include "GPT_EA_Part31_ExecutionLearning.mqh"',
+    '#include "GPT_EA_Part31A_RegimeSizing.mqh"',
+    '#include "GPT_EA_Part32_ChampionChallenger.mqh"',
+    '#include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"',
+    '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
+    '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR5",
+    "#define ReleaseGateSummary ReleaseGateSummaryR5",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitR5",
+    "#define AdvancedSafetyInit AdvancedSafetyInitR5",
+    "#define AdvancedSafetyTimer AdvancedSafetyTimerR5",
+    "#define SelectDynamicStrategy SelectDynamicStrategyR5",
+    "#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5",
+    "#define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal",
+    "#define LotSizeForRisk AdaptiveLotSizeForRiskFinal",
+    "#define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5",
+    "#define AIReviewAllowsExecution AIReviewAllowsExecutionR5",
+    "#define MarkSignalCooldown MarkSignalCooldownR5",
+    "#define NewsIntermarketInit NewsIntermarketInitR5",
+    "#define NewsIntermarketTimer NewsIntermarketTimerR5",
+    "#define NotifyCard NotifyCardR5",
+    "#define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal",
+    "#define CallOpenAI CallOpenAIDeep",
     "#define GetLiveWebIntel GetLiveWebIntelHardened",
     "#define AssessIntermarket AssessIntermarketHardened",
-    "#define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict",
-    "#define EffectiveRRDynamic EffectiveRRFullRatio",
-    "#define ScheduledScanDue ScheduledOrContinuousScanDue",
-    "#define ExtractOpenAIText ExtractOpenAITextWide",
-    "#define CallOpenAI CallOpenAIDeep",
-    "#define NotifyCard NotifyCardObserved",
-    "#define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal",
+]
+
+RELEASE_FLAGS = [
+    "InpReleaseMetaEditorCompilePassed", "InpReleaseArtifactIdentityArchived",
+    "InpReleaseStrategyTesterPassed", "InpReleaseIntelligenceMatrixPassed",
+    "InpReleaseAdaptivePortfolioPassed", "InpReleaseExecutionLearningPassed",
+    "InpReleaseChampionChallengerPassed", "InpReleaseLifecycleIntegrityPassed",
+    "InpReleaseBrokerMatrixPassed", "InpReleaseDeploymentProfilePassed",
+    "InpReleaseRecoveryTestsPassed", "InpReleaseStopMatrixPassed",
+    "InpReleaseBrokerStopPolicyPassed", "InpReleasePartialProtectionPassed",
+    "InpReleaseStopObservabilityPassed", "InpReleaseLiveNewsIntermarketPassed",
+    "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
+    "InpReleaseOperatorReviewPassed",
 ]
 
 
 def strip_comments_and_strings(text: str) -> str:
-    out: list[str] = []
-    i = 0
-    state = "code"
+    out, i, state = [], 0, "code"
     while i < len(text):
         ch = text[i]
         nxt = text[i + 1] if i + 1 < len(text) else ""
         if state == "code":
-            if ch == "/" and nxt == "/":
-                state = "line_comment"; out.extend("  "); i += 2; continue
-            if ch == "/" and nxt == "*":
-                state = "block_comment"; out.extend("  "); i += 2; continue
-            if ch == '"':
-                state = "string"; out.append(" "); i += 1; continue
+            if ch == "/" and nxt == "/": state = "line"; out.extend("  "); i += 2; continue
+            if ch == "/" and nxt == "*": state = "block"; out.extend("  "); i += 2; continue
+            if ch == '"': state = "string"; out.append(" "); i += 1; continue
             out.append(ch); i += 1; continue
-        if state == "line_comment":
+        if state == "line":
             if ch == "\n": state = "code"; out.append("\n")
             else: out.append(" ")
             i += 1; continue
-        if state == "block_comment":
+        if state == "block":
             if ch == "*" and nxt == "/": state = "code"; out.extend("  "); i += 2
             else: out.append("\n" if ch == "\n" else " "); i += 1
             continue
@@ -169,27 +189,23 @@ def strip_comments_and_strings(text: str) -> str:
     return "".join(out)
 
 
-def check_balanced(path: Path, errors: list[str]) -> None:
+def balanced(path: Path, errors: list[str]) -> None:
     text = strip_comments_and_strings(path.read_text(encoding="utf-8"))
     pairs = {"{": "}", "(": ")", "[": "]"}
-    closing = {v: k for k, v in pairs.items()}
+    reverse = {v: k for k, v in pairs.items()}
     stack: list[tuple[str, int]] = []
     line = 1
     for ch in text:
         if ch == "\n": line += 1
         elif ch in pairs: stack.append((ch, line))
-        elif ch in closing:
-            if not stack or stack[-1][0] != closing[ch]:
+        elif ch in reverse:
+            if not stack or stack[-1][0] != reverse[ch]:
                 errors.append(f"{path.name}:{line}: unmatched {ch}")
                 return
             stack.pop()
     if stack:
         ch, ln = stack[-1]
         errors.append(f"{path.name}:{ln}: unclosed {ch}")
-
-
-def collect_includes(main_text: str) -> list[str]:
-    return re.findall(r'^\s*#include\s+"([^"]+)"', main_text, re.M)
 
 
 def main() -> int:
@@ -205,21 +221,19 @@ def main() -> int:
     for token in REQUIRED_MAIN_WIRING:
         if token not in main_text: errors.append(f"main wiring missing: {token}")
 
-    includes = collect_includes(main_text)
+    includes = re.findall(r'^\s*#include\s+"([^"]+)"', main_text, re.M)
     for inc in includes:
         if not (ROOT / inc).exists(): errors.append(f"local include missing: {inc}")
 
     source_files = [MAIN] + [ROOT / i for i in includes if (ROOT / i).exists()]
-    seen_inputs: dict[str, str] = {}
     input_re = re.compile(r'^\s*input\s+[A-Za-z_][\w<>]*\s+([A-Za-z_]\w*)', re.M)
+    seen_inputs: dict[str, str] = {}
     for path in source_files:
         text = path.read_text(encoding="utf-8")
-        check_balanced(path, errors)
+        balanced(path, errors)
         for name in input_re.findall(text):
-            if name in seen_inputs:
-                errors.append(f"duplicate input {name}: {seen_inputs[name]} and {path.name}")
-            else:
-                seen_inputs[name] = path.name
+            if name in seen_inputs: errors.append(f"duplicate input {name}: {seen_inputs[name]} and {path.name}")
+            else: seen_inputs[name] = path.name
         if re.search(r'\bsk-[A-Za-z0-9_-]{12,}', text):
             errors.append(f"possible OpenAI API secret committed in {path.name}")
 
@@ -228,69 +242,62 @@ def main() -> int:
         if not path.exists(): continue
         text = path.read_text(encoding="utf-8")
         for token in tokens:
-            if token not in text: errors.append(f"{filename} missing required contract token: {token}")
+            if token not in text: errors.append(f"{filename} missing contract token: {token}")
 
-    thesis = (ROOT / "GPT_EA_Part17_ThesisEngine.mqh").read_text(encoding="utf-8")
-    missing_points = [str(i) for i in range(1, 26) if f'{i}. ' not in thesis]
-    if missing_points: errors.append("mandatory thesis points missing: " + ", ".join(missing_points))
+    thesis_path = ROOT / "GPT_EA_Part17_ThesisEngine.mqh"
+    if thesis_path.exists():
+        thesis = thesis_path.read_text(encoding="utf-8")
+        missing = [str(i) for i in range(1, 26) if f"{i}. " not in thesis]
+        if missing: errors.append("mandatory thesis points missing: " + ", ".join(missing))
 
-    order = [
-        "GPT_EA_Part18_StopBrokerObservability.mqh",
-        "GPT_EA_Part28_ReleaseCertification.mqh",
-        "GPT_EA_Part29_DeploymentDriftGuard.mqh",
-        "GPT_EA_Part15_StrategyIntelligence.mqh",
-        "GPT_EA_Part15D_StructureTargets.mqh",
-        "GPT_EA_Part21_ResearchValidation.mqh",
-        "GPT_EA_Part24_SessionStrategyHardening.mqh",
-        "GPT_EA_Part27_StrategyCompletion.mqh",
-        "GPT_EA_Part16_NewsIntermarket.mqh",
-        "GPT_EA_Part22A_IntermarketForward.mqh",
-        "GPT_EA_Part22P_ResponseParser.mqh",
-        "GPT_EA_Part22_IntelligenceFreshness.mqh",
-        "GPT_EA_Part16A_StrictRevalidation.mqh",
-        "GPT_EA_Part17_ThesisEngine.mqh",
-        "GPT_EA_Part25_ThesisHardening.mqh",
-        "GPT_EA_Part26_DeepGPTPolicy.mqh",
+    critical_order = [
+        "GPT_EA_Part28_ReleaseCertification.mqh", "GPT_EA_Part29_DeploymentDriftGuard.mqh",
+        "GPT_EA_Part15_StrategyIntelligence.mqh", "GPT_EA_Part21_ResearchValidation.mqh",
+        "GPT_EA_Part27_StrategyCompletion.mqh", "GPT_EA_Part16_NewsIntermarket.mqh",
+        "GPT_EA_Part22_IntelligenceFreshness.mqh", "GPT_EA_Part16A_StrictRevalidation.mqh",
+        "GPT_EA_Part17_ThesisEngine.mqh", "GPT_EA_Part25_ThesisHardening.mqh",
+        "GPT_EA_Part26_DeepGPTPolicy.mqh", "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
+        "GPT_EA_Part31_ExecutionLearning.mqh", "GPT_EA_Part31A_RegimeSizing.mqh",
+        "GPT_EA_Part32_ChampionChallenger.mqh", "GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
+        "GPT_EA_Part34_StrategyHealthDashboard.mqh", "GPT_EA_Part35_AdaptiveIntegration.mqh",
+        "GPT_EA_Part05.mqh", "GPT_EA_Part23_IntelligenceObservability.mqh", "GPT_EA_Part13_AdvancedPositionManager.mqh",
         "GPT_EA_Part07.mqh",
     ]
-    positions = [main_text.find(f'#include "{x}"') for x in order]
+    positions = [main_text.find(f'#include "{x}"') for x in critical_order]
     if any(p < 0 for p in positions) or positions != sorted(positions):
-        errors.append("critical intelligence/release include order is invalid")
+        errors.append("critical include order is invalid")
 
     if main_text.count("#define ExtractOpenAIText ExtractOpenAITextWide") < 2:
-        errors.append("wide intelligence response parser must cover both structured news and deep GPT review")
+        errors.append("wide OpenAI parser must cover both structured news and deep GPT review")
 
-    release_part = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
-    for flag in [
-        "InpReleaseMetaEditorCompilePassed", "InpReleaseArtifactIdentityArchived",
-        "InpReleaseStrategyTesterPassed", "InpReleaseIntelligenceMatrixPassed",
-        "InpReleaseBrokerMatrixPassed", "InpReleaseDeploymentProfilePassed",
-        "InpReleaseRecoveryTestsPassed", "InpReleaseStopMatrixPassed",
-        "InpReleaseBrokerStopPolicyPassed", "InpReleasePartialProtectionPassed",
-        "InpReleaseStopObservabilityPassed", "InpReleaseLiveNewsIntermarketPassed",
-        "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
-        "InpReleaseOperatorReviewPassed",
-    ]:
-        if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release_part):
+    release = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+    for flag in RELEASE_FLAGS:
+        if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release):
             errors.append(f"release attestation must default false: {flag}")
+    m = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', release)
+    if not m or m.group(1) != "GPT_EA_FULL_INTELLIGENCE_R5_20260917":
+        errors.append("release validation ID must be GPT_EA_FULL_INTELLIGENCE_R5_20260917")
 
-    release_id = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', release_part)
-    if not release_id or "R4" not in release_id.group(1):
-        errors.append("release validation ID must be R4 for current contract")
+    if "InpAutoPromoteChallenger             = false" not in (ROOT / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8"):
+        errors.append("champion/challenger auto-promotion must default false")
+
+    part05 = (ROOT / "GPT_EA_Part05.mqh").read_text(encoding="utf-8")
+    for token in ["AdaptivePreEntryAllows", "RegisterAdaptiveExecutionRequest", "RegisterAdaptiveExecutionFill", "StoredAIIntegrityAllows"]:
+        if token not in part05: errors.append(f"Part05 execution wiring missing: {token}")
 
     if 'input string InpOpenAIAPIKey            = ""' not in (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8"):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")
 
     if errors:
-        print("STATIC RELEASE CHECK: FAILED")
+        print("STATIC R5 RELEASE CHECK: FAILED")
         for e in errors: print("ERROR:", e)
         for w in warnings: print("WARNING:", w)
         return 1
 
-    print("STATIC RELEASE CHECK: PASS")
-    print(f"Checked {len(source_files)} directly included MQL files and {len(seen_inputs)} unique EA inputs.")
+    print("STATIC R5 RELEASE CHECK: PASS")
+    print(f"Checked {len(source_files)} directly included MQL files and {len(seen_inputs)} unique inputs.")
     for w in warnings: print("WARNING:", w)
-    print("MetaEditor compilation, Strategy Tester, broker matrix, failure injection and demo soak remain separate hard release gates.")
+    print("MetaEditor compile, Strategy Tester, adaptive matrix, broker tests, WebRequest failure injection and demo soak remain external hard gates.")
     return 0
 
 

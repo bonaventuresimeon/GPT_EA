@@ -4,7 +4,11 @@ This document records the current GPT_EA Actions failure mode and the release-sa
 
 ## Current observed failure signature
 
-Affected workflow: `GPT_EA Static Release Gate`
+Affected workflows:
+
+- `GPT_EA Static Release Gate`
+- `GPT_EA Runner Provisioning Probe`
+
 Runner label: `ubuntu-latest`
 
 Observed API state on failed attempts:
@@ -15,36 +19,78 @@ Observed API state on failed attempts:
 - `runner_name = ""`;
 - `runner_group_id = 0`;
 - `steps = []`;
-- no `Set up job`, checkout, Python setup, or repository script step executes;
+- no `Set up job`, checkout, Python setup, repository script step or even a plain shell step executes;
 - downloadable job logs are unavailable.
 
 This signature means the failure occurs **before GitHub assigns a hosted runner**. It is not evidence that `tools/check_mql_static.py` or `tools/check_release_certification.py` failed, because neither script has started.
+
+## Minimal no-action probe result
+
+A separate diagnostic workflow was added at:
+
+`.github/workflows/runner-probe.yml`
+
+It deliberately uses **no external GitHub Action at all**. It contains only a native shell `run:` step on `ubuntu-latest`.
+
+Observed probe result:
+
+- workflow run ID: `35275383852`;
+- job ID: `105384628531`;
+- conclusion: `failure`;
+- duration: about 3 seconds;
+- `runner_id = 0`;
+- `runner_name = ""`;
+- `steps = []`.
+
+Therefore the current failure is **not caused by**:
+
+- `actions/checkout` policy;
+- `actions/setup-python` policy;
+- `actions/upload-artifact` policy;
+- repository Python scripts;
+- the GPT_EA static checker;
+- workflow shell syntax inside a normal job step.
+
+The job never reaches a runner where any of those could execute.
+
+## Repository Actions-policy conclusion
+
+The repository is functionally capable of creating Actions runs: push-triggered workflows are created and failed jobs can be re-run through the GitHub API. The minimal no-action workflow is also discovered and instantiated by GitHub.
+
+That makes a repository-level third-party action allow-list restriction an implausible explanation for the current failure. Even a workflow containing no marketplace/reusable actions receives no hosted runner.
+
+The remaining failure domain is therefore **hosted-runner allocation at the account/service entitlement layer** or an equivalent GitHub backend provisioning restriction.
 
 ## Platform-status check
 
 Before treating this as an account problem, check `https://www.githubstatus.com/` and confirm the Actions component is operational. If GitHub reports an active Actions incident, do not modify repository logic merely to work around a platform outage.
 
-## Account/billing checks
+At the time of this investigation GitHub Actions was reported operational, so no platform-wide incident explained the failures.
 
-For a personal repository, inspect the authenticated account that owns the repository:
+## Billing-hold conclusion
 
-1. GitHub → Settings.
-2. Billing & licensing.
-3. Usage.
-4. Budgets and alerts.
-5. Payment information / payment history if shown.
+The connected GitHub API does not expose the owner's private billing ledger, invoices, card state, Actions budget values or internal entitlement flags. Therefore the repository API can prove that hosted-runner allocation is blocked, but it **cannot reveal which private billing flag GitHub has set**.
 
-Verify all of the following:
+The observed signature is consistent with GitHub's documented/community-reported billing/entitlement failure class in which jobs fail before hosted-runner allocation because of one of the following:
 
-- no failed or past-due payment;
-- no account-level billing hold;
-- no Actions budget with `Stop usage when budget limit is reached` already triggered;
-- no metered-product budget set to zero in a way that blocks hosted compute;
-- no payment method requiring re-verification;
-- repository Actions are enabled under `Settings → Actions → General`;
-- allowed-actions policy permits `actions/checkout`, `actions/setup-python`, and `actions/upload-artifact`.
+- a failed or past-due payment;
+- an Actions/meters budget or spending cap that has stopped usage;
+- a zero/insufficient spending limit;
+- a payment method/account requiring billing re-validation;
+- a GitHub backend billing-entitlement state that remains locked even after visible billing settings are corrected.
 
-Although standard GitHub-hosted runners are normally free for public repositories, GitHub can still refuse hosted-runner allocation when the account has a billing/entitlement hold. Do not assume a public repository makes an account-level hold impossible.
+Because this is a personal repository, organization/enterprise billing inheritance is not the likely scope.
+
+### What must be checked in the private Billing UI
+
+GitHub → **Settings → Billing & licensing**:
+
+1. **Usage** — inspect Actions/meters usage and any stopped meter.
+2. **Budgets and alerts** — verify no applicable budget has `Stop usage when budget limit is reached` active at/above its limit and no relevant budget is effectively zero.
+3. **Payment information / payment history** — confirm there is no failed, declined, pending or past-due payment and no verification warning.
+4. Inspect any account-level warning banner indicating that metered services or Actions are suspended.
+
+If those pages are clean but the minimal runner probe still returns `runner_id=0`, open a GitHub Support ticket and request that GitHub verify/clear the hosted-runner billing entitlement for the personal account.
 
 ## How to distinguish workflow failure from provisioning failure
 
@@ -53,7 +99,7 @@ Although standard GitHub-hosted runners are normally free for public repositorie
 - runner ID is zero;
 - runner name is empty;
 - step array is empty;
-- failure occurs before checkout;
+- failure occurs before checkout or any shell command;
 - no job log is generated.
 
 ### Repository/workflow failure
@@ -92,27 +138,30 @@ This offline fallback does **not** replace:
 - stop-management tests;
 - demo-soak acceptance.
 
-## Recovery procedure after billing/policy repair
+## Recovery procedure after billing/entitlement repair
 
-1. Re-run the failed GitHub Actions job or start `GPT_EA Static Release Gate` manually.
-2. Confirm `runner_id` becomes non-zero.
-3. Confirm `Set up job`, checkout, Python setup and checker steps appear.
-4. If the workflow then fails, inspect `static-check.txt` and fix the actual repository issue.
-5. Do not set release evidence flags to PASS merely because runner provisioning was restored.
+1. Run `GPT_EA Runner Provisioning Probe` manually first.
+2. Confirm `runner_id` becomes non-zero and its shell step appears.
+3. Run `GPT_EA Static Release Gate` manually.
+4. Confirm `Set up job`, checkout, Python setup and checker steps appear.
+5. If the static workflow then fails, inspect `static-check.txt` and fix the actual repository issue.
+6. Do not set release evidence flags to PASS merely because runner provisioning was restored.
 
 ## Support evidence bundle
 
 If GitHub billing/settings appear healthy but hosted jobs still fail before allocation, provide GitHub Support:
 
+- account owner: `bonaventuresimeon`;
 - repository: `bonaventuresimeon/GPT_EA`;
-- workflow name;
-- run URL;
-- run ID;
-- job ID;
+- standard workflow name and run ID;
+- minimal probe workflow name and run ID `35275383852`;
+- minimal probe job ID `105384628531`;
 - UTC start/completion times;
 - runner label `ubuntu-latest`;
-- API evidence showing `runner_id=0`, empty runner name and `steps=[]`;
-- screenshot of Actions budget/payment status;
-- screenshot of repository `Settings → Actions → General`.
+- API evidence showing `runner_id=0`, empty runner name and `steps=[]` on a workflow containing no external actions;
+- screenshot of Billing & licensing → Usage;
+- screenshot of Budgets and alerts;
+- screenshot of payment/payment-history state;
+- screenshot of repository `Settings → Actions → General` if needed.
 
-That evidence distinguishes a backend hosted-runner entitlement/provisioning problem from a repository workflow failure.
+The no-action probe is particularly useful because it demonstrates that the block occurs before any repository code or third-party action is involved.

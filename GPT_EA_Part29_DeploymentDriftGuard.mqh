@@ -195,6 +195,14 @@ void AdvancedSafetyTimerR4()
    RefreshR4ReleaseState();
 }
 
+void StopFailureObservabilityInitR4()
+{
+   StopFailureObservabilityInit();
+   ReleaseCertificationInit();
+   if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();
+   RefreshR4ReleaseState();
+}
+
 void DeploymentDriftGuardInit()
 {
    if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();

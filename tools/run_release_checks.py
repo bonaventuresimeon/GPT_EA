@@ -26,6 +26,7 @@ CHECKS = [
     ROOT / "tools" / "check_legal_rollout_static.py",
     ROOT / "tools" / "check_documentation_branding.py",
     ROOT / "tools" / "check_r10_privacy_compile.py",
+    ROOT / "tools" / "check_architecture_release_truth.py",
 ]
 
 

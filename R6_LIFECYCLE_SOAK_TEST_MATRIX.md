@@ -223,3 +223,34 @@ This matrix is release blocking for the stale-approval lifecycle fix and the R6 
 ## R6 PASS rule
 
 This matrix passes only when stale human approval waits cannot remain orphaned, legitimate market-confirmation waits are preserved, Part36 produces reproducible evidence on the exact demo candidate, the machine snapshot reconciles to the human report, schema/digest validators pass, every zero-tolerance field is reconciled, and Part28 remains fail-closed until all R6 release evidence and final GO review are complete.
+
+
+## K. Per-day reconciliation acceptance v2
+
+### DS-090 missing day checklist
+- Finalize a five-day record with one missing `reconciliation_checklist_path` or missing file.
+- Verify `tools/validate_five_day_soak_record.py` fails.
+
+### DS-091 checklist not accepted
+- Use an otherwise complete checklist that still says `HOLD DAY / ACCEPT DAY` or `HOLD DAY`.
+- Verify validation fails until the completed artifact contains literal `Decision: **ACCEPT DAY**`.
+
+### DS-092 checklist candidate/date mismatch
+- Put a different day date or candidate Git SHA in a day checklist.
+- Verify validation fails.
+
+### DS-093 unreconciled machine day
+- Set `day_reconciled=false`, blank `reconciled_by`, or blank `reconciled_at`.
+- Verify validation fails.
+
+### DS-094 duplicate checklist path
+- Point two accepted days at the same checklist file.
+- Verify validation fails.
+
+### DS-095 complete five-day reconciliation v2
+- Provide five unique dated checklists, matching candidate/date, literal `ACCEPT DAY`, reviewer and timestamp.
+- Verify the five-day record finalizes and `demo_soak.acceptance_record_schema_version=five_day_soak_acceptance_v2`.
+
+### DS-096 v1 downgrade attempt
+- Replace the acceptance record/schema field with `five_day_soak_acceptance_v1`.
+- Verify soak/release validators and Part28B supplemental gate reject it.

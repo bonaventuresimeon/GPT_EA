@@ -15,6 +15,7 @@ COMPILE_DOC = (ROOT / "METAEDITOR_COMPILE_GATE.md").read_text(encoding="utf-8")
 SOAK_DOC = (ROOT / "DEMO_SOAK_ACCEPTANCE.md").read_text(encoding="utf-8")
 GO_NO_GO = (ROOT / "RELEASE_GO_NO_GO.md").read_text(encoding="utf-8")
 DRIFT_DOC = (ROOT / "DEPLOYMENT_DRIFT_TESTS.md").read_text(encoding="utf-8")
+EVIDENCE_DOC = (ROOT / "RELEASE_EVIDENCE_VALIDATION.md").read_text(encoding="utf-8")
 MANIFEST = (ROOT / "RELEASE_EVIDENCE_MANIFEST.md").read_text(encoding="utf-8")
 TEMPLATE_PATH = ROOT / "RELEASE_EVIDENCE_TEMPLATE.json"
 VALIDATOR_PATH = ROOT / "tools" / "validate_release_evidence.py"
@@ -130,6 +131,7 @@ required_docs = {
     "DEMO_SOAK_ACCEPTANCE.md": SOAK_DOC,
     "RELEASE_GO_NO_GO.md": GO_NO_GO,
     "DEPLOYMENT_DRIFT_TESTS.md": DRIFT_DOC,
+    "RELEASE_EVIDENCE_VALIDATION.md": EVIDENCE_DOC,
 }
 for name, text in required_docs.items():
     if len(text.strip()) < 200:
@@ -162,8 +164,9 @@ for token in [
     "adaptive portfolio",
     "champion/challenger",
     "lifecycle",
+    "release-evidence-validation.txt",
 ]:
-    if token.lower() not in (COMPILE_DOC + "\n" + SOAK_DOC + "\n" + GO_NO_GO + "\n" + MANIFEST).lower():
+    if token.lower() not in (COMPILE_DOC + "\n" + SOAK_DOC + "\n" + GO_NO_GO + "\n" + EVIDENCE_DOC + "\n" + MANIFEST).lower():
         errors.append(f"R5 release contracts missing expected evidence concept: {token}")
 
 if errors:

@@ -11,7 +11,7 @@ input bool   InpReleaseMetaEditorCompilePassed       = false;
 input bool   InpReleaseStrategyTesterPassed          = false;
 input bool   InpReleaseBrokerMatrixPassed            = false;
 input bool   InpReleaseRecoveryTestsPassed           = false;
-input bool   InpReleaseStopMatrixPassed               = false;
+input bool   InpReleaseStopMatrixPassed              = false;
 input bool   InpReleasePartialProtectionPassed       = false;
 input bool   InpReleaseWebFailureInjectionPassed     = false;
 input bool   InpReleaseDemoSoakPassed                = false;
@@ -113,4 +113,10 @@ void ReleaseCertificationInit()
    string why="";
    bool ok=ReleaseEvidenceAllows(why);
    Print("GPT_EA release certification: ",ok?"PASS - ":"BLOCK - ",why);
+}
+
+void StopFailureObservabilityInitCertified()
+{
+   StopFailureObservabilityInit();
+   ReleaseCertificationInit();
 }

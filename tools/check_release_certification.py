@@ -44,7 +44,7 @@ required_false_flags = [
 for name in required_false_flags:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28):
         errors.append(f"release evidence flag must default false: {name}")
-for name in ["InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"]:
+for name in ["InpReleaseRunnerRecoveryPassed", "InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"]:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28B):
         errors.append(f"{name} must default false")
 if not re.search(r"input\s+bool\s+InpReleaseAPITransportPassed\s*=\s*false\s*;", PART37):
@@ -62,9 +62,9 @@ for token in ["ReleaseArtifactIdentityAllows", "ReleaseDemoSoakEvidenceAllows", 
 for token in ["CaptureDeploymentBaseline", "StructuralSymbolDriftAllows", "DeploymentDriftAllows", "ReleaseSafetyAllowsR6", "RefreshR6ReleaseState"]:
     if token not in PART29: errors.append(f"Part29 missing deployment-drift token: {token}")
 for token in [
-    "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
-    "ReleaseCIStaticEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
-    "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted", "InpReleaseCIAttestationVerified",
+    "GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA", "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
+    "ReleaseRunnerRecoveryEvidenceAllows", "ReleaseCIStaticEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
+    "InpReleaseRunnerRecoveryEvidenceId", "InpReleaseRunnerRecoveryDigest", "InpReleaseSoakAcceptanceSchemaVersion",\n    "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted", "InpReleaseCIAttestationVerified",
     "InpReleaseCIBundleSchemaVersion", "InpReleaseCIBundleDigest", "InpReleaseCIBundleValidated",
     "InpReleaseSoakAcceptanceRecordDigest", "GPT_EA_R6SupplementalEvidence.csv",
 ]:
@@ -82,7 +82,7 @@ for token in [
 
 docs = [
     "RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
-    "CI_EVIDENCE_CONTRACT.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
+    "CI_EVIDENCE_CONTRACT.md", "RUNNER_RECOVERY_EVIDENCE.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "SOAK_DAY_RECONCILIATION_CHECKLIST.md",
     "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md", "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md",
     "RELEASE_EVIDENCE_MANIFEST.md", "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md",
 ]
@@ -105,11 +105,11 @@ else:
         if ci.get("bundle_schema_version") != "ci_evidence_bundle_v1": errors.append("release template missing CI bundle schema")
         for key in ("job_metadata_path", "bundle_manifest_path", "bundle_digest", "bundle_validated", "bundle_validation_path"):
             if key not in ci: errors.append(f"release template ci_static missing {key}")
-        if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
+        if template.get("gates", {}).get("runner_recovery") is not False: errors.append("release template runner_recovery gate must default false")\n        rr = template.get("runner_recovery", {})\n        if rr.get("schema_version") != "runner_recovery_evidence_v1": errors.append("release template missing runner recovery schema")\n        if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
         if template.get("api_transport", {}).get("schema_version") != "api_transport_evidence_v1": errors.append("release template missing API transport evidence schema")
         if template.get("gates", {}).get("api_transport") is not False: errors.append("release template api_transport gate must default false")
         soak = template.get("demo_soak", {})
-        for key in ("acceptance_record_id", "acceptance_record_digest", "acceptance_record_path"):
+        if soak.get("acceptance_record_schema_version") != "five_day_soak_acceptance_v2": errors.append("release template demo_soak must bind five_day_soak_acceptance_v2")\n        for key in ("acceptance_record_id", "acceptance_record_digest", "acceptance_record_path"):
             if key not in soak: errors.append(f"release template demo_soak missing {key}")
     except Exception as exc: errors.append(f"RELEASE_EVIDENCE_TEMPLATE.json invalid: {exc}")
 
@@ -118,10 +118,10 @@ if not record_template.exists(): errors.append("FIVE_DAY_SOAK_ACCEPTANCE_TEMPLAT
 else:
     try:
         rt = json.loads(record_template.read_text(encoding="utf-8"))
-        if rt.get("schema_version") != "five_day_soak_acceptance_v1": errors.append("five-day template schema mismatch")
+        if rt.get("schema_version") != "five_day_soak_acceptance_v2": errors.append("five-day template schema mismatch")
         if len(rt.get("days", [])) != 5: errors.append("five-day template must contain exactly five day rows")
         if rt.get("operator_review", {}).get("decision") != "HOLD": errors.append("five-day template must default operator decision to HOLD")
-        if not str(rt.get("operator_record_path", "")).strip(): errors.append("five-day template must reference operator_record_path")
+        if not str(rt.get("operator_record_path", "")).strip(): errors.append("five-day template must reference operator_record_path")\n        for i, day in enumerate(rt.get("days", []), start=1):\n            for key in ("reconciliation_checklist_path", "day_reconciled", "reconciled_by", "reconciled_at"):\n                if key not in day: errors.append(f"five-day template day {i} missing {key}")
     except Exception as exc: errors.append(f"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json invalid: {exc}")
 
 final_template = ROOT / "FINAL_RELEASE_REVIEW_TEMPLATE.json"
@@ -143,7 +143,7 @@ for path_name, expected in [
     ("SOAK_EVIDENCE_SCHEMA.json", "demo_soak_evidence_v1"),
     ("CI_EVIDENCE_SCHEMA.json", "github_actions_static_evidence_v1"),
     ("CI_EVIDENCE_BUNDLE_SCHEMA.json", "ci_evidence_bundle_v1"),
-    ("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json", "five_day_soak_acceptance_v1"),
+    ("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json", "five_day_soak_acceptance_v2"),\n    ("RUNNER_RECOVERY_EVIDENCE_SCHEMA.json", "runner_recovery_evidence_v1"),
 ]:
     p = ROOT / path_name
     if not p.exists(): errors.append(f"missing schema: {path_name}"); continue
@@ -172,7 +172,7 @@ for path_name, tokens in {
     "tools/build_ci_bundle_manifest.py": ["ci_evidence_bundle_v1", "CI ATTESTATION VERIFY: PASS", "bundle_digest"],
     "tools/validate_ci_bundle.py": ["validate_bundle", "ci_evidence_bundle_v1", "attestation_verified", "CI BUNDLE VALIDATION"],
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
-    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "operator_record_path", "record_digest"],
+    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],\n    "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
     "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"ci_static": data.get("ci_static", {})', '"api_transport": data.get("api_transport", {})', "ci_bundle_pass", "five_day_operator_record_complete"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
@@ -184,7 +184,7 @@ for path_name, tokens in {
         if token not in text: errors.append(f"{path_name} missing required token: {token}")
 
 for concept in [
-    "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "artifact attestation", "CI evidence bundle",
+    "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "runner recovery", "soak-day reconciliation", "artifact attestation", "CI evidence bundle",
     "five-day", "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy",
 ]:
     if concept.lower() not in combined.lower(): errors.append(f"release docs missing concept: {concept}")

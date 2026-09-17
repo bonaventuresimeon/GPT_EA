@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `DEMO_SOAK_EVIDENCE.md`
+
+---
+
 # GPT_EA R6 Demo-Soak Evidence Contract
 
 This document defines how the R6 demo-soak evidence is produced, reconciled, hashed and promoted into release evidence. It complements `DEMO_SOAK_ACCEPTANCE.md`, `SOAK_EVIDENCE_SCHEMA.json`, `GPT_EA_Part36_DemoSoakEvidence.mqh` and the release gate in `GPT_EA_Part28_ReleaseCertification.mqh`.

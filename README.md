@@ -205,6 +205,16 @@ Full-intelligence modules:
 - `GPT_EA_Part20_RealisticCostModel.mqh` — commission, spread, slippage and partial-weighted realistic R:R
 - `GPT_EA_Part00_ForwardDeclarations.mqh` — compile-order declarations for cross-module hooks
 
+Governance/release modules:
+
+- `GPT_EA_Part28_ReleaseCertification.mqh` — base machine-readable release certification and artifact identity.
+- `GPT_EA_Part29_DeploymentDriftGuard.mqh` — broker/server/account/symbol structural drift protection.
+- `GPT_EA_Part37_APITransport.mqh` — direct/proxy OpenAI WebRequest transport and failure/backoff policy.
+- `GPT_EA_Part38_LegalLicenseGate.mqh` — commercial terms/license acknowledgement.
+- `GPT_EA_Part39_CustomerRiskAcknowledgement.mqh` — versioned customer trading-risk acknowledgement.
+- `GPT_EA_Part40_PrivacyReleaseGate.mqh` — **R10 jurisdiction-bound privacy release sign-off**.
+
+
 ## Decision model
 
 The EA is designed to return one of three operational states:
@@ -536,7 +546,7 @@ Customer distribution is supported by:
 - `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md`
 - `CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md`
 
-The R9 customer-risk acknowledgement gate sits on top of the R8 legal gate and existing R7 API/release gate. REAL-account new entries remain blocked until the customer explicitly accepts the current commercial terms and trading-risk disclosure, enters the exact acknowledgement phrase, and supplies the issued license reference. Demo/Strategy Tester remain available for evaluation. Legal/license failure must never be used to weaken management of already-open positions.
+The R10 privacy sign-off gate sits on top of R9 customer-risk acknowledgement, R8 legal/license acknowledgement and the R7 API/release guard. REAL-account new entries remain blocked until the customer legal/risk acknowledgements are valid **and** the release has a jurisdiction-matched privacy sign-off with zero unresolved critical privacy findings. Demo/Strategy Tester remain available for evaluation. Governance failure must never weaken management of already-open positions.
 
 ## Documentation architecture
 

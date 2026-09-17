@@ -1,6 +1,7 @@
 // ============================================================================
 // GPT_EA Part 34 - Strategy health dashboard and adaptive telemetry
 // ============================================================================
+// Strategy health status contract: ACTIVE / REDUCED_RISK / SHADOW / DISABLED.
 
 input bool   InpShowStrategyHealthDashboard       = true;
 input bool   InpWriteStrategyHealthJournal        = true;

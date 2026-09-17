@@ -10,6 +10,7 @@ void DeletePending(const int idx,const string reason)
    if(StringFind(reason,"denied")>=0 || StringFind(reason,"timeout")>=0)
       MarkSignalCooldown(sym);
    PersistPendingApprovals();
+   UniversalCheckpointNow();
    PrintFormat("%s pending setup deleted: %s",sym,reason);
    if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
       SendNotification(StringFormat("%s pending setup deleted: %s",sym,reason));
@@ -35,6 +36,7 @@ void QueueForApproval(const TradeSetup &s,const string card,const string scanRea
    g_pending[idx].createdAt=now;
    g_pending[idx].expiresAt=now+timeout;
    PersistPendingApprovals();
+   UniversalCheckpointNow();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -62,6 +64,11 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
    if(!M5Trigger(s)){ why="M5 execution trigger is no longer present."; return false; }
 
    TradeSetup live=s;
+   live.sl=NormalizePriceToTick(live.symbol,live.sl);
+   live.tp1=NormalizePriceToTick(live.symbol,live.tp1);
+   live.tp2=NormalizePriceToTick(live.symbol,live.tp2);
+   live.tp3=NormalizePriceToTick(live.symbol,live.tp3);
+
    ConfluenceReport fresh=EvaluateConfluence(live);
    if(InpUseAdvancedConfluence && !fresh.valid)
    {
@@ -97,6 +104,15 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
       why="Risk authorization failed: "+riskWhy;
       return false;
    }
+
+   double rm=0,ol=0;
+   double lots=LotSizeForRisk(live,rm,ol);
+   string brokerWhy="";
+   if(lots<=0 || !BrokerExecutionAllows(live,lots,brokerWhy))
+   {
+      why="Broker execution validation failed: "+brokerWhy;
+      return false;
+   }
    return true;
 }
 
@@ -112,6 +128,7 @@ void ApprovePending(const int idx)
    TradeSetup s=g_pending[idx].setup;
    g_pending[idx].active=false;
    PersistPendingApprovals();
+   UniversalCheckpointNow();
    RenderApprovalPrompt();
    StyleApprovalUI();
 
@@ -190,6 +207,8 @@ void ScanSymbol(const string sym,const string scanReason)
    card+="Institutional validation: "+primaryInstitutional+"\n";
    card+="Pullback institutional: "+pbInstitutional+"\n";
    card+="Breakout institutional: "+brInstitutional+"\n";
+   card+="Broker environment: "+BrokerEnvironmentSummary()+"\n";
+   card+="Broker symbol profile: "+SymbolProfileSummary(sym)+"\n";
 
    bool aiAvailable=false;
    string aiAnswer="",aiError="";
@@ -213,15 +232,22 @@ void ScanSymbol(const string sym,const string scanReason)
 
    string riskWhy="";
    bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
+   double previewRisk=0,previewOneLot=0;
+   double previewLots=LotSizeForRisk(primary,previewRisk,previewOneLot);
+   string brokerWhy="";
+   bool brokerAllows=(previewLots>0 && BrokerExecutionAllows(primary,previewLots,brokerWhy));
+   if(previewLots<=0) brokerWhy="Preview lot calculation returned zero.";
+
    bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
    bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
-                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows);
+                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows && brokerAllows);
    bool approvalReady=(hardValid && readyNow);
 
    string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
    card+="\n"+filterState+"\n";
    card+="AI execution gate: "+aiGateWhy+"\n";
    card+="Portfolio/risk gate: "+riskWhy+"\n";
+   card+="Broker execution gate: "+brokerWhy+"\n";
    card+=StringFormat("Current GPT_EA portfolio risk: %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
                       CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),ConsecutiveLosses());
    card+=StringFormat("Dynamic slippage ceiling: %d points | dynamic effective R:R: %.2f\n",
@@ -263,12 +289,19 @@ int OnInit()
       Print("No symbols configured.");
       return INIT_PARAMETERS_INCORRECT;
    }
+   if(!ResolveConfiguredSymbolsUniversal())
+   {
+      Print("No configured symbols could be resolved on this broker.");
+      return INIT_PARAMETERS_INCORRECT;
+   }
 
+   PrintResolvedBrokerProfiles();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();
+   UniversalRecoveryInit();
 
    Print("GPT_EA Advanced initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
@@ -285,12 +318,14 @@ int OnInit()
    RenderApprovalPrompt();
    StyleApprovalUI();
    UpdateRiskAnalyticsPanel();
+   UniversalCheckpointNow();
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   UniversalRecoveryShutdown();
    RiskRecoveryShutdown();
    DeleteApprovalObjects();
    DeleteAdvancedDashboard();
@@ -302,6 +337,7 @@ void OnTimer()
    ManagePositions();
    ProcessApprovalTimeouts();
    RiskRecoveryTimer();
+   UniversalRecoveryTimer();
    StyleApprovalUI();
 
    string why="";
@@ -322,6 +358,7 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    {
       ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
       ToggleTradingPause();
+      UniversalCheckpointNow();
       UpdateRiskAnalyticsPanel();
       if(g_manualPaused)
       {

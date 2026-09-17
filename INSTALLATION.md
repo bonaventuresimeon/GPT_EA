@@ -4,6 +4,11 @@ New users should follow the complete step-by-step guide in:
 
 **`USER_INSTALLATION_GUIDE.md`**
 
+Also use:
+
+- **`FIRST_RUN_CHECKLIST.md`** — first-launch PASS/FAIL checklist.
+- **`API_KEY_TROUBLESHOOTING.md`** — safe API/WebRequest troubleshooting without sharing secrets.
+
 The standard customer setup is:
 
 ```text
@@ -38,6 +43,7 @@ InpUseOpenAI = true
 InpAPITransportMode = GPT_API_DIRECT_OPENAI
 InpOpenAIAPIKey = <YOUR OWN SECRET API KEY>
 InpOpenAIEndpoint = https://api.openai.com/v1/responses
+InpOpenAIModel = gpt-5.6-luna   # or gpt-5.6-terra / gpt-5.6-sol / gpt-6-astra
 InpRequireApproval = true
 ```
 
@@ -75,7 +81,7 @@ For troubleshooting, share only redacted Journal/Experts output, HTTP status/err
 
 ## Full guide
 
-Read **`USER_INSTALLATION_GUIDE.md`** before first use, especially the sections on:
+Read **`USER_INSTALLATION_GUIDE.md`**, **`FIRST_RUN_CHECKLIST.md`**, and **`API_KEY_TROUBLESHOOTING.md`** before first live use. The full guide covers:
 
 - OpenAI account/billing setup;
 - API key creation and security;

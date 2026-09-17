@@ -1,5 +1,5 @@
 {
-  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R5_20260917",
+  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
   "build": {
     "git_sha": "0000000000000000000000000000000000000000",
     "ex5_path": "artifacts/GPT_EA.ex5",
@@ -22,7 +22,11 @@
     "symbols": []
   },
   "demo_soak": {
+    "schema_version": "demo_soak_evidence_v1",
     "evidence_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "start": "",
+    "end": "",
     "trading_days": 5,
     "london_sessions": 3,
     "ny_sessions": 3,
@@ -31,11 +35,26 @@
     "rollover_observed": true,
     "restart_observed": true,
     "reconnect_observed": true,
+    "scheduled_scans": 1,
+    "continuous_scans": 1,
+    "checkpoint_updates": 1,
+    "backup_checkpoint_updates": 1,
     "zero_tolerance_failures": 0,
     "unresolved_critical_states": 0,
-    "start": "",
-    "end": "",
-    "report_path": ""
+    "duplicate_orders": 0,
+    "duplicate_partials": 0,
+    "sl_regressions": 0,
+    "unprotected_new_authorizations": 0,
+    "release_gate_bypasses": 0,
+    "analytics_duplicate_finalizations": 0,
+    "stop_failure_join_failures": 0,
+    "dashboard_gate_mismatches": 0,
+    "runtime_critical_errors": 0,
+    "secrets_exposed": 0,
+    "execution_log_present": true,
+    "stop_log_present": true,
+    "release_evidence_log_present": true,
+    "report_path": "artifacts/demo-soak-report.md"
   },
   "gates": {
     "metaeditor_compile": false,
@@ -57,5 +76,13 @@
     "web_failure_injection": false,
     "demo_soak": false,
     "operator_review": false
+  },
+  "final_review": {
+    "schema_version": "final_release_review_v1",
+    "review_evidence_id": "",
+    "review_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "decision": "HOLD",
+    "reviewer": "",
+    "review_timestamp": ""
   }
 }

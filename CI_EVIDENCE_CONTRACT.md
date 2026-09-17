@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `CI_EVIDENCE_CONTRACT.md`
+
+---
+
 # GPT_EA Executed CI Evidence Contract
 
 This contract defines the GitHub Actions evidence required by the R6 base release and the current supplemental release-safety stack. It is intentionally fail-closed: a created workflow run is not CI evidence unless GitHub assigned a runner and the required steps actually executed.

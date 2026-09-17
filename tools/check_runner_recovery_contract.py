@@ -14,7 +14,9 @@ required=[
     "RUNNER_RECOVERY_EVIDENCE.md",
     "RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json",
     "RUNNER_RECOVERY_EVIDENCE_SCHEMA.json",
-    "tools/validate_runner_recovery_evidence.py",\n    "tools/build_runner_recovery_evidence.py",\n    "RUNNER_RECOVERY_TEST_MATRIX.md",
+    "tools/validate_runner_recovery_evidence.py",
+    "tools/build_runner_recovery_evidence.py",
+    "RUNNER_RECOVERY_TEST_MATRIX.md",
     "GPT_EA_Part28B_CIReleaseEvidence.mqh",
     "RELEASE_EVIDENCE_TEMPLATE.json",
 ]

@@ -6,9 +6,10 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 
+from validate_api_transport_evidence import validate_api_transport
+from validate_ci_bundle import validate_bundle
 from validate_ci_evidence import validate_ci_value
 from validate_five_day_soak_record import validate_record
 from validate_soak_evidence import validate_soak
@@ -54,13 +55,13 @@ def require(errors: list[str], cond: bool, msg: str) -> None:
         errors.append(msg)
 
 
-def validate_ci_release_record(ci: dict, build_sha: str) -> list[str]:
+def validate_ci_release_record(ci: dict, build_sha: str) -> tuple[list[str], str]:
     errors: list[str] = []
     require(errors, ci.get("schema_version") == "github_actions_static_evidence_v1",
             "ci_static.schema_version must be github_actions_static_evidence_v1")
     for key in ("run_id", "run_attempt", "job_id", "runner_id", "steps_executed"):
         try:
-            value = int(ci.get(key, 0))
+            value = int(ci.get(key, 0) or 0)
         except Exception:
             value = 0
         require(errors, value > 0, f"ci_static.{key} must be > 0")
@@ -77,8 +78,16 @@ def validate_ci_release_record(ci: dict, build_sha: str) -> list[str]:
     require(errors, len(str(ci.get("artifact_name", "")).strip()) >= 8, "ci_static.artifact_name is required")
     require(errors, int(ci.get("run_id", 0) or 0) and str(ci.get("run_id")) in str(ci.get("run_url", "")),
             "ci_static.run_url must reference ci_static.run_id")
+    require(errors, int(ci.get("job_id", 0) or 0) and str(ci.get("job_id")) in str(ci.get("job_url", "")),
+            "ci_static.job_url must reference ci_static.job_id")
     expected_digest = str(ci.get("evidence_digest", ""))
     require(errors, bool(HEX64.fullmatch(expected_digest)), "ci_static.evidence_digest must be 64 hexadecimal characters")
+
+    metadata_raw = str(ci.get("job_metadata_path", "")).strip()
+    require(errors, bool(metadata_raw), "ci_static.job_metadata_path is required")
+    metadata_path = resolve(metadata_raw) if metadata_raw else None
+    if metadata_path is not None:
+        require(errors, metadata_path.exists(), f"CI job metadata file not found: {metadata_path}")
 
     evidence_raw = str(ci.get("evidence_path", "")).strip()
     require(errors, bool(evidence_raw), "ci_static.evidence_path is required")
@@ -88,13 +97,19 @@ def validate_ci_release_record(ci: dict, build_sha: str) -> list[str]:
         if evidence_path.exists():
             try:
                 value = json.loads(evidence_path.read_text(encoding="utf-8"))
-                ci_errors, digest = validate_ci_value(value, expected_sha=build_sha)
+                ci_errors, digest = validate_ci_value(
+                    value,
+                    expected_sha=build_sha,
+                    job_metadata=metadata_path if metadata_path and metadata_path.exists() else None,
+                )
                 errors.extend(f"ci_static evidence: {e}" for e in ci_errors)
                 require(errors, digest.lower() == expected_digest.lower(),
                         "ci_static.evidence_digest does not match ci-evidence.json")
-                for key in ("run_id", "run_attempt", "head_sha", "runner_name"):
+                for key in ("run_id", "run_attempt", "job_id", "runner_id", "steps_executed", "head_sha", "runner_name"):
                     if str(ci.get(key, "")) != str(value.get(key, "")):
                         errors.append(f"ci_static.{key} does not match ci-evidence.json")
+                if str(ci.get("conclusion", "")) != str(value.get("static_job_conclusion", "")):
+                    errors.append("ci_static.conclusion does not match ci-evidence static_job_conclusion")
             except Exception as exc:
                 errors.append(f"could not validate ci_static.evidence_path: {exc}")
 
@@ -104,13 +119,51 @@ def validate_ci_release_record(ci: dict, build_sha: str) -> list[str]:
         verify_path = resolve(verify_raw)
         require(errors, verify_path.exists(), f"CI attestation verification output not found: {verify_path}")
         if verify_path.exists():
-            text = verify_path.read_text(encoding="utf-8", errors="replace").strip()
-            require(errors, len(text) >= 20, "CI attestation verification output is empty/too short")
-    return errors
+            text = verify_path.read_text(encoding="utf-8", errors="replace")
+            require(errors, "CI ATTESTATION VERIFY: PASS" in text,
+                    "CI attestation verification output does not contain PASS marker")
+
+    require(errors, ci.get("bundle_schema_version") == "ci_evidence_bundle_v1",
+            "ci_static.bundle_schema_version must be ci_evidence_bundle_v1")
+    expected_bundle_digest = str(ci.get("bundle_digest", ""))
+    require(errors, bool(HEX64.fullmatch(expected_bundle_digest)),
+            "ci_static.bundle_digest must be 64 hexadecimal characters")
+    require(errors, ci.get("bundle_validated") is True, "ci_static.bundle_validated must be true")
+
+    bundle_digest = ""
+    bundle_raw = str(ci.get("bundle_manifest_path", "")).strip()
+    require(errors, bool(bundle_raw), "ci_static.bundle_manifest_path is required")
+    if bundle_raw:
+        bundle_path = resolve(bundle_raw)
+        require(errors, bundle_path.exists(), f"CI bundle manifest not found: {bundle_path}")
+        if bundle_path.exists():
+            try:
+                manifest = json.loads(bundle_path.read_text(encoding="utf-8"))
+                bundle_errors, bundle_digest = validate_bundle(manifest, bundle_path.parent, expected_sha=build_sha)
+                errors.extend(f"ci_static bundle: {e}" for e in bundle_errors)
+                require(errors, bundle_digest.lower() == expected_bundle_digest.lower(),
+                        "ci_static.bundle_digest does not match ci-bundle-manifest.json")
+                for key in ("run_id", "run_attempt", "job_id", "runner_id", "steps_executed"):
+                    if str(ci.get(key, "")) != str(manifest.get(key, "")):
+                        errors.append(f"ci_static.{key} does not match CI bundle manifest")
+                require(errors, str(ci.get("artifact_name", "")) == str(manifest.get("artifact_name", "")),
+                        "ci_static.artifact_name does not match CI bundle manifest")
+            except Exception as exc:
+                errors.append(f"could not validate CI bundle manifest: {exc}")
+
+    bundle_validation_raw = str(ci.get("bundle_validation_path", "")).strip()
+    require(errors, bool(bundle_validation_raw), "ci_static.bundle_validation_path is required")
+    if bundle_validation_raw:
+        p = resolve(bundle_validation_raw)
+        require(errors, p.exists(), f"CI bundle validation output not found: {p}")
+        if p.exists():
+            require(errors, "CI BUNDLE VALIDATION: PASS" in p.read_text(encoding="utf-8", errors="replace"),
+                    "CI bundle validation output does not contain PASS marker")
+    return errors, bundle_digest
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Validate GPT_EA R6 compile/CI/demo-soak/final-review release evidence")
+    ap = argparse.ArgumentParser(description="Validate GPT_EA current compile/CI/API/demo-soak/final-review release evidence")
     ap.add_argument("evidence", nargs="?", default="release_evidence.json")
     args = ap.parse_args()
 
@@ -172,16 +225,21 @@ def main() -> int:
         require(errors, compile_log.exists(), f"compile log not found: {compile_log}")
 
     ci = data.get("ci_static")
+    ci_bundle_digest = ""
     if not isinstance(ci, dict):
         errors.append("ci_static must be an object")
     else:
-        errors.extend(validate_ci_release_record(ci, git_sha))
+        ci_errors, ci_bundle_digest = validate_ci_release_record(ci, git_sha)
+        errors.extend(ci_errors)
 
     deployment = data.get("deployment", {})
     for key in ["broker_company", "trade_server", "account_currency", "margin_mode", "account_leverage"]:
         require(errors, bool(str(deployment.get(key, "")).strip()), f"deployment.{key} is required")
     require(errors, isinstance(deployment.get("symbols"), list) and len(deployment.get("symbols", [])) > 0,
             "deployment.symbols must contain at least one validated symbol")
+
+    api_errors, api_digest = validate_api_transport(data)
+    errors.extend(api_errors)
 
     schema = json.loads(SOAK_SCHEMA.read_text(encoding="utf-8"))
     soak = data.get("demo_soak")
@@ -205,8 +263,14 @@ def main() -> int:
                                 f"five-day record candidate.{rk} must match build.{bk}")
                     require(errors, record_digest.lower() == str(soak.get("acceptance_record_digest", "")).lower(),
                             "five-day record digest must match demo_soak.acceptance_record_digest")
+                    require(errors, str(record.get("record_id", "")) == str(soak.get("acceptance_record_id", "")),
+                            "five-day record ID must match demo_soak.acceptance_record_id")
                 except Exception as exc:
                     errors.append(f"could not cross-check five-day acceptance record: {exc}")
+            else:
+                errors.append(f"five-day acceptance record not found: {record_path}")
+        else:
+            errors.append("demo_soak.acceptance_record_path is required")
 
     gates = data.get("gates", {})
     required_gates = [
@@ -214,7 +278,7 @@ def main() -> int:
         "adaptive_portfolio", "execution_learning", "champion_challenger", "lifecycle_integrity",
         "broker_matrix", "deployment_profile", "recovery", "stop_matrix", "broker_stop_policy",
         "partial_protection", "stop_observability", "live_news_intermarket", "web_failure_injection",
-        "demo_soak", "operator_review",
+        "api_transport", "demo_soak", "operator_review",
     ]
     for key in required_gates:
         require(errors, gates.get(key) is True, f"gates.{key} must be true")
@@ -236,6 +300,10 @@ def main() -> int:
     out = ROOT / "release-evidence-validation.txt"
     if errors:
         text = "RELEASE EVIDENCE VALIDATION: FAILED\n" + "\n".join(f"ERROR: {e}" for e in errors)
+        if ci_bundle_digest:
+            text += f"\nCI_BUNDLE_SHA256: {ci_bundle_digest}"
+        if api_digest:
+            text += f"\nAPI_TRANSPORT_SHA256: {api_digest}"
         if soak_digest:
             text += f"\nSOAK_EVIDENCE_SHA256: {soak_digest}"
         text += f"\nEVIDENCE_JSON_SHA256: {digest}\n"
@@ -245,8 +313,9 @@ def main() -> int:
 
     text = (
         f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\n"
-        f"CI_EVIDENCE_SHA256: {ci['evidence_digest']}\n"
-        f"SOAK_EVIDENCE_SHA256: {soak_digest}\nEVIDENCE_JSON_SHA256: {digest}\n"
+        f"CI_EVIDENCE_SHA256: {ci['evidence_digest']}\nCI_BUNDLE_SHA256: {ci_bundle_digest}\n"
+        f"API_TRANSPORT_SHA256: {api_digest}\nSOAK_EVIDENCE_SHA256: {soak_digest}\n"
+        f"EVIDENCE_JSON_SHA256: {digest}\n"
     )
     out.write_text(text, encoding="utf-8")
     print(text, end="")

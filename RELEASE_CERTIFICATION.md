@@ -1,127 +1,157 @@
-# GPT_EA Live Release Certification
+# GPT_EA Live Release Certification — R6
 
-`GPT_EA_Part28_ReleaseCertification.mqh` and `GPT_EA_Part29_DeploymentDriftGuard.mqh` form the final real-account release-evidence and deployment-stability gates. They do not prove that testing occurred; they require the operator to attest completed evidence **and identify the exact artifact/test campaign** before real-account execution can be armed.
+`GPT_EA_Part28_ReleaseCertification.mqh` and `GPT_EA_Part29_DeploymentDriftGuard.mqh` form the real-account release-evidence and deployment-stability gates.
 
 Current required release validation ID:
 
-`GPT_EA_FULL_INTELLIGENCE_R5_20260917`
+`GPT_EA_FULL_INTELLIGENCE_R6_20260917`
 
-R5 materially changes trade authorization, risk sizing, execution-cost learning, strategy health and shadow validation. Any older certification is stale and cannot authorize R5.
+R6 retains the R5 adaptive trading stack but strengthens release evidence with a versioned demo-soak schema, concrete evidence digests and a machine-validated final GO/NO-GO review. Any R5 or earlier release attestation is stale for R6.
 
 ## Default behavior
 
-All release-attestation inputs default to `false`, concrete identity fields default blank, and the validation ID defaults blank. Therefore a real account remains blocked even if the normal live-arm phrase is entered.
+All release-attestation booleans default to `false`, identity/digest fields default blank and the final decision defaults blank. A REAL account remains blocked even if the ordinary live-arm phrase is entered.
 
-Strategy Tester bypasses the evidence-attestation requirement so testing is possible. Demo/contest accounts treat release evidence as informational so broker tests, adaptive-learning tests, failure injection and demo soak remain possible.
+Strategy Tester bypasses real-account evidence attestation so testing remains possible. Demo/contest accounts treat release evidence as informational while validation is performed.
 
-## Concrete artifact identity required on REAL accounts
+## Compile and artifact identity
 
-In addition to `InpReleaseMetaEditorCompilePassed=true` and `InpReleaseArtifactIdentityArchived=true`, the real-account gate now requires:
+Real arming requires:
 
-- `InpReleaseSourceCommitSha` — exact 40-character hexadecimal candidate Git SHA;
-- `InpReleaseEx5Sha256` — exact 64-character EX5 SHA-256;
-- `InpReleaseSetSha256` — exact 64-character preset SHA-256, or literal `NONE` when no `.set` is used;
-- `InpReleaseCompileEvidenceId` — reference to the archived compile evidence;
-- `InpReleaseMetaEditorBuild` — build used for compilation;
-- `InpReleaseMT5Build` — terminal build used for validation.
+- exact 40-hex source Git SHA;
+- exact 64-hex EX5 SHA-256;
+- exact 64-hex SET SHA-256 or literal `NONE`;
+- compile evidence ID;
+- MetaEditor build;
+- MT5 build;
+- `InpReleaseMetaEditorCompilePassed=true`;
+- `InpReleaseArtifactIdentityArchived=true`.
 
-Malformed or missing identity fields keep the real-account gate BLOCKED even when the boolean compile/artifact flags are true.
+Use `METAEDITOR_COMPILE_GATE.md` and `tools/validate_release_evidence.py`.
 
-## Concrete demo-soak evidence required on REAL accounts
+## Versioned demo-soak evidence
 
-`InpReleaseDemoSoakPassed=true` is not sufficient by itself. The gate also requires:
+Required schema:
 
-- non-empty `InpReleaseSoakEvidenceId`;
-- `InpReleaseSoakTradingDays >= 5`;
-- `InpReleaseSoakLondonSessions >= 3`;
-- `InpReleaseSoakNYSessions >= 3`;
-- overlap observed;
-- relevant high-impact news day observed;
-- rollover/spread-expansion window observed;
-- restart observed;
-- disconnect/reconnect observed;
-- `InpReleaseSoakZeroToleranceFailures == 0`;
-- `InpReleaseSoakUnresolvedCriticalStates == 0`.
+`demo_soak_evidence_v1`
 
-These fields enforce the minimum coverage defined by `DEMO_SOAK_ACCEPTANCE.md` at runtime. They do not replace the full soak report.
+`SOAK_EVIDENCE_SCHEMA.json` and `DEMO_SOAK_ACCEPTANCE.md` define the contract.
 
-## Machine-readable release evidence
+R6 requires:
 
-Use `RELEASE_EVIDENCE_TEMPLATE.json` to prepare the candidate evidence bundle and run:
+- soak evidence ID and SHA-256 digest;
+- at least 5 consecutive trading days;
+- at least 3 London sessions;
+- at least 3 New York/U.S.-cash sessions;
+- overlap, high-impact-news day, rollover, restart and reconnect coverage;
+- scheduled and continuous scans observed;
+- primary and backup checkpoint updates observed;
+- execution, stop and release evidence logs present;
+- zero zero-tolerance failures;
+- zero unresolved critical states;
+- zero duplicate orders/partials;
+- zero stop regressions;
+- zero unprotected new authorizations;
+- zero release-gate bypasses;
+- zero duplicate analytics finalization;
+- zero stop-observability join failures;
+- zero dashboard/gate mismatch;
+- zero runtime critical errors;
+- zero secret exposure.
+
+Run:
 
 ```text
-python tools/validate_release_evidence.py path/to/release_evidence.json
+python tools/validate_soak_evidence.py release_evidence.json
 ```
 
-The validator checks the current release ID, Git/hash formats, compile counts/build identifiers, referenced artifact hashes when files are available, deployment identity, soak coverage/zero-tolerance thresholds and all mandatory R5 gate flags. It writes `release-evidence-validation.txt` and an evidence JSON SHA-256 digest.
+Archive `soak-evidence-validation.txt` and its `SOAK_EVIDENCE_SHA256`.
 
-Archive the completed JSON, validation output and digest with the candidate artifacts. See `RELEASE_EVIDENCE_VALIDATION.md`.
+## Full R6 evidence
 
-## Required evidence before real arming
+The following must also pass before real arming:
 
-All of these inputs must be deliberately set only after matching evidence has been completed and archived:
+- Strategy Tester;
+- full intelligence matrix;
+- adaptive portfolio/risk supervisor;
+- execution learning/calibration/event/MAE-MFE;
+- champion/challenger and counterfactual validation;
+- lifecycle/GPT-integrity/replay;
+- broker/account/symbol matrix;
+- deployment profile/drift tests;
+- restart/recovery tests;
+- HIGH-priority stop-management matrix;
+- broker-specific stop-failure policy;
+- partial-protection release test;
+- stop-observability matrix;
+- live-news/intermarket validation;
+- OpenAI/WebRequest failure injection.
 
-- `InpReleaseMetaEditorCompilePassed=true` — `METAEDITOR_COMPILE_GATE.md` passed with the exact candidate source/build.
-- `InpReleaseArtifactIdentityArchived=true` — exact Git SHA, EX5 SHA-256 and SET SHA-256/`NONE` archived together.
-- `InpReleaseStrategyTesterPassed=true` — applicable Strategy Tester scenarios passed.
-- `InpReleaseIntelligenceMatrixPassed=true` — full intelligence and hardening matrices passed.
-- `InpReleaseAdaptivePortfolioPassed=true` — correlation aggregation, macro concentration, strategy budgets, sizing, kill switch, broker health and deterministic supervisor passed.
-- `InpReleaseExecutionLearningPassed=true` — execution capture/forecast, confidence calibration, event behavior, MAE/MFE, learned expiry, degradation and regime-transition tests passed.
-- `InpReleaseChampionChallengerPassed=true` — shadow/counterfactual lifecycle and champion/challenger safeguards passed.
-- `InpReleaseLifecycleIntegrityPassed=true` — lifecycle transition, restart reconstruction, GPT disagreement, model-output integrity and decision replay tests passed.
-- `InpReleaseBrokerMatrixPassed=true` — intended broker/account/symbol matrix passed.
-- `InpReleaseDeploymentProfilePassed=true` — intended deployment profile and `DEPLOYMENT_DRIFT_TESTS.md` passed.
-- `InpReleaseRecoveryTestsPassed=true` — restart/recovery invariants passed.
-- `InpReleaseStopMatrixPassed=true` — HIGH-priority stop-management matrix passed.
-- `InpReleaseBrokerStopPolicyPassed=true` — broker-specific stop-failure behavior validated.
-- `InpReleasePartialProtectionPassed=true` — partial-protection test passed.
-- `InpReleaseStopObservabilityPassed=true` — stop-failure observability contract/matrix passed.
-- `InpReleaseLiveNewsIntermarketPassed=true` — live-news/intermarket paths validated.
-- `InpReleaseWebFailureInjectionPassed=true` — OpenAI/WebRequest failure-injection paths validated.
-- `InpReleaseDemoSoakPassed=true` — full demo-soak contract passed using exact release artifacts.
-- `InpReleaseOperatorReviewPassed=true` — final `RELEASE_GO_NO_GO.md` decision is GO.
-- `InpReleaseValidationId=GPT_EA_FULL_INTELLIGENCE_R5_20260917`.
+## Release evidence validator
 
-The existing `InpLiveArmPhrase=GPT_EA_LIVE_ARMED` remains separately required when configured. No evidence input bypasses stop-health, adaptive risk, broker, news, deployment-drift or execution gates.
+Complete `RELEASE_EVIDENCE_TEMPLATE.json` for the exact candidate and run:
 
-## R5 adaptive runtime stack
+```text
+python tools/validate_release_evidence.py release_evidence.json
+```
 
-The executable adaptive layer is documented in `ADAPTIVE_EXECUTION_ARCHITECTURE.md` and tested by `ADAPTIVE_EXECUTION_TEST_MATRIX.md`. It includes portfolio/correlation concentration, per-strategy budgets, confidence calibration, execution learning, market-condition kill switches, adaptive sizing, degradation modes, MAE/MFE research, event evidence, broker-health scoring, lifecycle/replay, counterfactual analytics, learned expiry, regime-transition reduction, deterministic supervision, GPT disagreement/model-integrity gates, champion/challenger shadow validation and strategy-health reporting.
+The validator checks release ID, artifact/hash identity, compile evidence, deployment identity, soak schema, quantitative soak thresholds, all mandatory gates and final-review fields. Archive `release-evidence-validation.txt` and its reported evidence digest.
 
-The independent risk supervisor can only block/reduce exposure. GPT cannot override it.
+## Final GO/NO-GO review
+
+Use `FINAL_RELEASE_REVIEW_TEMPLATE.json` and follow `FINAL_GO_NO_GO_REVIEW.md`.
+
+The final review must bind to the exact Git SHA, EX5/SET hashes, deployment identity and stable pre-review release-evidence digest.
+
+Only literal decision `GO` is eligible for real arming. `HOLD` and `NO-GO` remain blocked.
+
+Run:
+
+```text
+python tools/validate_final_release_review.py release_evidence.json final_release_review.json
+```
+
+Archive `final-release-review-validation.txt` and its `FINAL_REVIEW_SHA256`, then enter the matching review evidence ID/digest/decision/reviewer/timestamp into MT5.
 
 ## Deployment drift guard
 
-`GPT_EA_Part29_DeploymentDriftGuard.mqh` captures structural symbol properties at startup and checks them during deployment. Unexpected changes to digits, point/tick size, contract size, volume step, calculation mode, execution mode, filling mode or symbol availability block new entries while existing positions continue protective management.
+`GPT_EA_Part29_DeploymentDriftGuard.mqh` captures structural symbol properties and blocks new entries when the running environment materially differs from the validated deployment.
 
-Dynamic spread, stop-level and freeze-level changes are not structural drift; they are handled by live gates. Optional expected deployment identity checks can validate broker company, server, account currency, margin mode and leverage.
+Structural checks include symbol availability, digits, point, tick size, contract size, volume step, calculation mode, execution mode and filling mode. Optional expected identity fields can bind the release to broker company, server, account currency, margin mode and leverage.
+
+Dynamic spread/stops/freeze changes remain live execution conditions, not structural-drift failures.
 
 ## Runtime audit
 
-`GPT_EA_ReleaseEvidence.csv` now records not only PASS/BLOCK flags but also source commit, EX5/SET hashes, compile evidence/build identity and measurable demo-soak evidence fields. This makes a runtime snapshot auditable against the archived release bundle.
+`GPT_EA_ReleaseEvidence.csv` records release ID, artifact identity, compile identity, soak schema/digest and quantitative counters, final review identity/digest/decision and the final PASS/BLOCK reason.
 
-Additional R5 evidence files include execution-learning, shadow-validation, lifecycle, decision-snapshot, strategy-health, execution, intelligence and stop-failure journals.
+The runtime evidence does not replace the archived files; it makes the running terminal auditable against them.
 
-## Release sequence
+## R6 release sequence
 
-1. Compile exact candidate and pass `METAEDITOR_COMPILE_GATE.md`.
-2. Record exact Git SHA, EX5 SHA-256 and SET SHA-256/`NONE` plus MetaEditor/MT5 builds.
-3. Complete required Strategy Tester/intelligence/adaptive/broker/recovery/stop/news matrices.
-4. Run `DEMO_SOAK_ACCEPTANCE.md` using the same exact candidate artifacts.
-5. Complete `RELEASE_EVIDENCE_TEMPLATE.json`.
-6. Run `tools/validate_release_evidence.py`; result must PASS.
-7. Archive the evidence JSON, validation output and evidence JSON SHA-256.
-8. Complete `RELEASE_EVIDENCE_MANIFEST.md`.
-9. Complete `RELEASE_GO_NO_GO.md`; decision must be GO.
-10. Enter the same concrete artifact/soak identity values and PASS attestations in the intended terminal.
-11. Enter the live-arm phrase only after the final release review.
+1. Compile the exact candidate and pass `METAEDITOR_COMPILE_GATE.md`.
+2. Record Git SHA, EX5 SHA-256 and SET SHA-256/`NONE`.
+3. Run Strategy Tester and all required intelligence/adaptive/broker/recovery/stop/news tests.
+4. Run the exact candidate through the required demo soak.
+5. Complete `release_evidence.json` from `RELEASE_EVIDENCE_TEMPLATE.json`.
+6. Run `tools/validate_soak_evidence.py` and archive PASS/digest.
+7. Complete all non-review gates in `release_evidence.json`.
+8. Run the release evidence validator as part of the review package.
+9. Complete `final_release_review.json` from `FINAL_RELEASE_REVIEW_TEMPLATE.json`.
+10. Run `tools/validate_final_release_review.py`; result must PASS.
+11. Set `gates.operator_review=true` and copy final-review identity/digest into the release evidence bundle.
+12. Run `tools/validate_release_evidence.py` again; result must PASS.
+13. Complete `RELEASE_EVIDENCE_MANIFEST.md` and `RELEASE_GO_NO_GO.md`.
+14. Only then enter the matching R6 inputs and live-arm phrase locally.
 
-## Invalidation of certification
+## Certification invalidation
 
-Any executable change after compile or soak evidence creates a new candidate artifact identity. Material changes to strategy, sizing, execution, protection, recovery, news/OpenAI, broker policy, release logic or deployment environment require the affected gates to be rerun. Documentation-only changes may reuse evidence only when explicitly recorded as non-executable.
+A GO becomes stale after executable-source changes, materially changed presets/risk controls, a changed EX5, materially different broker/server/account/symbol contract, or discovery of evidence invalidating a hard-gate assumption.
+
+Documentation-only changes may retain artifact evidence only when explicitly recorded as non-executable.
 
 ## Live rule
 
-A real-account R5 build is not release-certified until ordinary safety/live arming, stop health, full R5 evidence, concrete artifact identity, quantitative demo-soak evidence, deployment stability and all current runtime risk/news/broker/execution gates pass simultaneously.
+A REAL-account R6 build is eligible only when ordinary safety, stop health, complete R6 evidence, final GO review, deployment stability and all current risk/news/broker/execution gates pass simultaneously.
 
-Passing release certification never guarantees profitability. It verifies only that the exact candidate artifact has passed the defined engineering, protection, recovery, adaptive-risk, broker-compatibility, evidence-integrity and operational release process.
+This certification never guarantees profitability. It certifies the engineering, protection, evidence and operational release process for the exact candidate.

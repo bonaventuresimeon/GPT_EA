@@ -15,6 +15,8 @@ from validate_five_day_soak_record import validate_record
 from validate_mt5_validation_evidence import validate_mt5
 from validate_runner_recovery_acceptance import validate_acceptance
 from validate_runner_recovery_evidence import validate_runner_recovery
+from validate_resilience_hardening_evidence import validate_resilience
+from validate_rollback_readiness import validate_rollback_readiness
 from validate_soak_evidence import validate_soak
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -239,6 +241,42 @@ def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list
         if p.exists(): require(errors,"MT5 VALIDATION EVIDENCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),"MT5 validation output does not contain PASS marker")
     return errors,digest
 
+def validate_resilience_release_record(rh:dict,build_sha:str)->tuple[list[str],str,str]:
+    errors:list[str]=[]
+    require(errors,rh.get("schema_version")=="resilience_hardening_evidence_v1","resilience_hardening.schema_version must be resilience_hardening_evidence_v1")
+    require(errors,len(str(rh.get("evidence_id","")).strip())>=8,"resilience_hardening.evidence_id is required")
+    expected=str(rh.get("evidence_digest",""))
+    cfg=str(rh.get("config_fingerprint",""))
+    require(errors,bool(HEX64.fullmatch(expected)),"resilience_hardening.evidence_digest must be SHA-256")
+    require(errors,bool(re.fullmatch(r"[0-9a-fA-F]{8}",cfg)) and cfg!="00000000","resilience_hardening.config_fingerprint must be non-zero 8-hex")
+    require(errors,rh.get("validated") is True,"resilience_hardening.validated must be true")
+    path_raw=str(rh.get("evidence_path","")).strip()
+    require(errors,bool(path_raw),"resilience_hardening.evidence_path is required")
+    digest=""
+    actual_cfg=""
+    if path_raw:
+        p=resolve(path_raw)
+        require(errors,p.exists(),f"resilience hardening evidence file not found: {p}")
+        if p.exists():
+            try:
+                value=json.loads(p.read_text(encoding="utf-8"))
+                rh_errors,digest=validate_resilience(value,True,expected_sha=build_sha,expected_config=cfg)
+                errors.extend(f"resilience_hardening evidence: {e}" for e in rh_errors)
+                require(errors,digest.lower()==expected.lower(),"resilience_hardening.evidence_digest does not match evidence file")
+                require(errors,str(value.get("evidence_id",""))==str(rh.get("evidence_id","")),"resilience_hardening.evidence_id does not match evidence file")
+                actual_cfg=str(value.get("config_fingerprint",""))
+            except Exception as exc:
+                errors.append(f"could not validate resilience hardening evidence: {exc}")
+    validation_raw=str(rh.get("validation_path","")).strip()
+    require(errors,bool(validation_raw),"resilience_hardening.validation_path is required")
+    if validation_raw:
+        p=resolve(validation_raw)
+        require(errors,p.exists(),f"resilience hardening validation output not found: {p}")
+        if p.exists():
+            require(errors,"RESILIENCE HARDENING EVIDENCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),
+                    "resilience hardening validation output does not contain PASS marker")
+    return errors,digest,actual_cfg
+
 def main()->int:
     ap=argparse.ArgumentParser(description="Validate GPT_EA current compile/runner/CI/MT5/API/demo-soak/final-review release evidence")
     ap.add_argument("evidence",nargs="?",default="release_evidence.json")
@@ -313,6 +351,21 @@ def main()->int:
     else:
         mt5_errors,mt5_digest=validate_mt5_release_record(mt5,build,deployment); errors.extend(mt5_errors)
 
+    rh=data.get("resilience_hardening")
+    resilience_digest=""
+    resilience_cfg=""
+    if not isinstance(rh,dict):
+        errors.append("resilience_hardening must be an object")
+    else:
+        rh_errors,resilience_digest,resilience_cfg=validate_resilience_release_record(rh,git_sha)
+        errors.extend(rh_errors)
+
+    rollback=data.get("rollback_package")
+    if not isinstance(rollback,dict):
+        errors.append("rollback_package must be an object")
+    else:
+        errors.extend(f"rollback_package: {e}" for e in validate_rollback_readiness(rollback))
+
     api_errors,api_digest=validate_api_transport(data); errors.extend(api_errors)
     if isinstance(mt5,dict):
         mt5_path_raw=str(mt5.get("evidence_path","")).strip()
@@ -362,7 +415,7 @@ def main()->int:
     gates=data.get("gates",{})
     required_gates=[
         "metaeditor_compile","artifact_identity","runner_recovery","runner_recovery_acceptance","ci_static","mt5_validation",
-        "strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger",
+        "resilience_hardening","rollback_package","strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger",
         "lifecycle_integrity","broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy",
         "partial_protection","stop_observability","live_news_intermarket","web_failure_injection","api_transport",
         "demo_soak","operator_review",
@@ -385,6 +438,8 @@ def main()->int:
         if runner_acceptance_digest: text+=f"\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}"
         if ci_bundle_digest: text+=f"\nCI_BUNDLE_SHA256: {ci_bundle_digest}"
         if mt5_digest: text+=f"\nMT5_VALIDATION_SHA256: {mt5_digest}"
+        if resilience_digest: text+=f"\nRESILIENCE_HARDENING_SHA256: {resilience_digest}"
+        if resilience_cfg: text+=f"\nCERTIFIED_CONFIG_FINGERPRINT: {resilience_cfg}"
         if api_digest: text+=f"\nAPI_TRANSPORT_SHA256: {api_digest}"
         if soak_digest: text+=f"\nSOAK_EVIDENCE_SHA256: {soak_digest}"
         text+=f"\nEVIDENCE_JSON_SHA256: {digest}\n"
@@ -392,7 +447,8 @@ def main()->int:
     text=(f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\n"
           f"RUNNER_RECOVERY_SHA256: {runner_digest}\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}\n"
           f"CI_EVIDENCE_SHA256: {ci['evidence_digest']}\nCI_BUNDLE_SHA256: {ci_bundle_digest}\n"
-          f"MT5_VALIDATION_SHA256: {mt5_digest}\nAPI_TRANSPORT_SHA256: {api_digest}\n"
+          f"MT5_VALIDATION_SHA256: {mt5_digest}\nRESILIENCE_HARDENING_SHA256: {resilience_digest}\n"
+          f"CERTIFIED_CONFIG_FINGERPRINT: {resilience_cfg}\nAPI_TRANSPORT_SHA256: {api_digest}\n"
           f"SOAK_EVIDENCE_SHA256: {soak_digest}\nEVIDENCE_JSON_SHA256: {digest}\n")
     out.write_text(text,encoding="utf-8"); print(text,end=""); return 0
 

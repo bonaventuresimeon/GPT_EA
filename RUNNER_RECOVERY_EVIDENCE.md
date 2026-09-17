@@ -61,14 +61,28 @@ The validator writes `runner-recovery-evidence-validation.txt` and a canonical S
 
 Recovery evidence by itself proves the technical transition, but R6 production acceptance additionally requires `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md` and a finalized `runner_recovery_acceptance_v1` record.
 
-Create `artifacts/runner-recovery-acceptance.json` from `RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json`, complete RA-001 through RA-022 only from actual evidence, then run:
+Copy `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md` to `artifacts/runner-recovery-acceptance.md` and complete RA-001 through RA-022 only from actual evidence. Every row must be literal `PASS` with a non-empty evidence/reference.
+
+Then build the draft acceptance JSON from the validated recovery record and completed matrix:
+
+```text
+python tools/build_runner_recovery_acceptance.py \
+  --runner-recovery artifacts/runner-recovery-evidence.json \
+  --matrix artifacts/runner-recovery-acceptance.md \
+  --candidate-sha <candidate-git-sha> \
+  --ci-bundle-digest <accepted-ci-bundle-sha256>
+```
+
+The acceptance JSON binds `matrix_path` and `matrix_sha256`, so a matrix edit after finalization invalidates the acceptance digest. Machine-derived checks are populated by the builder; account/billing/status, attestation, regression review and operator-dependent checks remain fail-closed until explicitly evidenced.
+
+Then run:
 
 ```text
 python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json --finalize
 python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json
 ```
 
-The acceptance validator revalidates the referenced runner-recovery record and joins its candidate SHA and CI-bundle digest. Both the recovery evidence and the acceptance record must PASS before Part28B may be attested.
+The acceptance validator revalidates the referenced runner-recovery record, verifies the completed matrix SHA-256, parses every RA-001 through RA-022 row for PASS/evidence, and joins its candidate SHA and CI-bundle digest. Both the recovery evidence and the acceptance record must PASS before Part28B may be attested.
 
 ## Release binding
 

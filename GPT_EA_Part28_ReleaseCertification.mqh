@@ -94,6 +94,20 @@ bool ReleaseSafetyAllowsCertified(const string sym,string &why)
    return true;
 }
 
+void RefreshCertifiedReleaseState()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllowsCertified("",why);
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All certified release gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
+      Print("GPT_EA CERTIFIED RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked)
+      Print("GPT_EA CERTIFIED RELEASE GATE CLEARED.");
+}
+
 string ReleaseGateSummaryCertified()
 {
    string why="";
@@ -115,7 +129,7 @@ void WriteReleaseEvidenceSnapshot()
          "compile","strategy_tester","intelligence_matrix","broker_matrix","recovery","stop_matrix","broker_stop_policy",
          "partial_protection","stop_observability","live_news_intermarket","web_failure_injection","demo_soak","operator_review","gate_result","reason");
    FileSeek(h,0,SEEK_END);
-   string why=""; bool ok=ReleaseEvidenceAllows(why);
+   string why=""; bool ok=ReleaseSafetyAllowsCertified("",why);
    FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseValidationId,
       (string)AccountInfoInteger(ACCOUNT_TRADE_MODE),AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),
       InpReleaseMetaEditorCompilePassed?"1":"0",InpReleaseStrategyTesterPassed?"1":"0",InpReleaseIntelligenceMatrixPassed?"1":"0",
@@ -128,10 +142,21 @@ void WriteReleaseEvidenceSnapshot()
 
 void ReleaseCertificationInit()
 {
+   RefreshCertifiedReleaseState();
    WriteReleaseEvidenceSnapshot();
-   string why="";
-   bool ok=ReleaseEvidenceAllows(why);
-   Print("GPT_EA release certification: ",ok?"PASS - ":"BLOCK - ",why);
+   Print("GPT_EA release certification: ",g_releaseBlocked?"BLOCK - ":"PASS - ",g_releaseBlockReason);
+}
+
+void AdvancedSafetyInitCertified()
+{
+   AdvancedSafetyInit();
+   RefreshCertifiedReleaseState();
+}
+
+void AdvancedSafetyTimerCertified()
+{
+   AdvancedSafetyTimer();
+   RefreshCertifiedReleaseState();
 }
 
 void StopFailureObservabilityInitCertified()

@@ -14,7 +14,7 @@ required=[
     "RUNNER_RECOVERY_EVIDENCE.md",
     "RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json",
     "RUNNER_RECOVERY_EVIDENCE_SCHEMA.json",
-    "tools/validate_runner_recovery_evidence.py",
+    "tools/validate_runner_recovery_evidence.py",\n    "tools/build_runner_recovery_evidence.py",\n    "RUNNER_RECOVERY_TEST_MATRIX.md",
     "GPT_EA_Part28B_CIReleaseEvidence.mqh",
     "RELEASE_EVIDENCE_TEMPLATE.json",
 ]
@@ -35,8 +35,14 @@ if not errors:
         errors.append("runner recovery template must default HOLD")
 
     validator=(ROOT/"tools/validate_runner_recovery_evidence.py").read_text(encoding="utf-8")
+    builder=(ROOT/"tools/build_runner_recovery_evidence.py").read_text(encoding="utf-8")
+    matrix=(ROOT/"RUNNER_RECOVERY_TEST_MATRIX.md").read_text(encoding="utf-8")
     for token in ["PRE_RUNNER_NO_STEPS","runner_id","steps_executed","ci_bundle_digest","expected_bundle_digest","RUNNER RECOVERY EVIDENCE"]:
         if token not in validator: errors.append(f"runner recovery validator missing token: {token}")
+    for token in ["attempts/{attempt}/jobs","ci_bundle_manifest","runner-probe","static-release-gate","GITHUB_TOKEN"]:
+        if token not in builder: errors.append(f"runner recovery builder missing token: {token}")
+    for token in ["RR-001","RR-004","RR-009","RR-013","RR-018"]:
+        if token not in matrix: errors.append(f"runner recovery test matrix missing {token}")
 
     part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for token in ["GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA","ReleaseRunnerRecoveryEvidenceAllows",

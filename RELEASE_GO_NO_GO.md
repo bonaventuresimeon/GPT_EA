@@ -60,6 +60,7 @@ This is the final production decision contract. A candidate is **GO** only when 
 - `tools/validate_release_evidence_r10.py` returns PASS for compile/privacy evidence.
 - `tools/validate_final_release_review_r10.py` returns PASS.
 - all release-validation outputs and final evidence hashes are archived.
+- candidate release-truth dashboard is regenerated from the same final evidence JSON and `--require-pass` succeeds.
 
 ## Automatic NO-GO conditions
 

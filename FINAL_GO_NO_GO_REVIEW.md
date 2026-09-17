@@ -4,143 +4,180 @@ This is the final human release review for the **exact candidate artifact** afte
 
 Current review schema: `final_release_review_v1`.
 
-## 1. Inputs to the review
+The review digest is calculated from a stable pre-review basis that now includes the exact build identity, executed CI evidence, deployment identity, API transport evidence, demo-soak/five-day evidence and all non-operator release gates. Any material change to those objects invalidates the review digest.
 
-The reviewer must have all of the following before opening the review:
+## 1. Inputs required before review
+
+The reviewer must have:
 
 - exact Git commit SHA;
-- current release validation ID from `GPT_EA_Part28_ReleaseCertification.mqh`;
-- EX5 SHA-256;
-- SET SHA-256 or explicit `NONE`;
-- MetaEditor compile evidence and full compile log;
-- `release_evidence.json` completed for the exact candidate;
-- `soak-evidence-validation.txt` showing PASS;
-- `release-evidence-validation.txt` showing PASS for all pre-review evidence;
+- current base release validation ID;
+- EX5 SHA-256 and SET SHA-256/`NONE`;
+- MetaEditor compile evidence and full log;
+- completed `release_evidence.json` for the exact candidate;
+- final executed CI evidence artifact;
+- `ci-job-metadata.json` proving job/runner/steps execution;
+- `ci-evidence-validation.txt` PASS;
+- `ci-attestation-verify.txt` PASS;
+- `ci-bundle-validation.txt` PASS;
+- API transport evidence and validator PASS;
+- finalized five-day acceptance JSON and validation PASS;
+- completed five-day operator record;
+- completed demo-soak report;
+- soak-evidence validation PASS;
 - broker/deployment profile evidence;
 - all required matrix/test results;
-- Experts/Journal logs;
-- execution, stop, intelligence, lifecycle and release evidence CSVs;
-- demo-soak report;
-- list of known limitations and open noncritical issues.
+- Experts/Journal, broker history and required CSVs;
+- known limitations and open noncritical issues.
 
 If any required artifact is missing, the decision is **HOLD** or **NO-GO**, never GO.
 
 ## 2. Candidate identity check
 
-The reviewer must verify that the final review refers to the same:
+Verify one consistent candidate across:
 
 - release validation ID;
 - Git SHA;
-- EX5 SHA-256;
-- SET SHA-256 / `NONE`;
-- broker company;
-- trade server;
-- account currency;
-- margin mode;
-- leverage;
-- validated symbol set/profile.
+- EX5 hash;
+- SET hash/`NONE`;
+- CI head SHA and CI bundle candidate SHA;
+- five-day acceptance candidate SHA/EX5/SET;
+- broker company/server/account profile;
+- selected API transport mode/endpoint;
+- validated symbol profile.
 
 Any unexplained mismatch is automatic **NO-GO**.
 
 ## 3. Mandatory technical confirmations
 
-The reviewer must confirm all of these are PASS:
+The reviewer must confirm PASS for:
 
-- MetaEditor compile contract;
-- artifact identity/archive contract;
-- Strategy Tester validation;
+- compile/artifact identity;
+- executed CI static checks;
+- CI provenance attestation and final bundle validation;
+- Strategy Tester;
 - full intelligence matrix;
 - adaptive portfolio/risk supervisor;
-- execution-learning validation;
-- champion/challenger validation;
-- lifecycle/integrity/replay validation;
+- execution learning;
+- champion/challenger;
+- lifecycle/integrity/replay;
 - broker/account/symbol matrix;
-- deployment drift validation;
-- recovery/restart matrix;
-- HIGH-priority stop-management matrix;
+- deployment drift;
+- recovery/restart;
+- HIGH stop-management matrix;
 - broker-specific stop-failure policy;
-- partial-protection test;
-- stop-observability test;
-- live-news/intermarket validation;
+- partial protection;
+- stop observability;
+- live news/intermarket;
 - WebRequest/OpenAI failure injection;
-- demo-soak schema validation;
-- demo-soak acceptance contract.
+- selected API transport matrix/evidence;
+- five-day machine acceptance record;
+- five-day operator reconciliation record;
+- demo-soak schema/digest.
 
 No PASS may be inferred from profitability alone.
 
-## 4. Zero-tolerance review
+## 4. CI-specific review
 
-GO requires all of the following to be zero/unobserved:
+Confirm:
+
+- static job ID > 0;
+- runner ID > 0;
+- runner name present;
+- executed steps >=7;
+- conclusion `success`;
+- CI head SHA equals build Git SHA;
+- raw checker result is PASS;
+- CI evidence digest validates;
+- artifact attestation verification PASS;
+- bundle digest validates;
+- `ci_static.bundle_validated=true`.
+
+`runner_id=0`, blank runner name or `steps=[]` is HOLD, not CI evidence.
+
+## 5. Five-day/operator review
+
+Confirm:
+
+- exactly five accepted trading-day rows;
+- session/news/rollover/restart/reconnect/scan/checkpoint coverage meets the contract;
+- operator worksheet exists and contains per-day evidence references;
+- demo-soak report exists;
+- all five lifecycle assertions are true;
+- all zero-tolerance reconciliation fields are zero;
+- acceptance record ID/digest matches `demo_soak`;
+- acceptance candidate identity matches the build.
+
+## 6. API transport review
+
+For DIRECT_OPENAI:
+
+- endpoint is `api.openai.com`;
+- user API key remains local-only and absent from source/logs;
+- MT5 WebRequest allow-list is correct.
+
+For SECURE_PROXY:
+
+- OpenAI key remains server-side;
+- MT5 does not send the OpenAI bearer header;
+- proxy token is separately scoped/revocable;
+- tested proxy endpoint equals deployment endpoint.
+
+In either mode, the high-priority matrix, live deep-review path, web-search path, failure/recovery, request tracing and zero secret leaks must pass.
+
+## 7. Zero-tolerance review
+
+GO requires zero/unobserved:
 
 - unresolved critical state;
 - zero-tolerance soak failure;
-- duplicate order from one authorization;
-- duplicate TP1/TP2 partial;
-- stop-loss regression caused by EA logic;
-- unprotected-position new authorization;
+- duplicate order/partial;
+- SL regression;
+- unprotected new authorization;
 - release-gate bypass;
 - duplicate analytics finalization;
-- unexplained stop-observability join failure;
-- dashboard/release-gate mismatch;
-- runtime critical error loop;
+- stop-observability join failure;
+- dashboard/gate mismatch;
+- runtime critical loop;
 - secret/API-key exposure;
 - unexplained recovery inconsistency.
 
-Any non-zero item is automatic **NO-GO** until corrected and the required validation is repeated.
+Any non-zero hard item is **NO-GO** until corrected and revalidated.
 
-## 5. Known limitations
+## 8. Initial live-deployment controls
 
-Known limitations may be accepted only when they are:
+Confirm:
 
-1. explicitly documented;
-2. noncritical to protection/execution/recovery integrity;
-3. understood by the reviewer;
-4. not a hidden release-gate failure;
-5. accompanied by an owner/mitigation where appropriate.
+- `InpRequireApproval=true` unless a separately certified release changes policy;
+- conservative initial risk;
+- live arm phrase entered only after GO;
+- expected broker/deployment identity configured;
+- optional DOM/ONNX enabled only if separately validated;
+- stop/release/risk/API gates remain enabled;
+- no evidence flag was set merely to make the EA start trading.
 
-An unexplained issue is not a known limitation; it is a **HOLD**.
+## 9. Decision definitions
 
-## 6. Initial live-deployment controls
+**GO** — every mandatory gate/evidence identity passes and all hard counters are zero.
 
-For the initial live deployment the reviewer must confirm:
+**HOLD** — evidence/infrastructure/reviewer work is incomplete but the candidate may still become releasable without redesign. HOLD never arms REAL trading.
 
-- `InpRequireApproval=true` unless a later separately certified release deliberately changes this policy;
-- conservative initial risk is selected;
-- live arm phrase is entered only after GO;
-- expected broker/server/deployment identity is configured where required;
-- optional DOM/ONNX components are enabled only if validated on the intended broker;
-- existing stop/release/risk gates remain enabled;
-- no evidence flag is set merely to make the EA start trading.
+**NO-GO** — failed hard gate, identity/digest mismatch, protection/recovery/CI/API integrity failure, zero-tolerance finding, or source/config change requiring revalidation.
 
-## 7. Decision definitions
+## 10. Machine-readable final review
 
-### GO
+Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`. Every review boolean must be true, including:
 
-Use only when every mandatory gate passes, identity matches, all zero-tolerance counts are zero, evidence validators pass and the reviewer accepts the documented noncritical limitations.
+- `compile_contract_pass`;
+- `ci_bundle_pass`;
+- `ci_attestation_verified`;
+- `api_transport_pass`;
+- `five_day_acceptance_pass`;
+- `five_day_operator_record_complete`;
+- `soak_schema_pass`;
+- all remaining identity, gate, zero-tolerance and deployment checks.
 
-### HOLD
-
-Use when the candidate may still become releasable without a redesign, but evidence is incomplete, a noncritical item needs investigation, or the reviewer cannot yet make a defensible GO decision.
-
-HOLD must not arm live trading.
-
-### NO-GO
-
-Use for any failed hard gate, artifact mismatch, deployment mismatch, zero-tolerance failure, unresolved critical state, protection/recovery integrity failure, source change after validation, or other condition requiring code/configuration change and revalidation.
-
-## 8. Machine-readable final review
-
-Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json` and populate:
-
-- `review_evidence_id`;
-- `review_timestamp`;
-- `reviewer`;
-- candidate hashes;
-- stable release-evidence basis digest;
-- deployment identity;
-- all review booleans;
-- known limitations/open noncritical issues;
-- decision.
+The stable release-evidence basis digest now binds `build`, `ci_static`, `deployment`, `api_transport`, `demo_soak` and all gates except the final operator-review transition.
 
 Run:
 
@@ -148,25 +185,16 @@ Run:
 python tools/validate_final_release_review.py release_evidence.json final_release_review.json
 ```
 
-GO is valid only if this command returns PASS.
+GO is valid only if this command returns PASS. Archive `final-release-review-validation.txt` and `FINAL_REVIEW_SHA256`.
 
-Archive `final-release-review-validation.txt` and its reported `FINAL_REVIEW_SHA256`.
+## 11. Runtime attestation
 
-## 9. Runtime attestation
+Only after the final review validator passes may the operator set the corresponding Part28 review fields, including `InpReleaseOperatorReviewPassed=true` and `InpReleaseFinalDecision=GO`.
 
-Only after the final review validator passes may the operator set:
+Part28B CI/five-day fields and Part37 API transport PASS fields must already correspond exactly to the archived evidence.
 
-- `InpReleaseOperatorReviewPassed=true`;
-- `InpReleaseFinalReviewEvidenceId=<review evidence id>`;
-- `InpReleaseFinalReviewDigest=<FINAL_REVIEW_SHA256>`;
-- `InpReleaseFinalDecision=GO`;
-- `InpReleaseFinalReviewer=<reviewer>`;
-- `InpReleaseFinalReviewTimestamp=<review timestamp>`.
+## 12. Certification invalidation
 
-These values must refer to the archived review for the exact release candidate.
+GO becomes stale when executable source, EX5/SET/material risk preset, release evidence contract, CI candidate identity, selected API transport/endpoint, or intended broker/server/account/symbol environment changes materially, or when a post-review discovery invalidates a hard assumption.
 
-## 10. Certification invalidation
-
-A GO becomes stale when executable source changes, release preset/risk controls change materially, the compiled EX5 changes, the intended deployment identity changes materially, or a post-review discovery invalidates a hard-gate assumption.
-
-When stale, the correct state is HOLD/NO-GO until the required compile/test/soak/review sequence is repeated.
+When stale, return to HOLD/NO-GO and repeat the affected validation sequence.

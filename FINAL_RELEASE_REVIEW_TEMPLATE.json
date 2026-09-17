@@ -41,7 +41,9 @@
     "no_source_change_after_validation": false,
     "no_unreviewed_known_issue": false,
     "initial_live_risk_conservative": false,
-    "approval_required_initially": true
+    "approval_required_initially": true,
+    "resilience_hardening_pass": false,
+    "rollback_package_ready": false
   },
   "unresolved_critical_count": 0,
   "zero_tolerance_failure_count": 0,

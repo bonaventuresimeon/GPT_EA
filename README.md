@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 📚 Engineering Documentation
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 📚 **Document:** `README.md`
+
+---
+
 # GPT_EA
 
 Standalone MetaTrader 5 GPT-assisted Expert Advisor with multi-timeframe market-state classification, regime-driven strategy selection, live news/intermarket intelligence, adversarial GPT validation, broker-aware execution, portfolio risk, restart recovery, setup analytics, advanced stop management and timed **APPROVE / DENY** authorization.

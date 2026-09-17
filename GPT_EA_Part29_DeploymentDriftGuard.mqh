@@ -142,7 +142,7 @@ bool DeploymentDriftAllows(string &why)
    return true;
 }
 
-bool ReleaseSafetyAllowsR4(const string sym,string &why)
+bool ReleaseSafetyAllowsR5(const string sym,string &why)
 {
    string certified="";
    if(!ReleaseSafetyAllowsCertified(sym,certified))
@@ -160,52 +160,52 @@ bool ReleaseSafetyAllowsR4(const string sym,string &why)
    return true;
 }
 
-void RefreshR4ReleaseState()
+void RefreshR5ReleaseState()
 {
    bool oldBlocked=g_releaseBlocked;
    string oldReason=g_releaseBlockReason;
    string why="";
-   bool ok=ReleaseSafetyAllowsR4("",why);
+   bool ok=ReleaseSafetyAllowsR5("",why);
    g_deploymentDriftBlocked=!ok && StringFind(why,"Deployment drift gate failed")>=0;
    g_deploymentDriftReason=(g_deploymentDriftBlocked?why:"Deployment drift gate clear.");
    g_releaseBlocked=!ok;
-   g_releaseBlockReason=(ok?"All R4 release gates pass.":why);
+   g_releaseBlockReason=(ok?"All R5 release gates pass.":why);
    if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
-      Print("GPT_EA R4 RELEASE BLOCK: ",g_releaseBlockReason);
+      Print("GPT_EA R5 RELEASE BLOCK: ",g_releaseBlockReason);
    else if(!g_releaseBlocked && oldBlocked)
-      Print("GPT_EA R4 RELEASE GATE CLEARED.");
+      Print("GPT_EA R5 RELEASE GATE CLEARED.");
 }
 
-string ReleaseGateSummaryR4()
+string ReleaseGateSummaryR5()
 {
    string why="";
-   return ReleaseSafetyAllowsR4("",why)?"PASS - "+why:"BLOCKED - "+why;
+   return ReleaseSafetyAllowsR5("",why)?"PASS - "+why:"BLOCKED - "+why;
 }
 
-void AdvancedSafetyInitR4()
+void AdvancedSafetyInitR5()
 {
    AdvancedSafetyInitCertified();
    CaptureDeploymentBaseline();
-   RefreshR4ReleaseState();
+   RefreshR5ReleaseState();
 }
 
-void AdvancedSafetyTimerR4()
+void AdvancedSafetyTimerR5()
 {
    AdvancedSafetyTimerCertified();
-   RefreshR4ReleaseState();
+   RefreshR5ReleaseState();
 }
 
-void StopFailureObservabilityInitR4()
+void StopFailureObservabilityInitR5()
 {
    StopFailureObservabilityInit();
    ReleaseCertificationInit();
    if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();
-   RefreshR4ReleaseState();
+   RefreshR5ReleaseState();
 }
 
 void DeploymentDriftGuardInit()
 {
    if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();
-   RefreshR4ReleaseState();
+   RefreshR5ReleaseState();
    Print("GPT_EA deployment drift guard: ",g_deploymentDriftBlocked?"BLOCK - ":"PASS - ",g_deploymentDriftReason);
 }

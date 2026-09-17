@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `RELEASE_EVIDENCE_MANIFEST.md`
+
+---
+
 # GPT_EA Release Evidence Manifest — R6 Base + Current API Transport Guard
 
 Complete one copy for every production candidate. A commit, checkbox, green-looking dashboard or profitable demo result is not evidence by itself. Every PASS must be traceable to the exact Git/EX5/SET candidate and its archived validation artifacts.

@@ -7,6 +7,7 @@
 #include "GPT_EA_Part09_RiskRecoveryAnalytics.mqh"
 #include "GPT_EA_Part10_BrokerUniversalRecovery.mqh"
 #include "GPT_EA_Part11_PreflightRecoveryGuard.mqh"
+#include "GPT_EA_Part12_SafetyStopManagement.mqh"
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part07.mqh"

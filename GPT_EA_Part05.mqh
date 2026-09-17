@@ -39,9 +39,14 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
 
    s+="Position management:\n";
    s+=StringFormat("• Lot size = %.2f%% of %s using OrderCalcProfit().\n",InpRiskPercent,(InpUseEquity?"equity":"balance"));
-   s+=StringFormat("• At TP1: take %.0f%% partial; %s.\n",InpPartialAtTP1Percent,(InpMoveSLToBEAfterTP1?"move SL to BE + cost buffer":"keep original SL"));
-   s+=StringFormat("• After TP1: if price stalls near the next M15 resistance/support for %d M5 candles, keep only while H1/M15 momentum remains aligned; otherwise close remainder.\n",InpPostTP1StallM5);
-   s+="• A high-impact event, yield shock, excessive opening range, stale price displacement, spread blowout, portfolio-risk breach, cooldown or effective R:R deterioration invalidates entry before execution.\n\n";
+   s+=StringFormat("• TP1: take %.0f%% partial; cost-aware BE protection is retried until broker-valid.\n",InpPartialAtTP1Percent);
+   s+=StringFormat("• Profit lock: at %.2fR lock %.2fR; at %.2fR lock %.2fR.\n",
+                   InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR);
+   s+=StringFormat("• Trail: from %.2fR use ATR + M5 structure; minimum stop improvement %.2fR; stops never loosen.\n",
+                   InpTrailStartR,InpTrailMinStepR);
+   s+=StringFormat("• TP2: optionally close %.0f%% of the remaining volume, then manage the runner toward TP3/trailing exit.\n",InpPartialAtTP2Percent);
+   s+=StringFormat("• After TP1: if price stalls near the next M15 resistance/support for %d M5 candles and momentum deteriorates, close the remainder.\n",InpPostTP1StallM5);
+   s+="• Economic/yield/session, spread, release-safety, portfolio-risk, cooldown, broker/OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
 
    bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
    s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
@@ -93,8 +98,15 @@ bool M5Trigger(const TradeSetup &s)
 
 bool ApprovedPlaceTrade(const TradeSetup &s)
 {
-   // Approval is authorization only. Every risk, broker and market condition is revalidated here.
+   // Approval is authorization only. Every release, risk, broker and market condition is revalidated here.
    if(!InpEnableApprovedExecution || !s.valid) return false;
+
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   {
+      Print(s.symbol,": RELEASE SAFETY BLOCK - ",releaseWhy);
+      return false;
+   }
 
    TradeSetup x=s;
    x.sl=NormalizePriceToTick(x.symbol,x.sl);
@@ -165,9 +177,10 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    {
       GVSet(newest,"INITSL",x.sl); GVSet(newest,"TP1",x.tp1); GVSet(newest,"TP2",x.tp2);
       GVSet(newest,"TP3",x.tp3); GVSet(newest,"EXP",x.expiryM15); GVSet(newest,"TP1DONE",0);
+      LegacyTicketWrite(newest,"TP1PARTIAL",0); LegacyTicketWrite(newest,"TP2PARTIAL",0);
    }
    SafeUniversalCheckpointNow();
-   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | %s | %s",
+   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | release PASS | %s | %s",
                x.symbol,Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy,serverWhy);
    return true;
 }

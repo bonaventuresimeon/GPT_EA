@@ -10,6 +10,7 @@ This is the final production decision contract. A candidate is **GO** only when 
 - Exact SET SHA-256 archived, or explicit `NONE`.
 - `RELEASE_EVIDENCE_TEMPLATE.json` completed for the exact candidate.
 - Validated `runner_recovery_evidence_v1` proving recovery from the known pre-runner failure.
+- Validated `runner_recovery_acceptance_v1` with RA-001 through RA-022 PASS.
 - Executed GitHub Actions static job on a real allocated runner.
 - CI run/attempt/job IDs > 0, `runner_id > 0`, non-empty runner name and at least 7 executed static-job steps.
 - CI static job conclusion is literal `success` and its head SHA equals the certified build Git SHA.
@@ -17,6 +18,7 @@ This is the final production decision contract. A candidate is **GO** only when 
 - GitHub attestation for `ci-evidence.json` is created and independently verified.
 - `ci-bundle-manifest.json` validates under `ci_evidence_bundle_v1` and all archived file hashes match.
 - `ci_static.bundle_validated=true` only from that passing bundle.
+- Validated `mt5_validation_evidence_v1` for the exact candidate, including hashed compile/tester/runtime artifacts.
 - Strategy Tester and every applicable intelligence/adaptive/broker/recovery/stop/news matrix PASS.
 - Deployment profile/drift validation PASS.
 - `API_TRANSPORT_TEST_MATRIX.md` HIGH-priority cases applicable to the selected mode PASS.
@@ -47,7 +49,10 @@ The release is **NO-GO** for any of the following:
 - compiled EX5 cannot be tied to the recorded source commit;
 - EX5/SET hash mismatch;
 - stale release validation/evidence contract;
-- runner-recovery evidence missing/invalid or recovery regresses to the pre-runner signature;\n- CI job completed without a real runner identity;
+- runner-recovery evidence missing/invalid or recovery regresses to the pre-runner signature;
+- runner-recovery acceptance matrix incomplete, HOLD, digest-mismatched or not joined to the accepted CI bundle;
+- MT5 validation evidence missing/invalid, wrong candidate/build/broker identity, or any required M5 row not PASS;
+- CI job completed without a real runner identity;
 - `runner_id=0`, empty runner name or empty/unexecuted step list used as release evidence;
 - CI head SHA differs from `build.git_sha`;
 - static check does not end in `RESULT=PASS`;
@@ -113,6 +118,8 @@ Record and reconcile:
 - CI run ID/attempt/job ID/runner ID/steps/head SHA;
 - CI evidence digest and final CI bundle digest/artifact name;
 - attestation verification output;
+- runner-recovery acceptance ID/digest;
+- MT5 validation evidence ID/digest and retained artifact hashes;
 - selected API transport mode and endpoint host/origin;
 - API transport evidence digest/output;
 - soak schema/evidence ID/digest;
@@ -124,7 +131,16 @@ Record and reconcile:
 
 ## Runtime evidence mapping
 
-Part28B must receive values only from the accepted CI/five-day evidence:
+Part28B must receive values only from accepted runner, CI, MT5 and five-day evidence:
+
+- `InpReleaseRunnerRecoveryPassed=true`
+- `InpReleaseRunnerRecoverySchemaVersion=runner_recovery_evidence_v1`
+- `InpReleaseRunnerRecoveryEvidenceId`
+- `InpReleaseRunnerRecoveryDigest`
+- `InpReleaseRunnerRecoveryAcceptancePassed=true`
+- `InpReleaseRunnerRecoveryAcceptanceSchemaVersion=runner_recovery_acceptance_v1`
+- `InpReleaseRunnerRecoveryAcceptanceId`
+- `InpReleaseRunnerRecoveryAcceptanceDigest`
 
 - `InpReleaseCIStaticEvidencePassed=true`
 - `InpReleaseCISchemaVersion=github_actions_static_evidence_v1`
@@ -137,6 +153,10 @@ Part28B must receive values only from the accepted CI/five-day evidence:
 - `InpReleaseCIBundleSchemaVersion=ci_evidence_bundle_v1`
 - `InpReleaseCIBundleDigest`
 - `InpReleaseCIBundleValidated=true`
+- `InpReleaseMT5ValidationPassed=true`
+- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v1`
+- `InpReleaseMT5ValidationEvidenceId`
+- `InpReleaseMT5ValidationDigest`
 - `InpReleaseSoakAcceptanceRecordId`
 - `InpReleaseSoakAcceptanceRecordDigest`.
 
@@ -144,7 +164,7 @@ Do not enter PASS placeholders before the corresponding validators and archived 
 
 ## Final human review
 
-Follow `FINAL_GO_NO_GO_REVIEW.md`. Review the exact compile artifact, executed CI bundle, five-day operator/machine acceptance, deployment profile, adaptive/broker/stop matrices, and API transport evidence.
+Follow `FINAL_GO_NO_GO_REVIEW.md`. Review the exact compile artifact, runner-recovery acceptance, executed CI bundle, MT5 validation evidence, five-day operator/machine acceptance, deployment profile, adaptive/broker/stop matrices, and API transport evidence.
 
 For DIRECT mode, confirm the user's OpenAI key is local-only and the endpoint is `api.openai.com`. For PROXY mode, confirm the OpenAI key is server-side only, the MT5 request contains no OpenAI bearer header, and the proxy token is separately scoped/revocable.
 
@@ -174,7 +194,11 @@ Candidate Git SHA:
 
 Release validation ID:
 
+Runner-recovery acceptance ID/digest:
+
 CI bundle digest/artifact:
+
+MT5 validation evidence ID/digest:
 
 API transport mode/evidence:
 

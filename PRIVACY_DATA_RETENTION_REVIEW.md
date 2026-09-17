@@ -1,3 +1,4 @@
+<!-- GPT_EA_DOC_HEADER -->
 <div align="center">
 
 # 🧠⚡ GPT_EA

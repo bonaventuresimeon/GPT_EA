@@ -183,10 +183,15 @@ void MarkSignalCooldownR5(const string sym)
 void NewsIntermarketInitR5()
 {
    NewsIntermarketInit();
+   ChaosInit();
+   ModelClockTrustInit();
    AdaptiveRiskSupervisorInit();
+   DataIntegrityInit();
    ExecutionLearningInitR5();
    ChampionChallengerInit();
    LifecycleIntegrityInit();
+   ExecutionReliabilityInit();
+   CausalAttributionInit();
    DemoSoakEvidenceInit();
    StrategyHealthDashboardInit();
 }
@@ -194,16 +199,22 @@ void NewsIntermarketInitR5()
 void NewsIntermarketTimerR5()
 {
    NewsIntermarketTimer();
+   ModelClockTrustTimer();
    AdaptiveRiskSupervisorTimer();
+   DataIntegrityTimer();
    ExecutionLearningTimerR5();
    ChampionChallengerTimer();
    LifecycleIntegrityTimer();
+   ExecutionReliabilityTimer();
+   CausalAttributionTimer();
    DemoSoakEvidenceTimer();
    StrategyHealthDashboardTimer();
 }
 
 void DeleteAdvancedDashboardR5()
 {
+   ExecutionReliabilityShutdown();
+   DataIntegrityShutdown();
    DemoSoakEvidenceShutdown();
    DeleteAdvancedDashboard();
    DeleteStrategyHealthDashboard();

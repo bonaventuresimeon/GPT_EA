@@ -105,6 +105,23 @@ flowchart TD
     SAFE -- No --> BLOCK[⛔ Block New Entries]
 ```
 
+## 🏛️ Architecture decisions
+
+The major irreversible or safety-relevant design choices are recorded in **[ADR_INDEX.md](ADR_INDEX.md)** rather than being left implicit in code comments.
+
+Current accepted ADR themes include fail-closed new-entry governance, customer-owned API keys, human approval, existing-position safety during governance blocks, evidence-bound releases, versioned legal/risk/privacy approval, privacy-minimized licensing/telemetry, and shadow-first adaptive learning.
+
+```mermaid
+flowchart LR
+    ADR[🏛️ ADR] --> CODE[⚙️ Implementation]
+    CODE --> TEST[🧪 Validation]
+    TEST --> EVID[📦 Release Evidence]
+    EVID --> DASH[🚦 Release Truth]
+    DASH --> GO{✅ GO?}
+```
+
+See also **[RELEASE_TRUTH_DASHBOARD.md](RELEASE_TRUTH_DASHBOARD.md)**.
+
 ## ⚠️ Non-goals
 
 GPT_EA does not guarantee profitable outcomes, remove market risk, make AI infallible, replace broker infrastructure, or permit release gates to be bypassed for convenience.

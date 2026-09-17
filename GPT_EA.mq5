@@ -15,6 +15,8 @@
 #define ReleaseSafetyAllows ReleaseSafetyAllowsCertified
 #define ReleaseGateSummary ReleaseGateSummaryCertified
 #define StopFailureObservabilityInit StopFailureObservabilityInitCertified
+#define AdvancedSafetyInit AdvancedSafetyInitCertified
+#define AdvancedSafetyTimer AdvancedSafetyTimerCertified
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
@@ -65,6 +67,8 @@
 #undef StrategyIntelligenceInit
 #undef PersistStrategyPlanForExecution
 #undef SelectDynamicStrategy
+#undef AdvancedSafetyTimer
+#undef AdvancedSafetyInit
 #undef StopFailureObservabilityInit
 #undef ReleaseGateSummary
 #undef ReleaseSafetyAllows

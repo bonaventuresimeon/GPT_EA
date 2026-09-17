@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bonaventuresimeon/GPT_EA/RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json",
+  "title": "GPT_EA R6 Runner-Recovery Acceptance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","release_validation_id","acceptance_id","acceptance_digest","runner_recovery_evidence_path","runner_recovery_evidence_id","runner_recovery_evidence_digest","candidate_git_sha","ci_bundle_digest","checks","operator_review"],
+  "properties": {
+    "schema_version": {"const":"runner_recovery_acceptance_v1"},
+    "release_validation_id": {"const":"GPT_EA_FULL_INTELLIGENCE_R6_20260917"},
+    "acceptance_id": {"type":"string","minLength":8},
+    "acceptance_digest": {"type":"string","pattern":"^[0-9a-fA-F]{64}$"},
+    "runner_recovery_evidence_path": {"type":"string","minLength":1},
+    "runner_recovery_evidence_id": {"type":"string","minLength":8},
+    "runner_recovery_evidence_digest": {"type":"string","pattern":"^[0-9a-fA-F]{64}$"},
+    "candidate_git_sha": {"type":"string","pattern":"^[0-9a-fA-F]{40}$"},
+    "ci_bundle_digest": {"type":"string","pattern":"^[0-9a-fA-F]{64}$"},
+    "checks": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":["incident_preserved","incident_classified_pre_runner","github_status_checked","actions_eligibility_checked","budget_checked","payment_state_checked","recovery_probe_allocated","recovery_probe_success","recovery_attempt_pinned","candidate_static_runner_allocated","candidate_static_steps_executed","candidate_static_success","candidate_sha_match","repository_static_result_pass","ci_evidence_validated","attestation_verified","ci_bundle_validated","recovery_ci_identity_match","recovery_bundle_digest_match","no_unreviewed_runner_regression","evidence_digests_valid"],
+      "properties": {
+        "incident_preserved":{"const":true},
+        "incident_classified_pre_runner":{"const":true},
+        "github_status_checked":{"const":true},
+        "actions_eligibility_checked":{"const":true},
+        "budget_checked":{"const":true},
+        "payment_state_checked":{"const":true},
+        "recovery_probe_allocated":{"const":true},
+        "recovery_probe_success":{"const":true},
+        "recovery_attempt_pinned":{"const":true},
+        "candidate_static_runner_allocated":{"const":true},
+        "candidate_static_steps_executed":{"const":true},
+        "candidate_static_success":{"const":true},
+        "candidate_sha_match":{"const":true},
+        "repository_static_result_pass":{"const":true},
+        "ci_evidence_validated":{"const":true},
+        "attestation_verified":{"const":true},
+        "ci_bundle_validated":{"const":true},
+        "recovery_ci_identity_match":{"const":true},
+        "recovery_bundle_digest_match":{"const":true},
+        "no_unreviewed_runner_regression":{"const":true},
+        "evidence_digests_valid":{"const":true}
+      }
+    },
+    "operator_review": {
+      "type":"object","additionalProperties":false,
+      "required":["decision","reviewer","timestamp","notes"],
+      "properties":{"decision":{"const":"ACCEPT"},"reviewer":{"type":"string","minLength":2},"timestamp":{"type":"string","minLength":8},"notes":{"type":"string"}}
+    }
+  }
+}

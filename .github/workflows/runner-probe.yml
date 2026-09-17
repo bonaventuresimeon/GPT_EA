@@ -1,0 +1,22 @@
+name: GPT_EA Runner Provisioning Probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/runner-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runner-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Prove hosted runner allocation
+        shell: bash
+        run: |
+          echo "runner allocated"
+          uname -a
+          python3 --version || true

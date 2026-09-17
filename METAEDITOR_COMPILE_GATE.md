@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 📚 Engineering Documentation
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 📚 **Document:** `METAEDITOR_COMPILE_GATE.md`
+
+---
+
 # GPT_EA MetaEditor Compile Gate
 
 This gate is **release blocking**. `GPT_EA.mq5` is not eligible for Strategy Tester, demo-soak certification or real-account release certification until this gate passes on the MetaTrader 5 installation/build intended for validation.

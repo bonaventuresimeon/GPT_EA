@@ -161,7 +161,7 @@ five_doc=paths["five_record_doc"].read_text(encoding="utf-8")
 for token in ["operator_record_path","FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md","validate_five_day_soak_record.py"]:
     if token not in five_doc: errors.append(f"five-day acceptance record doc missing token: {token}")
 
-for token in ["LS-001","LS-002","LS-008","DS-010","DS-020","DS-030","DS-040","DS-050","DS-070","DS-073","DS-080","DS-085"]:
+for token in ["LS-001","LS-002","LS-008","DS-010","DS-020","DS-030","DS-040","DS-050","DS-070","DS-073","DS-080","DS-085","DS-090","DS-095","DS-096"]:
     if token not in matrix: errors.append(f"R6_LIFECYCLE_SOAK_TEST_MATRIX.md missing release case: {token}")
 
 for token in ["canonical_digest", "validate_soak", "evidence_digest", "No release-evidence file was modified"]:

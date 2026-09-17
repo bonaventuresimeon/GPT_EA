@@ -22,3 +22,8 @@ void RecordPartialProtectionObservation(ulong ticket,const string eventName,cons
 
 // Defined in Part23 and used by adaptive notification integration in Part35.
 void NotifyCardObserved(const string card);
+
+
+// Defined in Part39 and used by pre-Part39 historical finalizers.
+int IntegrityTextHash(const string text);
+string CurrentSensitiveConfigText();

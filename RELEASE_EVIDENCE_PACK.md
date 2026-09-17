@@ -28,7 +28,9 @@ GPT_EA_RELEASE_<RELEASE_ID>/
 │   ├── GPT_EA.ex5.sha256
 │   ├── certified.set
 │   ├── certified.set.sha256
-│   └── metaeditor-compile.log
+│   ├── metaeditor-compile.log
+│   ├── compile-evidence.json
+│   └── compile-evidence-validation.txt
 ├── 02_static_ci/
 │   ├── static-check.txt
 │   └── ci-run-reference.txt
@@ -39,6 +41,9 @@ GPT_EA_RELEASE_<RELEASE_ID>/
 ├── 07_demo_soak/
 ├── 08_deployment/
 ├── 09_legal_privacy/
+│   ├── privacy-signoff.json
+│   ├── privacy-signoff-validation.txt
+│   └── jurisdiction-review-reference.txt
 ├── 10_final_review/
 └── 99_manifest/
     ├── release-evidence-validation.txt
@@ -76,6 +81,8 @@ Never accept screenshots alone as artifact identity.
 ## 🧪 Mandatory evidence groups
 
 ### 🛠️ 1. Build
+- `COMPILE_EVIDENCE_CHECKLIST.md` complete.
+- `tools/validate_compile_evidence.py` PASS.
 - 0-error MetaEditor compile evidence.
 - warning review.
 - EX5 artifact and hash.
@@ -119,6 +126,8 @@ Never accept screenshots alone as artifact identity.
 - zero unresolved critical protection.
 
 ### ⚖️ 8. Legal / privacy
+- `PRIVACY_SIGN_OFF.md` complete.
+- `tools/validate_privacy_signoff.py` PASS.
 - target-jurisdiction legal-review reference.
 - terms/risk schema versions.
 - privacy/data-retention review reference.
@@ -160,6 +169,15 @@ Then hash the completed manifest itself.
 - [ ] Pack stored in immutable/versioned archive.
 
 ## 🤖 Pack generator
+
+Before building the pack, validate the compile and privacy records:
+
+```text
+python tools/validate_compile_evidence.py artifacts/compile-evidence.json
+python tools/validate_privacy_signoff.py artifacts/privacy-signoff.json
+python tools/validate_release_evidence_r10.py release_evidence.json
+python tools/validate_final_release_review_r10.py release_evidence.json final_release_review.json
+```
 
 Use `RELEASE_EVIDENCE_PACK_TEMPLATE.json` as the input manifest and run:
 

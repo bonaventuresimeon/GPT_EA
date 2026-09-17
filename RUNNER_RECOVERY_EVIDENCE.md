@@ -57,11 +57,24 @@ python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evid
 
 The validator writes `runner-recovery-evidence-validation.txt` and a canonical SHA-256 digest.
 
+## Production acceptance matrix
+
+Recovery evidence by itself proves the technical transition, but R6 production acceptance additionally requires `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md` and a finalized `runner_recovery_acceptance_v1` record.
+
+Create `artifacts/runner-recovery-acceptance.json` from `RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json`, complete RA-001 through RA-022 only from actual evidence, then run:
+
+```text
+python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json --finalize
+python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json
+```
+
+The acceptance validator revalidates the referenced runner-recovery record and joins its candidate SHA and CI-bundle digest. Both the recovery evidence and the acceptance record must PASS before Part28B may be attested.
+
 ## Release binding
 
 `RELEASE_EVIDENCE_TEMPLATE.json -> runner_recovery` must reference the finalized evidence file, ID and digest. The release validator cross-checks its static-run identity against `ci_static` and the candidate Git SHA.
 
-Part28B remains fail-closed on REAL until the matching runner-recovery schema, evidence ID/digest and PASS attestation are supplied.
+Part28B remains fail-closed on REAL until both the matching runner-recovery evidence and runner-recovery acceptance matrix records are supplied and validated.
 
 ## Invalidation
 

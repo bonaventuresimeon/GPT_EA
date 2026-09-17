@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧠 System Intelligence & Architecture
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧠 **Document:** `FULL_INTELLIGENCE_COVERAGE.md`
+
+---
+
 # GPT_EA Full Intelligence Coverage Map
 
 This file is the implementation traceability contract for the advanced chart, multi-timeframe, strategy and news specification. A capability is considered complete only when it is wired into the scanner/revalidation path, not merely present as an unused helper.

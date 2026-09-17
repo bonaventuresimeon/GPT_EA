@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `RELEASE_EVIDENCE_VALIDATION.md`
+
+---
+
 # GPT_EA Release Evidence Validation — R6 Base + Current API Transport Guard
 
 This document connects the human release contracts, machine-readable evidence, GitHub Actions provenance, five-day soak acceptance, API/WebRequest validation, final review and MT5 runtime attestation.

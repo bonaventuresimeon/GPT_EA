@@ -145,7 +145,7 @@ void RenderApprovalPrompt()
 
    int remain=(int)MathMax(0,(long)(g_pending[idx].expiresAt-TimeTradeServer()));
    TradeSetup s=g_pending[idx].setup;
-   string kind=(s.kind==SETUP_PULLBACK?"PULLBACK":"BREAKOUT-RETEST");
+   string kind=(s.kind==SETUP_PULLBACK?"PULLBACK":(s.kind==SETUP_BREAKOUT?"BREAKOUT":"BREAKOUT-RETEST"));
    string txt=StringFormat(
       "TRADE APPROVAL REQUIRED | %s %s | %s | Confidence %d%% | Expires in %ds\nEntry %.5f | SL %.5f | TP1 %.5f | TP2 %.5f | TP3 %.5f",
       s.symbol,Arrow(s.bullish),kind,s.confidence,remain,s.preferred,s.sl,s.tp1,s.tp2,s.tp3);

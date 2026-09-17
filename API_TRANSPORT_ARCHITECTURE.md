@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🌐 AI & API Operations
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🌐 **Document:** `API_TRANSPORT_ARCHITECTURE.md`
+
+---
+
 # GPT_EA API Transport Architecture
 
 GPT_EA supports two OpenAI/WebRequest transport modes through `GPT_EA_Part37_APITransport.mqh`.

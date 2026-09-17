@@ -35,6 +35,7 @@ REQUIRED_FILES = [
     "GPT_EA_Part26_DeepGPTPolicy.mqh",
     "GPT_EA_Part27_StrategyCompletion.mqh",
     "GPT_EA_Part28_ReleaseCertification.mqh",
+    "GPT_EA_Part29_DeploymentDriftGuard.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -44,6 +45,11 @@ REQUIRED_FILES = [
     "STOP_FAILURE_OBSERVABILITY.md",
     "BROKER_STOP_RELEASE_EVIDENCE.md",
     "RELEASE_CERTIFICATION.md",
+    "METAEDITOR_COMPILE_GATE.md",
+    "DEMO_SOAK_ACCEPTANCE.md",
+    "DEPLOYMENT_DRIFT_TESTS.md",
+    "RELEASE_GO_NO_GO.md",
+    "RELEASE_EVIDENCE_MANIFEST.md",
 ]
 
 REQUIRED_TOKENS = {
@@ -90,8 +96,15 @@ REQUIRED_TOKENS = {
     "GPT_EA_Part28_ReleaseCertification.mqh": [
         "GPT_EA_REQUIRED_RELEASE_VALIDATION_ID", "ReleaseEvidenceAllows",
         "ReleaseSafetyAllowsCertified", "InpReleaseMetaEditorCompilePassed",
+        "InpReleaseArtifactIdentityArchived", "InpReleaseDeploymentProfilePassed",
         "InpReleasePartialProtectionPassed", "InpReleaseDemoSoakPassed",
-        "GPT_EA_ReleaseEvidence.csv",
+        "GPT_EA_ReleaseEvidence.csv", "R4",
+    ],
+    "GPT_EA_Part29_DeploymentDriftGuard.mqh": [
+        "CaptureDeploymentBaseline", "StructuralSymbolDriftAllows",
+        "DeploymentDriftAllows", "ReleaseSafetyAllowsR4",
+        "AdvancedSafetyInitR4", "AdvancedSafetyTimerR4",
+        "StopFailureObservabilityInitR4",
     ],
 }
 
@@ -106,9 +119,12 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part26_DeepGPTPolicy.mqh"',
     '#include "GPT_EA_Part27_StrategyCompletion.mqh"',
     '#include "GPT_EA_Part28_ReleaseCertification.mqh"',
-    "#define ReleaseSafetyAllows ReleaseSafetyAllowsCertified",
-    "#define ReleaseGateSummary ReleaseGateSummaryCertified",
-    "#define StopFailureObservabilityInit StopFailureObservabilityInitCertified",
+    '#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"',
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR4",
+    "#define ReleaseGateSummary ReleaseGateSummaryR4",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitR4",
+    "#define AdvancedSafetyInit AdvancedSafetyInitR4",
+    "#define AdvancedSafetyTimer AdvancedSafetyTimerR4",
     "#define SelectDynamicStrategy SelectDynamicStrategyUltimate",
     "#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate",
     "#define GetLiveWebIntel GetLiveWebIntelHardened",
@@ -221,6 +237,7 @@ def main() -> int:
     order = [
         "GPT_EA_Part18_StopBrokerObservability.mqh",
         "GPT_EA_Part28_ReleaseCertification.mqh",
+        "GPT_EA_Part29_DeploymentDriftGuard.mqh",
         "GPT_EA_Part15_StrategyIntelligence.mqh",
         "GPT_EA_Part15D_StructureTargets.mqh",
         "GPT_EA_Part21_ResearchValidation.mqh",
@@ -245,14 +262,21 @@ def main() -> int:
 
     release_part = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
     for flag in [
-        "InpReleaseMetaEditorCompilePassed", "InpReleaseStrategyTesterPassed",
-        "InpReleaseBrokerMatrixPassed", "InpReleaseRecoveryTestsPassed",
-        "InpReleaseStopMatrixPassed", "InpReleasePartialProtectionPassed",
+        "InpReleaseMetaEditorCompilePassed", "InpReleaseArtifactIdentityArchived",
+        "InpReleaseStrategyTesterPassed", "InpReleaseIntelligenceMatrixPassed",
+        "InpReleaseBrokerMatrixPassed", "InpReleaseDeploymentProfilePassed",
+        "InpReleaseRecoveryTestsPassed", "InpReleaseStopMatrixPassed",
+        "InpReleaseBrokerStopPolicyPassed", "InpReleasePartialProtectionPassed",
+        "InpReleaseStopObservabilityPassed", "InpReleaseLiveNewsIntermarketPassed",
         "InpReleaseWebFailureInjectionPassed", "InpReleaseDemoSoakPassed",
         "InpReleaseOperatorReviewPassed",
     ]:
         if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release_part):
             errors.append(f"release attestation must default false: {flag}")
+
+    release_id = re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"', release_part)
+    if not release_id or "R4" not in release_id.group(1):
+        errors.append("release validation ID must be R4 for current contract")
 
     if 'input string InpOpenAIAPIKey            = ""' not in (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8"):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")

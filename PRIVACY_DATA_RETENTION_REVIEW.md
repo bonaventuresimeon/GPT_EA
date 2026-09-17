@@ -110,6 +110,20 @@ Avoid raw prompts, full account identifiers, full trade history or personal data
 8. Correct root cause.
 9. Document closure and prevention.
 
+## 🔏 R10 privacy sign-off handoff
+
+After this review is complete for the target jurisdiction:
+
+1. complete `PRIVACY_SIGN_OFF_TEMPLATE.json`;
+2. set the decision to `APPROVED` only when all mandatory controls pass;
+3. require `unresolved_critical_findings = 0`;
+4. set telemetry state to `DISABLED` or `APPROVED`;
+5. validate with `tools/validate_privacy_signoff.py`;
+6. archive the resulting digest/output in the release-evidence pack;
+7. copy the matching R10 privacy fields into the certified deployment inputs.
+
+The runtime R10 gate will reject a privacy sign-off whose jurisdiction does not match `InpCustomerJurisdiction`.
+
 ## ✅ Privacy release checklist
 - [ ] Data inventory complete.
 - [ ] Every field has a purpose.

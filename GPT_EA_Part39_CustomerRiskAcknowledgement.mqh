@@ -14,8 +14,12 @@ input bool   InpAcknowledgeBrokerThirdPartyRisk     = false;
 input bool   InpAcknowledgePersonalResponsibility   = false;
 input bool   InpAcknowledgeDemoFirst                = false;
 input string InpCustomerJurisdiction                = "";
+input string InpAcceptedGPTTermsVersion              = "";
+input string InpAcceptedGPTRiskAckVersion            = "";
 input bool   InpWriteRiskAcknowledgementLog         = true;
 input string InpRiskAcknowledgementLogFile          = "GPT_EA_RiskAcknowledgements.csv";
+
+bool g_riskAckPassLogged=false;
 
 string RiskAckTrim(string value)
 {
@@ -77,6 +81,17 @@ bool GPTCustomerRiskAcknowledgementAllows(string &why)
    if(!InpAcknowledgeDemoFirst)
    {
       why="REAL account blocked: demo-first testing acknowledgement is missing.";
+      return false;
+   }
+
+   if(RiskAckTrim(InpAcceptedGPTTermsVersion)!=GPT_EA_LEGAL_TERMS_VERSION)
+   {
+      why="REAL account blocked: accepted terms version is missing or stale.";
+      return false;
+   }
+   if(RiskAckTrim(InpAcceptedGPTRiskAckVersion)!=GPT_EA_RISK_ACK_SCHEMA_VERSION)
+   {
+      why="REAL account blocked: risk acknowledgement version is missing or stale.";
       return false;
    }
 
@@ -169,6 +184,17 @@ void AdvancedSafetyInitR9CustomerAck()
 {
    AdvancedSafetyInitR8Legal();
    RefreshR9CustomerAckReleaseState();
+
+   if(!g_riskAckPassLogged &&
+      (ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL)
+   {
+      string why="";
+      if(GPTCustomerRiskAcknowledgementAllows(why))
+      {
+         WriteRiskAcknowledgementEvent(true,why);
+         g_riskAckPassLogged=true;
+      }
+   }
 }
 
 void AdvancedSafetyTimerR9CustomerAck()

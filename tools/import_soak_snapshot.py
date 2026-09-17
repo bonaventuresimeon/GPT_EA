@@ -8,6 +8,7 @@ import json
 import sys
 from pathlib import Path
 
+from validate_five_day_soak_record import validate_record
 from validate_soak_evidence import validate_soak
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,24 +29,23 @@ def resolve(path_text: str) -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Import a completed GPT_EA Part36 demo-soak snapshot into an R6 release-evidence JSON and finalize its digest"
+        description="Import a completed GPT_EA Part36 snapshot plus five-day acceptance record into R6 release evidence"
     )
     ap.add_argument("snapshot", help="Part36 GPT_EA_DemoSoakSnapshot.json path")
+    ap.add_argument("acceptance_record", help="Finalized five-day soak acceptance JSON")
     ap.add_argument("release_evidence", help="Release-evidence JSON to update")
     ap.add_argument("--output", default="", help="Optional output path; default overwrites release_evidence")
     args = ap.parse_args()
 
     snapshot_path = resolve(args.snapshot)
+    record_path = resolve(args.acceptance_record)
     release_path = resolve(args.release_evidence)
     output_path = resolve(args.output) if args.output else release_path
 
     errors: list[str] = []
-    if not snapshot_path.exists():
-        errors.append(f"snapshot not found: {snapshot_path}")
-    if not release_path.exists():
-        errors.append(f"release evidence not found: {release_path}")
-    if not SCHEMA_PATH.exists():
-        errors.append(f"schema not found: {SCHEMA_PATH}")
+    for label, path in (("snapshot", snapshot_path), ("acceptance record", record_path), ("release evidence", release_path), ("schema", SCHEMA_PATH)):
+        if not path.exists():
+            errors.append(f"{label} not found: {path}")
     if errors:
         print("SOAK SNAPSHOT IMPORT: FAILED")
         for err in errors:
@@ -54,6 +54,7 @@ def main() -> int:
 
     try:
         soak = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        record = json.loads(record_path.read_text(encoding="utf-8"))
         release = json.loads(release_path.read_text(encoding="utf-8"))
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -61,10 +62,16 @@ def main() -> int:
         return 1
 
     if not isinstance(soak, dict):
-        print("SOAK SNAPSHOT IMPORT: FAILED\nERROR: Part36 snapshot must be a JSON object")
-        return 1
+        errors.append("Part36 snapshot must be a JSON object")
+    if not isinstance(record, dict):
+        errors.append("five-day acceptance record must be a JSON object")
     if not isinstance(release, dict):
-        print("SOAK SNAPSHOT IMPORT: FAILED\nERROR: release evidence must be a JSON object")
+        errors.append("release evidence must be a JSON object")
+    if errors:
+        print("SOAK SNAPSHOT IMPORT: FAILED")
+        for err in errors:
+            print("ERROR:", err)
+        print("No release-evidence file was modified.")
         return 1
 
     if soak.get("schema_version") != "demo_soak_evidence_v1":
@@ -74,10 +81,19 @@ def main() -> int:
     report_raw = str(soak.get("report_path", "")).strip()
     if not report_raw:
         errors.append("snapshot.report_path is required")
-    else:
-        report_path = resolve(report_raw)
-        if not report_path.exists():
-            errors.append(f"soak report not found: {report_path}")
+    elif not resolve(report_raw).exists():
+        errors.append(f"soak report not found: {resolve(report_raw)}")
+
+    record_errors, record_digest = validate_record(record, require_digest=True)
+    errors.extend(f"five-day record: {e}" for e in record_errors)
+    if str(record.get("evidence_id", "")) != str(soak.get("evidence_id", "")):
+        errors.append("five-day record evidence_id does not match Part36 snapshot evidence_id")
+
+    release_build = release.get("build", {}) if isinstance(release, dict) else {}
+    candidate = record.get("candidate", {}) if isinstance(record, dict) else {}
+    for record_key, build_key in (("git_sha", "git_sha"), ("ex5_sha256", "ex5_sha256"), ("set_sha256", "set_sha256")):
+        if str(candidate.get(record_key, "")).lower() != str(release_build.get(build_key, "")).lower():
+            errors.append(f"five-day record candidate.{record_key} does not match release build.{build_key}")
 
     if errors:
         print("SOAK SNAPSHOT IMPORT: FAILED")
@@ -86,7 +102,14 @@ def main() -> int:
         print("No release-evidence file was modified.")
         return 1
 
+    soak["acceptance_record_id"] = str(record.get("record_id", ""))
+    soak["acceptance_record_digest"] = record_digest
+    try:
+        soak["acceptance_record_path"] = str(record_path.relative_to(ROOT)).replace("\\", "/")
+    except ValueError:
+        soak["acceptance_record_path"] = str(record_path)
     soak["evidence_digest"] = canonical_digest(soak)
+
     validation_errors, digest = validate_soak(soak, schema)
     if validation_errors:
         print("SOAK SNAPSHOT IMPORT: FAILED")
@@ -101,8 +124,10 @@ def main() -> int:
 
     print("SOAK SNAPSHOT IMPORT: PASS")
     print(f"SOURCE: {snapshot_path}")
+    print(f"ACCEPTANCE_RECORD: {record_path}")
     print(f"OUTPUT: {output_path}")
     print(f"SOAK_EVIDENCE_ID: {soak['evidence_id']}")
+    print(f"ACCEPTANCE_RECORD_SHA256: {record_digest}")
     print(f"SOAK_EVIDENCE_SHA256: {digest}")
     print("Next: run tools/validate_soak_evidence.py and tools/validate_release_evidence.py on the updated release evidence.")
     return 0

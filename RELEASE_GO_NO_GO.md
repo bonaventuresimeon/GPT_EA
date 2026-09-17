@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `RELEASE_GO_NO_GO.md`
+
+---
+
 # GPT_EA Final GO / NO-GO Release Contract — R6 Base + Current API Transport Guard
 
 This is the final production decision contract. A candidate is **GO** only when every mandatory release gate is PASS, the exact artifact/deployment identity is archived, executed GitHub Actions evidence is bound to the candidate, the five-day machine/operator soak acceptance is complete, the selected API/WebRequest transport passes its release matrix, and the machine-validated final review returns GO.

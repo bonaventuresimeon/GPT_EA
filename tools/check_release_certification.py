@@ -44,7 +44,7 @@ required_false_flags = [
 for name in required_false_flags:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28):
         errors.append(f"release evidence flag must default false: {name}")
-for name in ["InpReleaseRunnerRecoveryPassed", "InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"]:
+for name in ["InpReleaseRunnerRecoveryPassed", "InpReleaseRunnerRecoveryAcceptancePassed", "InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated", "InpReleaseMT5ValidationPassed"]:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28B):
         errors.append(f"{name} must default false")
 if not re.search(r"input\s+bool\s+InpReleaseAPITransportPassed\s*=\s*false\s*;", PART37):
@@ -62,9 +62,9 @@ for token in ["ReleaseArtifactIdentityAllows", "ReleaseDemoSoakEvidenceAllows", 
 for token in ["CaptureDeploymentBaseline", "StructuralSymbolDriftAllows", "DeploymentDriftAllows", "ReleaseSafetyAllowsR6", "RefreshR6ReleaseState"]:
     if token not in PART29: errors.append(f"Part29 missing deployment-drift token: {token}")
 for token in [
-    "GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA", "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
-    "ReleaseRunnerRecoveryEvidenceAllows", "ReleaseCIStaticEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
-    "InpReleaseRunnerRecoveryEvidenceId", "InpReleaseRunnerRecoveryDigest", "InpReleaseSoakAcceptanceSchemaVersion",
+    "GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA", "GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA", "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
+    "ReleaseRunnerRecoveryEvidenceAllows", "ReleaseRunnerRecoveryAcceptanceAllows", "ReleaseCIStaticEvidenceAllows", "ReleaseMT5ValidationEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
+    "InpReleaseRunnerRecoveryEvidenceId", "InpReleaseRunnerRecoveryDigest", "InpReleaseRunnerRecoveryAcceptanceId", "InpReleaseRunnerRecoveryAcceptanceDigest", "InpReleaseMT5ValidationEvidenceId", "InpReleaseMT5ValidationDigest", "InpReleaseSoakAcceptanceSchemaVersion",
     "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted", "InpReleaseCIAttestationVerified",
     "InpReleaseCIBundleSchemaVersion", "InpReleaseCIBundleDigest", "InpReleaseCIBundleValidated",
     "InpReleaseSoakAcceptanceRecordDigest", "GPT_EA_R6SupplementalEvidence.csv",
@@ -83,7 +83,7 @@ for token in [
 
 docs = [
     "RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
-    "CI_EVIDENCE_CONTRACT.md", "RUNNER_RECOVERY_EVIDENCE.md", "RUNNER_RECOVERY_TEST_MATRIX.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "SOAK_DAY_RECONCILIATION_CHECKLIST.md",
+    "CI_EVIDENCE_CONTRACT.md", "RUNNER_RECOVERY_EVIDENCE.md", "RUNNER_RECOVERY_TEST_MATRIX.md", "RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md", "MT5_VALIDATION_EVIDENCE.md", "MT5_VALIDATION_ACCEPTANCE_MATRIX.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "SOAK_DAY_RECONCILIATION_CHECKLIST.md",
     "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md", "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md",
     "RELEASE_EVIDENCE_MANIFEST.md", "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md",
 ]
@@ -107,8 +107,14 @@ else:
         for key in ("job_metadata_path", "bundle_manifest_path", "bundle_digest", "bundle_validated", "bundle_validation_path"):
             if key not in ci: errors.append(f"release template ci_static missing {key}")
         if template.get("gates", {}).get("runner_recovery") is not False: errors.append("release template runner_recovery gate must default false")
+        if template.get("gates", {}).get("runner_recovery_acceptance") is not False: errors.append("release template runner_recovery_acceptance gate must default false")
+        if template.get("gates", {}).get("mt5_validation") is not False: errors.append("release template mt5_validation gate must default false")
         rr = template.get("runner_recovery", {})
+        ra = template.get("runner_recovery_acceptance", {})
+        mt5 = template.get("mt5_validation", {})
         if rr.get("schema_version") != "runner_recovery_evidence_v1": errors.append("release template missing runner recovery schema")
+        if ra.get("schema_version") != "runner_recovery_acceptance_v1": errors.append("release template missing runner recovery acceptance schema")
+        if mt5.get("schema_version") != "mt5_validation_evidence_v1": errors.append("release template missing MT5 validation schema")
         if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
         if template.get("api_transport", {}).get("schema_version") != "api_transport_evidence_v1": errors.append("release template missing API transport evidence schema")
         if template.get("gates", {}).get("api_transport") is not False: errors.append("release template api_transport gate must default false")
@@ -141,7 +147,7 @@ else:
         if fr.get("schema_version") != "final_release_review_v1": errors.append("final review template schema mismatch")
         if fr.get("decision") != "HOLD": errors.append("final review template must default decision to HOLD")
         checks = fr.get("review", {})
-        for key in ("runner_recovery_pass", "ci_bundle_pass", "ci_attestation_verified", "api_transport_pass", "five_day_acceptance_pass", "soak_day_reconciliation_pass", "five_day_operator_record_complete"):
+        for key in ("runner_recovery_pass", "runner_recovery_acceptance_pass", "ci_bundle_pass", "ci_attestation_verified", "mt5_validation_pass", "api_transport_pass", "five_day_acceptance_pass", "soak_day_reconciliation_pass", "five_day_operator_record_complete"):
             if key not in checks: errors.append(f"final review template missing {key}")
             elif checks.get(key) is not False: errors.append(f"final review template {key} must default false")
     except Exception as exc:
@@ -153,6 +159,8 @@ for path_name, expected in [
     ("CI_EVIDENCE_BUNDLE_SCHEMA.json", "ci_evidence_bundle_v1"),
     ("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json", "five_day_soak_acceptance_v2"),
     ("RUNNER_RECOVERY_EVIDENCE_SCHEMA.json", "runner_recovery_evidence_v1"),
+    ("RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json", "runner_recovery_acceptance_v1"),
+    ("MT5_VALIDATION_EVIDENCE_SCHEMA.json", "mt5_validation_evidence_v1"),
 ]:
     p = ROOT / path_name
     if not p.exists(): errors.append(f"missing schema: {path_name}"); continue
@@ -174,7 +182,7 @@ if ci_schema_path.exists():
         pass
 
 for path_name, tokens in {
-    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_recovery", "validate_bundle", "validate_api_transport", "runner_recovery", "ci_static", "api_transport"],
+    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_acceptance_release_record", "validate_mt5_release_record", "validate_runner_recovery", "validate_acceptance", "validate_mt5", "validate_bundle", "validate_api_transport", "runner_recovery_acceptance", "mt5_validation", "ci_static", "api_transport"],
     "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN", "/attempts/{args.run_attempt}/jobs"],
     "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
     "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],
@@ -183,6 +191,9 @@ for path_name, tokens in {
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],
     "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
+    "tools/validate_runner_recovery_acceptance.py": ["runner_recovery_acceptance_v1", "validate_runner_recovery", "ci_bundle_digest", "RUNNER RECOVERY ACCEPTANCE"],
+    "tools/validate_mt5_validation_evidence.py": ["mt5_validation_evidence_v1", "compile_log_sha256", "report_sha256", "required_failure_fail_closed", "MT5 VALIDATION EVIDENCE"],
+    "tools/build_mt5_validation_evidence.py": ["--git-sha", "--compile-log", "--tester-report", "--broker-history"],
     "tools/build_runner_recovery_evidence.py": ["GITHUB_TOKEN", "runner-probe", "static-release-gate", "ci_bundle_manifest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
     "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"runner_recovery":data.get("runner_recovery",{})', '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})', "runner_recovery_pass", "soak_day_reconciliation_pass"],
@@ -195,7 +206,7 @@ for path_name, tokens in {
         if token not in text: errors.append(f"{path_name} missing required token: {token}")
 
 for concept in [
-    "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "runner recovery", "soak-day reconciliation", "artifact attestation", "CI evidence bundle",
+    "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "runner recovery", "runner-recovery acceptance", "MT5 validation", "soak-day reconciliation", "artifact attestation", "CI evidence bundle",
     "five-day", "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy",
 ]:
     if concept.lower() not in combined.lower(): errors.append(f"release docs missing concept: {concept}")

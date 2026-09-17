@@ -53,12 +53,12 @@ Any material candidate change after this point invalidates this record.
 | `GPT_EA_StopFailures.csv` present | | | | | |
 | `GPT_EA_ReleaseEvidence.csv` present | | | | | |
 | Experts/Journal reference | | | | | |
-| Part36 snapshot/evidence reference | | | | | |
+| Part36 snapshot/evidence reference | | | | | |\n| Soak-day reconciliation checklist path | | | | | |\n| Day reconciled / reviewer / timestamp | | | | | |
 | Broker order/deal history reference | | | | | |
 | Checkpoint/backup reference | | | | | |
 | Operator notes | | | | | |
 
-## Lifecycle acceptance
+Each accepted day must have a completed `SOAK_DAY_RECONCILIATION_CHECKLIST.md` copy and an `ACCEPT DAY` decision before it is entered as reconciled in the machine record.\n\n## Lifecycle acceptance
 
 Each item must be evidenced and marked PASS.
 

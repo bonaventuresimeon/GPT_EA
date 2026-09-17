@@ -14,11 +14,12 @@
 #include "GPT_EA_Part28_ReleaseCertification.mqh"
 #include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
 #include "GPT_EA_Part28B_CIReleaseEvidence.mqh"
-#define ReleaseSafetyAllows ReleaseSafetyAllowsR6Evidence
-#define ReleaseGateSummary ReleaseGateSummaryR6Evidence
-#define StopFailureObservabilityInit StopFailureObservabilityInitR6Evidence
-#define AdvancedSafetyInit AdvancedSafetyInitR6Evidence
-#define AdvancedSafetyTimer AdvancedSafetyTimerR6Evidence
+#include "GPT_EA_Part37_APITransport.mqh"
+#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API
+#define ReleaseGateSummary ReleaseGateSummaryR7API
+#define StopFailureObservabilityInit StopFailureObservabilityInitR7API
+#define AdvancedSafetyInit AdvancedSafetyInitR7API
+#define AdvancedSafetyTimer AdvancedSafetyTimerR7API
 #include "GPT_EA_Part15_StrategyIntelligence.mqh"
 #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
 #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
@@ -34,6 +35,11 @@
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull
 #define EffectiveRRDynamic EffectiveRRFullRatio
 #define ScheduledScanDue ScheduledOrContinuousScanDue
+
+// Route all active OpenAI/news WebRequest calls through the R7 transport layer.
+// Part37 was parsed before this macro, so its GPTAPIWebRequest() implementation
+// still calls the native MQL5 WebRequest function without recursion.
+#define WebRequest GPTAPIWebRequest
 #include "GPT_EA_Part16_NewsIntermarket.mqh"
 #include "GPT_EA_Part22A_IntermarketForward.mqh"
 #include "GPT_EA_Part22P_ResponseParser.mqh"
@@ -49,6 +55,7 @@
 #define ExtractOpenAIText ExtractOpenAITextWide
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
 #undef ExtractOpenAIText
+#undef WebRequest
 
 // Adaptive execution, portfolio risk, shadow validation, lifecycle, demo-soak evidence and dashboard stack.
 #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"

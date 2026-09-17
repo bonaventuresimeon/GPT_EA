@@ -98,7 +98,7 @@ try:
     props=schema.get("properties",{})
     required=set(schema.get("required",[]))
     expected={
-        "schema_version","evidence_id","start","end","trading_days","london_sessions","ny_sessions",
+        "schema_version","evidence_id","acceptance_record_schema_version","start","end","trading_days","london_sessions","ny_sessions",
         "overlap_observed","news_day_observed","rollover_observed","restart_observed","reconnect_observed",
         "scheduled_scans","continuous_scans","checkpoint_updates","backup_checkpoint_updates",
         "zero_tolerance_failures","unresolved_critical_states","duplicate_orders","duplicate_partials",
@@ -117,8 +117,11 @@ except Exception as exc:
 try:
     five_schema=json.loads(paths["five_schema"].read_text(encoding="utf-8"))
     required=set(five_schema.get("required",[]))
-    for field in ("operator_record_path","report_path","operator_review","lifecycle_checks","reconciliation"):
+    for field in ("operator_record_path","report_path","operator_review","lifecycle_checks","reconciliation","days"):
         if field not in required: errors.append(f"five-day acceptance schema must require {field}")
+    day_props=five_schema.get("properties",{}).get("days",{}).get("items",{}).get("properties",{})
+    for field in ("reconciliation_checklist_path","day_reconciled","reconciled_by","reconciled_at"):
+        if field not in day_props: errors.append(f"five-day acceptance day schema missing {field}")
     if five_schema.get("properties",{}).get("schema_version",{}).get("const")!="five_day_soak_acceptance_v2":
         errors.append("five-day acceptance schema version mismatch")
 except Exception as exc:

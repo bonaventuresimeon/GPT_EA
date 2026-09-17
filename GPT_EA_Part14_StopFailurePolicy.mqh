@@ -159,22 +159,67 @@ void ClearStopFailureState(ulong ticket,const string note="protection recovered"
    SafeUniversalCheckpointNow();
 }
 
+bool TrailingImprovementStillExpected(ulong ticket,double rNow,string &why)
+{
+   why="";
+   if(!InpUseATRTrailing || rNow<InpTrailStartR) return false;
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return false;
+
+   MqlTick t; if(!GetTickSafe(sym,t)) return false;
+   double px=(bull?t.bid:t.ask);
+   double atr=0,hi=0,lo=0;
+   int lookback=(int)MathMax(3,InpTrailStructureBarsM5);
+   if(!ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) || atr<=0 ||
+      !RecentHighLow(sym,PERIOD_M5,1,lookback,hi,lo)) return false;
+
+   double atrStop=(bull?px-InpTrailATRMultiplier*atr:px+InpTrailATRMultiplier*atr);
+   double structureStop=(bull?lo-InpTrailStructureBufferATR*atr:hi+InpTrailStructureBufferATR*atr);
+   double floorStop=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+   double candidate=(bull?MathMax(floorStop,MathMin(atrStop,structureStop)):MathMin(floorStop,MathMax(atrStop,structureStop)));
+   candidate=NormalizePriceToTick(sym,candidate);
+   double minStep=MathMax(PointFor(sym),InpTrailMinStepR*MathMax(R,PointFor(sym)));
+   if(!StopImproves(bull,currentSL,candidate,minStep)) return false;
+
+   string safeWhy="";
+   if(!StopBrokerSafe(sym,bull,candidate,safeWhy)) return false;
+   why=StringFormat("broker-valid trailing improvement to %.*f remained unapplied",DigitsFor(sym),candidate);
+   return true;
+}
+
 void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
 {
    if(!PositionSelectByTicket(ticket)) return;
    int expected=ExpectedProtectionStage(rNow);
-   if(expected<=0) return;
-   int actual=ActualProtectionStage(ticket);
-   if(actual>=expected)
+   if(expected>0)
    {
-      ClearStopFailureState(ticket,context+" satisfied");
+      int actual=ActualProtectionStage(ticket);
+      if(actual<expected)
+      {
+         double sl=PositionGetDouble(POSITION_SL);
+         bool critical=(sl<=0);
+         string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
+         RegisterStopUpdateFailure(ticket,why,critical);
+         return;
+      }
+   }
+
+   string trailWhy="";
+   if(TrailingImprovementStillExpected(ticket,rNow,trailWhy))
+   {
+      RegisterStopUpdateFailure(ticket,context+": "+trailWhy,false);
       return;
    }
 
-   double sl=PositionGetDouble(POSITION_SL);
-   bool critical=(sl<=0);
-   string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
-   RegisterStopUpdateFailure(ticket,why,critical);
+   ClearStopFailureState(ticket,context+" satisfied");
 }
 
 bool HandleUnprotectedStopFailure(ulong ticket,const string reason)

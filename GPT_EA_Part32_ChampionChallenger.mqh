@@ -20,7 +20,7 @@ input double InpPromotionRollbackMinPF            = 1.00;
 input double InpPromotionRollbackMaxExtraDDR      = 0.50;
 input int    InpRollbackRequalifyNewSamples       = 20;
 input int    InpShadowMaxExpiryM15                = 12;
-input string InpShadowValidationFile              = "GPT_EA_ShadowValidation.csv";
+input string InpShadowValidationFile              = "GPT_EA_ShadowValidationV2.csv";
 input bool   InpTrackRejectedCounterfactuals      = true;
 
 enum ShadowVariant
@@ -64,7 +64,8 @@ void EnsureShadowValidationHeader()
    int h=FileOpen(InpShadowValidationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    if(!exists || FileSize(h)==0)
-      FileWrite(h,"schema_version","time","event","symbol","strategy","variant","side","entry","sl","tp2","expiry_m15","outcome_r","mae_r","mfe_r","reason");
+      FileWrite(h,"schema_version","time","event","symbol","strategy","variant","side","entry","sl","tp2","expiry_m15","outcome_r","mae_r","mfe_r",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
    FileClose(h);
 }
 
@@ -75,9 +76,11 @@ void WriteShadowRow(const string eventName,const string sym,StrategyClass c,int 
    int h=FileOpen(InpShadowValidationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    FileSeek(h,0,SEEK_END);
-   FileWrite(h,"shadow_validation_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,sym,StrategyClassName(c),ShadowVariantName(variant),bull?"BUY":"SELL",
+   FileWrite(h,"shadow_validation_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,sym,StrategyClassName(c),ShadowVariantName(variant),bull?"BUY":"SELL",
       DoubleToString(entry,DigitsFor(sym)),DoubleToString(sl,DigitsFor(sym)),DoubleToString(tp2,DigitsFor(sym)),expiry,
-      DoubleToString(outcome,3),DoubleToString(mae,3),DoubleToString(mfe,3),reason);
+      DoubleToString(outcome,3),DoubleToString(mae,3),DoubleToString(mfe,3),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion(c),reason);
    FileFlush(h); FileClose(h);
 }
 

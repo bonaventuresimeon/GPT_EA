@@ -14,7 +14,6 @@ bool BrokerFillingMode(const string sym,ENUM_ORDER_TYPE_FILLING &out,string &why
    long exec=SymbolInfoInteger(sym,SYMBOL_TRADE_EXEMODE);
    long flags=SymbolInfoInteger(sym,SYMBOL_FILLING_MODE);
 
-   // RETURN is allowed for Request/Instant/Exchange but prohibited for Market Execution.
    if(exec!=SYMBOL_TRADE_EXECUTION_MARKET)
    {
       out=ORDER_FILLING_RETURN;
@@ -221,7 +220,7 @@ bool RecoveryCheckpointHeaderValid(const string fileName)
    long login=(long)StringToInteger(FileReadString(h));
    string server=FileReadString(h);
    long magic=(long)StringToInteger(FileReadString(h));
-   FileReadString(h); // snapshot time
+   FileReadString(h);
 
    bool completed=false;
    while(!FileIsEnding(h))
@@ -241,6 +240,10 @@ void BackupRecoveryCheckpointIfValid()
 {
    if(!InpUseRecoveryFileCheckpoint || !InpKeepRecoveryBackup) return;
    string main=RecoveryStateFileName();
+   if(!RecoveryCheckpointHeaderValid(main))
+   {
+      if(!AppendRecoveryEndMarker()) return;
+   }
    if(!RecoveryCheckpointHeaderValid(main)) return;
    ResetLastError();
    if(!FileCopy(main,FILE_COMMON,RecoveryBackupFileName(),FILE_COMMON|FILE_REWRITE))

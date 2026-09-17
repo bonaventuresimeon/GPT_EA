@@ -11,8 +11,6 @@ permissions:
   id-token: write
   attestations: write
 
-actions:
-
 concurrency:
   group: gpt-ea-static-${{ github.ref }}
   cancel-in-progress: true

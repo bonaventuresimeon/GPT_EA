@@ -1,6 +1,6 @@
 # GPT_EA Release Evidence Manifest
 
-Complete one copy of this manifest for every candidate production build. A Git commit or input checkbox alone is not evidence that a test passed.
+Complete one copy of this manifest for every candidate production build. A Git commit, input checkbox or profitable demo result alone is not evidence that a release gate passed.
 
 ## Build identity
 
@@ -9,10 +9,15 @@ Complete one copy of this manifest for every candidate production build. A Git c
 - Release tag/version:
 - MetaTrader build:
 - MetaEditor build:
-- `.ex5` file/hash:
-- EA `.set` preset/hash:
+- Windows build/architecture used for compilation:
+- `.ex5` path:
+- `.ex5` SHA-256:
+- EA `.set` preset path:
+- EA `.set` SHA-256:
 - Compile errors: **0 required**
-- Compile warnings:
+- Compile warnings: **0 preferred/required for production certification**
+- Compile log evidence location:
+- Compile timestamp:
 - Validation date range:
 
 ## Broker/account identity
@@ -25,16 +30,20 @@ Complete one copy of this manifest for every candidate production build. A Git c
 - Account leverage:
 - Symbols validated:
 - Broker symbol-profile evidence location:
+- Deployment-drift test evidence location:
+- Expected deployment identity inputs, if used:
 
 ## Required release contracts
 
 Attach PASS/FAIL evidence for each applicable document:
 
+- [ ] `METAEDITOR_COMPILE_GATE.md`
 - [ ] `COMPILE_TEST_CHECKLIST.md`
 - [ ] `ADVANCED_INTELLIGENCE_CONTRACT.md`
 - [ ] `FULL_INTELLIGENCE_COVERAGE.md`
 - [ ] `INTELLIGENCE_TEST_MATRIX.md`
 - [ ] `BROKER_MATRIX_TESTS.md`
+- [ ] `DEPLOYMENT_DRIFT_TESTS.md`
 - [ ] `RECOVERY_INVARIANTS.md`
 - [ ] `RELEASE_SAFETY_GATES.md`
 - [ ] `STOP_UPDATE_FAILURE_POLICY.md`
@@ -44,25 +53,50 @@ Attach PASS/FAIL evidence for each applicable document:
 - [ ] `STOP_FAILURE_OBSERVABILITY_CONTRACT.md`
 - [ ] `STOP_OBSERVABILITY_TEST_MATRIX.md`
 - [ ] `ANALYTICS_SCHEMA.md`
+- [ ] `DEMO_SOAK_ACCEPTANCE.md`
+- [ ] `RELEASE_GO_NO_GO.md`
+
+## Artifact identity evidence
+
+- [ ] Exact source Git SHA matches the compiled candidate.
+- [ ] EX5 SHA-256 archived.
+- [ ] SET SHA-256 archived when a preset is used.
+- [ ] No executable source changed after the certified compile without a new compile/hash.
+- [ ] Demo soak used the same EX5/SET candidate being proposed for release.
+- [ ] `InpReleaseArtifactIdentityArchived=true` will be set only after this section is complete.
+
+## Deployment profile / drift evidence
+
+- [ ] Intended broker company recorded.
+- [ ] Intended server recorded.
+- [ ] Account currency/leverage/margin mode recorded.
+- [ ] Resolved broker symbol names recorded.
+- [ ] digits/point/tick size/contract size/volume step recorded.
+- [ ] calculation/execution/filling modes recorded.
+- [ ] stable session causes no drift block.
+- [ ] controlled structural-drift cases block new entries.
+- [ ] spread/stops/freeze changes remain handled by live gates rather than false structural-drift classification.
+- [ ] existing positions remain managed during a deployment-drift block.
+- [ ] `InpReleaseDeploymentProfilePassed=true` will be set only after this section is complete.
 
 ## Stop-management evidence
 
-- [ ] Normal BUY TP1 → BE → profit lock → strong lock → trail lifecycle
-- [ ] Normal SELL lifecycle
-- [ ] TP1 partial/BE failure without duplicate partial
-- [ ] Partial-protection start/completion observed
-- [ ] Partial-protection hazard blocks new entries
-- [ ] Partial-protection recovery observed
-- [ ] Stop/freeze-distance failure observed
-- [ ] Requote/fresh-price retry observed
-- [ ] Disconnect/reconnect behavior observed
-- [ ] Market-closed behavior observed where applicable
-- [ ] Rate-limit/trade-context backoff observed or equivalent controlled test documented
-- [ ] Operator-required stop state blocks new entries
-- [ ] Missing-SL restore path tested
-- [ ] Emergency unprotected-position path tested
-- [ ] Restart with active stop failure tested
-- [ ] Ticket-change/position-identifier reconciliation tested
+- [ ] Normal BUY TP1 → BE → profit lock → strong lock → trail lifecycle.
+- [ ] Normal SELL lifecycle.
+- [ ] TP1 partial/BE failure without duplicate partial.
+- [ ] Partial-protection start/completion observed.
+- [ ] Partial-protection hazard blocks new entries.
+- [ ] Partial-protection recovery observed.
+- [ ] Stop/freeze-distance failure observed.
+- [ ] Requote/fresh-price retry observed.
+- [ ] Disconnect/reconnect behavior observed.
+- [ ] Market-closed behavior observed where applicable.
+- [ ] Rate-limit/trade-context backoff observed or equivalent controlled test documented.
+- [ ] Operator-required stop state blocks new entries.
+- [ ] Missing-SL restore path tested.
+- [ ] Emergency unprotected-position path tested.
+- [ ] Restart with active stop failure tested.
+- [ ] Ticket-change/position-identifier reconciliation tested.
 
 ## Observability artifacts
 
@@ -80,58 +114,74 @@ Archive:
 
 Verify:
 
-- [ ] stop CSV schema = `stop_failure_observability_v2`
-- [ ] stable class/action codes are present
-- [ ] stop lifecycles join by `POSITION_IDENTIFIER`
-- [ ] current SL in evidence agrees with broker state
-- [ ] no duplicate TP1/TP2 partials
-- [ ] no accepted stop regression
-- [ ] recovery events preserve the failure class/action being recovered
+- [ ] stop CSV schema = `stop_failure_observability_v2`.
+- [ ] stable class/action codes are present.
+- [ ] stop lifecycles join by `POSITION_IDENTIFIER`.
+- [ ] current SL in evidence agrees with broker state.
+- [ ] no duplicate TP1/TP2 partials.
+- [ ] no accepted stop regression.
+- [ ] recovery events preserve the failure class/action being recovered.
 
 ## Intelligence evidence
 
-- [ ] market-state taxonomy exercised
-- [ ] strategy classifications exercised where feasible
-- [ ] WAIT and NO TRADE examples archived
-- [ ] counter-trend stricter gate demonstrated
-- [ ] live news/intermarket stale-approval cancellation demonstrated
-- [ ] OpenAI/WebRequest failure-injection behavior demonstrated
-- [ ] realistic R:R cost model verified
-- [ ] continuous/scheduled scanning verified
-- [ ] 25-point thesis/adversarial validation reviewed
+- [ ] market-state taxonomy exercised.
+- [ ] strategy classifications exercised where feasible.
+- [ ] WAIT and NO TRADE examples archived.
+- [ ] counter-trend stricter gate demonstrated.
+- [ ] live news/intermarket stale-approval cancellation demonstrated.
+- [ ] OpenAI/WebRequest failure-injection behavior demonstrated.
+- [ ] realistic R:R cost model verified.
+- [ ] continuous/scheduled scanning verified.
+- [ ] 25-point thesis/adversarial validation reviewed.
 
 ## Recovery evidence
 
-- [ ] clean restart
-- [ ] pending approval restart
-- [ ] TP1 partial before BE restart
-- [ ] profit-lock/trailing restart
-- [ ] stop-failure restart
-- [ ] completed backup fallback
-- [ ] netting reversal safety where applicable
+- [ ] clean restart.
+- [ ] pending approval restart.
+- [ ] TP1 partial before BE restart.
+- [ ] profit-lock/trailing restart.
+- [ ] stop-failure restart.
+- [ ] completed backup fallback.
+- [ ] netting reversal safety where applicable.
 
-## Demo soak
+## Demo-soak acceptance
 
-- Start:
-- End:
+Follow `DEMO_SOAK_ACCEPTANCE.md`.
+
+- Soak start:
+- Soak end:
+- Consecutive trading days completed:
 - London sessions observed:
 - U.S. sessions observed:
+- London/New York overlap observed:
 - High-impact news day observed:
 - Rollover/spread expansion observed:
-- Weekend/restart observed:
+- Restart observed:
+- Disconnect/reconnect observed:
+- Weekend session observed if applicable:
 - Unexpected EA errors:
 - Unexplained broker retcodes:
 - Duplicate orders/partials: **must be none**
+- Unresolved critical stop/recovery states at end: **must be none**
+- Release/dashboard mismatch observed: **must be none**
+- Secrets exposed in logs: **must be none**
+- Demo-soak report evidence location:
 
 ## Live certification inputs
 
-The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS only after the corresponding evidence above exists and has been reviewed.
+The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS only after the matching evidence above exists and has been reviewed.
 
 Current required validation ID is defined in source by `GPT_EA_REQUIRED_RELEASE_VALIDATION_ID`; do not guess or reuse an old release ID after the contract changes.
 
+Required R4 evidence includes compile, artifact identity, Strategy Tester, intelligence matrix, broker matrix, deployment profile/drift, recovery, stop matrix, broker stop policy, partial protection, stop observability, live-news/intermarket, WebRequest failure injection, demo soak and final operator review.
+
 ## Final release decision
 
+Complete `RELEASE_GO_NO_GO.md`.
+
 - [ ] All applicable HIGH/release-blocking tests passed.
+- [ ] Exact artifact identity archived.
+- [ ] Deployment profile validated.
 - [ ] Human approval remains enabled for initial live deployment.
 - [ ] Conservative initial risk selected.
 - [ ] Live arm phrase will be entered locally only after final review.
@@ -139,6 +189,6 @@ Current required validation ID is defined in source by `GPT_EA_REQUIRED_RELEASE_
 
 Release reviewer:
 
-Decision: PASS / FAIL / HOLD
+Decision: GO / NO-GO / HOLD
 
 Notes:

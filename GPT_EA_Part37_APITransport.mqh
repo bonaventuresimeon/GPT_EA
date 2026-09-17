@@ -133,7 +133,7 @@ string APIHeaderValueCI(const string headers,const string key)
    string needle=key;
    StringToLower(low);
    StringToLower(needle);
-   needle+="\x3a"; // ':'
+   needle+=":";
    int p=StringFind(low,needle);
    if(p<0) return "";
    p+=StringLen(needle);

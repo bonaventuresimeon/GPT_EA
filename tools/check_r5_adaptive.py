@@ -10,6 +10,7 @@ MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
 PART05=(ROOT/"GPT_EA_Part05.mqh").read_text(encoding="utf-8")
 PART28=(ROOT/"GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
 PART35=(ROOT/"GPT_EA_Part35_AdaptiveIntegration.mqh").read_text(encoding="utf-8")
+PART36=(ROOT/"GPT_EA_Part36_DemoSoakEvidence.mqh").read_text(encoding="utf-8")
 errors=[]
 
 files=[
@@ -17,10 +18,11 @@ files=[
  "GPT_EA_Part31A_RegimeSizing.mqh","GPT_EA_Part31B_ExecutionFinalizer.mqh",
  "GPT_EA_Part32_ChampionChallenger.mqh","GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
  "GPT_EA_Part34_StrategyHealthDashboard.mqh","GPT_EA_Part35_AdaptiveIntegration.mqh",
- "ADAPTIVE_EXECUTION_ARCHITECTURE.md","ADAPTIVE_EXECUTION_TEST_MATRIX.md",
+ "GPT_EA_Part36_DemoSoakEvidence.mqh","ADAPTIVE_EXECUTION_ARCHITECTURE.md",
+ "ADAPTIVE_EXECUTION_TEST_MATRIX.md","DEMO_SOAK_EVIDENCE.md","DEMO_SOAK_REPORT_TEMPLATE.md",
 ]
 for f in files:
- if not (ROOT/f).exists(): errors.append(f"missing R5 adaptive file: {f}")
+ if not (ROOT/f).exists(): errors.append(f"missing adaptive/release file: {f}")
 
 main_tokens=[
  '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
@@ -30,6 +32,7 @@ main_tokens=[
  '#include "GPT_EA_Part32_ChampionChallenger.mqh"',
  '#include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"',
  '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
+ '#include "GPT_EA_Part36_DemoSoakEvidence.mqh"',
  '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
  '#define SelectDynamicStrategy SelectDynamicStrategyR5',
  '#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5',
@@ -39,6 +42,7 @@ main_tokens=[
  '#define NotifyCard NotifyCardR5',
  '#define NewsIntermarketInit NewsIntermarketInitR5',
  '#define NewsIntermarketTimer NewsIntermarketTimerR5',
+ '#define ReleaseSafetyAllows ReleaseSafetyAllowsR6',
 ]
 for t in main_tokens:
  if t not in MAIN: errors.append(f"missing adaptive main wiring: {t}")
@@ -51,7 +55,8 @@ contracts={
  "GPT_EA_Part32_ChampionChallenger.mqh":["ChallengerEligibleForPromotion","SHADOW_REJECTED_COUNTERFACTUAL","ChampionChallengerScanHook","InpAutoPromoteChallenger"],
  "GPT_EA_Part33_LifecycleIntegrityReplay.mqh":["LIFE_CANDIDATE","LIFE_FILLED","GPTDisagreementAllowsHighConfidence","GPTReviewIntegrityAllows","WriteDecisionSnapshot"],
  "GPT_EA_Part34_StrategyHealthDashboard.mqh":["GPT_EA_StrategyHealth.csv","AdaptiveCardAddendum"],
- "GPT_EA_Part35_AdaptiveIntegration.mqh":["SelectDynamicStrategyR5","AdaptivePreAuthorizationRiskAllowsR5","AIReviewAllowsExecutionR5","NotifyCardR5","ExecutionLearningInitR5","ExecutionLearningTimerR5"],
+ "GPT_EA_Part35_AdaptiveIntegration.mqh":["SelectDynamicStrategyR5","AdaptivePreAuthorizationRiskAllowsR5","AIReviewAllowsExecutionR5","NotifyCardR5","ExecutionLearningInitR5","ExecutionLearningTimerR5","LIFECYCLE_WAIT_HUMAN_APPROVAL","LIFECYCLE_WAIT_MARKET_CONFIRMATION"],
+ "GPT_EA_Part36_DemoSoakEvidence.mqh":["ReconcileStaleApprovalWaitStates","demo_soak_evidence_v1","WriteDemoSoakJsonSnapshot","SCHEDULED_SCANS","CONTINUOUS_SCANS","CHECKPOINT_UPDATES","BACKUP_CHECKPOINT_UPDATES"],
 }
 for f,tokens in contracts.items():
  p=ROOT/f
@@ -66,16 +71,20 @@ for t in ["AdaptivePreEntryAllows","StoredAIIntegrityAllows","RegisterAdaptiveEx
 flags=["InpReleaseAdaptivePortfolioPassed","InpReleaseExecutionLearningPassed","InpReleaseChampionChallengerPassed","InpReleaseLifecycleIntegrityPassed"]
 for flag in flags:
  if not re.search(rf"input\s+bool\s+{flag}\s*=\s*false\s*;",PART28):
-  errors.append(f"R5 adaptive release flag missing or not fail-closed: {flag}")
-if "GPT_EA_FULL_INTELLIGENCE_R5_20260917" not in PART28:
- errors.append("R5 release validation ID missing")
+  errors.append(f"adaptive release flag missing or not fail-closed: {flag}")
+if "GPT_EA_FULL_INTELLIGENCE_R6_20260917" not in PART28:
+ errors.append("R6 release validation ID missing")
+if "demo_soak_evidence_v1" not in PART28:
+ errors.append("R6 demo-soak schema contract missing")
 
 p32=(ROOT/"GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
 if not re.search(r"InpAutoPromoteChallenger\s*=\s*false\s*;",p32):
  errors.append("challenger auto-promotion must default false")
 
 if "ExecutionLearningInitR5();" not in PART35 or "ExecutionLearningTimerR5();" not in PART35:
- errors.append("history-safe R5 execution finalizer is not the active runtime path")
+ errors.append("history-safe adaptive execution finalizer is not the active runtime path")
+if "DemoSoakEvidenceTimer();" not in PART35 or "ReconcileStaleApprovalWaitStates" not in PART36:
+ errors.append("R6 demo-soak/lifecycle reconciliation runtime path is incomplete")
 
 arch=(ROOT/"ADAPTIVE_EXECUTION_ARCHITECTURE.md").read_text(encoding="utf-8") if (ROOT/"ADAPTIVE_EXECUTION_ARCHITECTURE.md").exists() else ""
 for i in range(1,21):
@@ -86,7 +95,7 @@ for prefix in ["AR-001","AR-020","AR-030","AR-040","AR-060","AR-080","AR-110","A
  if prefix not in tests: errors.append(f"adaptive release matrix missing {prefix}")
 
 if errors:
- print("R5 ADAPTIVE STATIC CHECK: FAILED")
+ print("ADAPTIVE R6 STATIC CHECK: FAILED")
  for e in errors: print("ERROR:",e)
  sys.exit(1)
-print("R5 ADAPTIVE STATIC CHECK: PASS")
+print("ADAPTIVE R6 STATIC CHECK: PASS")

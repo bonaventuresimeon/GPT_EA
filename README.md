@@ -13,7 +13,7 @@
 
 ### 🧠 Multi-Timeframe Intelligence · 📰 News & Intermarket · 🛡️ Risk · ⚡ Execution · 💾 Recovery · 🔐 Release Governance
 
-[🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🚀 Installation](INSTALLATION.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md) · [⚖️ Terms](TERMS_AND_CONDITIONS.md)
+[🏗 Architecture](ARCHITECTURE.md) · [🏛 ADRs](ADR_INDEX.md) · [🚦 Release Truth](RELEASE_TRUTH_DASHBOARD.md) · [🗺 Roadmap](ROADMAP.md) · [🚀 Installation](INSTALLATION.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md) · [⚖️ Terms](TERMS_AND_CONDITIONS.md)
 
 </div>
 
@@ -83,6 +83,8 @@ flowchart LR
 **No single AI response can force an order.** New-entry authorization remains fail-closed when a mandatory gate is missing or stale.
 
 ## 🚦 Release truth
+
+**[Open the release-truth dashboard →](RELEASE_TRUTH_DASHBOARD.md)** · Current checked-in baseline: **⏸️ HOLD** until exact-candidate external evidence is validated.
 
 | Item | Current contract |
 |---|---|
@@ -549,6 +551,9 @@ Customer distribution is supported by:
 The R10 privacy sign-off gate sits on top of R9 customer-risk acknowledgement, R8 legal/license acknowledgement and the R7 API/release guard. REAL-account new entries remain blocked until the customer legal/risk acknowledgements are valid **and** the release has a jurisdiction-matched privacy sign-off with zero unresolved critical privacy findings. Demo/Strategy Tester remain available for evaluation. Governance failure must never weaken management of already-open positions.
 
 ## Documentation architecture
+
+- 🏛️ `ADR_INDEX.md` — accepted architecture decisions and rationale.
+- 🚦 `RELEASE_TRUTH_DASHBOARD.md` — evidence-derived PASS/HOLD/NO-GO summary.
 
 - 🏗️ `ARCHITECTURE.md` — end-to-end system and trust-boundary diagrams.
 - 🗺️ `ROADMAP.md` — capability roadmap and promotion guardrails.

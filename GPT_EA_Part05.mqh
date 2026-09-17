@@ -108,6 +108,14 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       return false;
    }
 
+   string stopPolicyWhy="";
+   if(!StopFailurePolicyConfigSafe(stopPolicyWhy))
+   {
+      StopFailurePauseNewEntries("invalid stop failure policy: "+stopPolicyWhy);
+      Print(s.symbol,": STOP FAILURE POLICY BLOCK - ",stopPolicyWhy);
+      return false;
+   }
+
    TradeSetup x=s;
    x.sl=NormalizePriceToTick(x.symbol,x.sl);
    x.tp1=NormalizePriceToTick(x.symbol,x.tp1);

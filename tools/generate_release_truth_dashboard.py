@@ -230,6 +230,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Generate the GPT_EA release-truth dashboard from machine-readable release evidence.")
     ap.add_argument("evidence", nargs="?", default="release_evidence.json")
     ap.add_argument("--output", default="RELEASE_TRUTH_DASHBOARD.md")
+    ap.add_argument("--require-pass", action="store_true", help="return nonzero unless the evaluated dashboard state is PASS")
     args = ap.parse_args()
 
     source = Path(args.evidence)
@@ -253,6 +254,9 @@ def main() -> int:
     _, overall, _ = assess(data)
     print("RELEASE TRUTH DASHBOARD: " + overall.replace("✅ ", "").replace("⏸️ ", "").replace("⛔ ", ""))
     print("OUTPUT=" + str(output))
+    if args.require_pass and overall != PASS:
+        print("ERROR: --require-pass requested but dashboard state is not PASS")
+        return 1
     return 0
 
 

@@ -71,6 +71,8 @@ REAL-account configuration requires:
     InpAcknowledgePersonalResponsibility = true
     InpAcknowledgeDemoFirst = true
     InpCustomerJurisdiction = <JURISDICTION CODE>
+    InpAcceptedGPTTermsVersion = GPT_EA_TERMS_20260917_V1
+    InpAcceptedGPTRiskAckVersion = GPT_EA_RISK_ACK_V1
     InpGPTTermsAcceptancePhrase = I ACCEPT GPT_EA TERMS AND TRADING RISK
     InpCustomerLicenseReference = <ISSUED LICENSE REFERENCE>
 
@@ -122,3 +124,10 @@ Support must not accept the customer's terms on their behalf.
 ## Stage 12 — Audit and retention
 
 The seller should establish a jurisdiction-appropriate retention policy and keep only what is reasonably required to prove versioned acceptance and license scope.
+## Machine-readable acknowledgement record
+
+Use `CUSTOMER_RISK_ACKNOWLEDGEMENT_TEMPLATE.json` to create the retained acknowledgement record. Validate it with:
+
+    python tools/validate_customer_risk_acknowledgement.py customer-risk-acknowledgement.json
+
+A valid record must be bound to the exact terms and acknowledgement schema versions and include a deterministic SHA-256 digest.

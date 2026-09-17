@@ -20,7 +20,7 @@
 #include "GPT_EA_Part24_SessionStrategyHardening.mqh"
 #include "GPT_EA_Part19_ContinuousIntelligence.mqh"
 #define SelectDynamicStrategy SelectDynamicStrategyFinal
-#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionFull
+#define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull
 #define EffectiveRRDynamic EffectiveRRFullRatio

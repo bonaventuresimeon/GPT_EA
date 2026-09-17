@@ -53,6 +53,7 @@
 #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
 #include "GPT_EA_Part31_ExecutionLearning.mqh"
 #include "GPT_EA_Part31A_RegimeSizing.mqh"
+#include "GPT_EA_Part31B_ExecutionFinalizer.mqh"
 #include "GPT_EA_Part32_ChampionChallenger.mqh"
 #include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
 #include "GPT_EA_Part34_StrategyHealthDashboard.mqh"

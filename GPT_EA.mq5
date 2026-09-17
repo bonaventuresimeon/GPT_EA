@@ -5,6 +5,7 @@
 #include "GPT_EA_Part04.mqh"
 #include "GPT_EA_Part08_Advanced.mqh"
 #include "GPT_EA_Part09_RiskRecoveryAnalytics.mqh"
+#include "GPT_EA_Part10_BrokerUniversalRecovery.mqh"
 #include "GPT_EA_Part05.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part07.mqh"

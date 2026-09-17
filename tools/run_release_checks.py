@@ -2,9 +2,9 @@
 """Run all repository-level GPT_EA release checks without GitHub Actions.
 
 This does not replace MetaEditor compilation, Strategy Tester, broker matrices,
-recovery tests, adaptive terminal tests, WebRequest failure injection or demo
-soak. It provides an offline/CI-independent repository static gate and writes
-static-check.txt at repository root.
+recovery tests, adaptive terminal tests, WebRequest/API transport failure
+injection or demo soak. It provides an offline/CI-independent repository static
+gate and writes static-check.txt at repository root.
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ CHECKS = [
     ROOT / "tools" / "check_release_certification.py",
     ROOT / "tools" / "check_r5_adaptive.py",
     ROOT / "tools" / "check_r6_soak_lifecycle.py",
+    ROOT / "tools" / "check_api_transport_static.py",
 ]
 
 

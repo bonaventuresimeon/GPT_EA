@@ -10,9 +10,12 @@ Use:
 
 - `RELEASE_EVIDENCE_TEMPLATE.json` → working `release_evidence.json`;
 - `RUNNER_RECOVERY_EVIDENCE_SCHEMA.json` and `RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json` → hosted-runner recovery proof;
+- `RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json` and `RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json` → production acceptance of the recovered runner path;
+- `MT5_VALIDATION_EVIDENCE_SCHEMA.json` and `MT5_VALIDATION_EVIDENCE_TEMPLATE.json` → exact MetaEditor/MT5 compile/test/runtime evidence;
 - `CI_EVIDENCE_SCHEMA.json` and `CI_EVIDENCE_BUNDLE_SCHEMA.json` → executed GitHub Actions evidence;
 - `SOAK_EVIDENCE_SCHEMA.json` → versioned machine soak contract;
-- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` → working five-day machine acceptance record (`five_day_soak_acceptance_v2`);\n- `SOAK_DAY_RECONCILIATION_CHECKLIST.md` → one completed reconciliation file per accepted day;
+- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` → working five-day machine acceptance record (`five_day_soak_acceptance_v2`);
+- `SOAK_DAY_RECONCILIATION_CHECKLIST.md` → one completed reconciliation file per accepted day;
 - `FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md` → working human/operator reconciliation record;
 - `DEMO_SOAK_REPORT_TEMPLATE.md` → full soak report;
 - `FINAL_RELEASE_REVIEW_TEMPLATE.json` → working final review.
@@ -44,6 +47,15 @@ python tools/validate_runner_recovery_evidence.py artifacts/runner-recovery-evid
 ```
 
 Only the resulting PASS/digest may populate `runner_recovery` and `gates.runner_recovery=true`.
+
+Then complete `runner_recovery_acceptance_v1` against `RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md` and run:
+
+```text
+python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json --finalize
+python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json
+```
+
+Only after that validator passes may `gates.runner_recovery_acceptance=true`.
 
 ## 3. Executed GitHub Actions CI evidence
 
@@ -84,7 +96,20 @@ python tools/validate_ci_bundle.py artifacts/ci-bundle-manifest.json \
 
 `ci_static.bundle_validated` may become true only after the final bundle validator passes.
 
-## 4. API/WebRequest transport evidence
+## 4. MT5/MetaEditor validation evidence
+
+Build the draft MT5 record from the exact retained artifacts or start from the template. At minimum archive the compile log, Strategy Tester report, Experts log, Journal log, broker-history reconciliation and completed `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` working copy.
+
+Validate:
+
+```text
+python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json --finalize
+python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json
+```
+
+The release validator cross-checks the MT5 candidate Git/EX5/SET identity, MetaEditor/terminal builds and broker/server/account identity against `build` and `deployment`. Only a PASS may set `gates.mt5_validation=true`.
+
+## 5. API/WebRequest transport evidence
 
 The active source routes release safety through the API transport guard. Complete `API_TRANSPORT_TEST_MATRIX.md` for the selected DIRECT_OPENAI or SECURE_PROXY mode.
 
@@ -98,7 +123,7 @@ python tools/validate_api_transport_evidence.py release_evidence.json
 
 `gates.api_transport` must be true before the aggregate release validator can pass.
 
-## 5. Five-day machine, day-by-day and operator acceptance
+## 6. Five-day machine, day-by-day and operator acceptance
 
 Part36 produces machine observations, but the five-day engineering acceptance also requires human reconciliation.
 
@@ -127,7 +152,7 @@ python tools/validate_five_day_soak_record.py artifacts/five-day-soak-acceptance
 
 Only a passing finalization produces an acceptable `record_digest`.
 
-## 6. Soak schema and digest
+## 7. Soak schema and digest
 
 Import the completed Part36 snapshot and accepted five-day record into the release evidence using the repository importer, then validate:
 
@@ -141,13 +166,16 @@ The validator requires the session/event/restart/reconnect/scan/checkpoint cover
 
 The five-day record candidate Git/EX5/SET must match the build identity exactly.
 
-## 6. Pre-review release basis
+## 8. Pre-review release basis
 
 The stable release-evidence basis used by final review consists of:
 
 - release validation ID;
 - `build`;
+- `runner_recovery`;
+- `runner_recovery_acceptance`;
 - `ci_static`;
+- `mt5_validation`;
 - `deployment`;
 - `api_transport`;
 - `demo_soak`;
@@ -155,7 +183,7 @@ The stable release-evidence basis used by final review consists of:
 
 Do not perform final review against a basis that later changes.
 
-## 7. Final GO/NO-GO review
+## 9. Final GO/NO-GO review
 
 Complete `final_release_review.json` following `FINAL_GO_NO_GO_REVIEW.md`.
 
@@ -171,7 +199,7 @@ Only literal `GO` can pass. Archive `final-release-review-validation.txt`.
 
 After it passes, copy the final review identity into `release_evidence.json` and set `gates.operator_review=true`.
 
-## 8. Final aggregate validation
+## 10. Final aggregate validation
 
 Run:
 

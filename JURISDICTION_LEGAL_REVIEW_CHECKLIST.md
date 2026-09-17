@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### ⚖️ Legal, Risk & Governance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> ⚖️ **Document:** `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md`
+
+---
+
 # GPT_EA Jurisdiction-Ready Legal Review Checklist
 
 Use this checklist before selling, licensing, advertising, distributing or supporting GPT_EA in a new country, state, province or other legal jurisdiction.

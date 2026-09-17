@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🧪 Validation & Quality Assurance
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🧪 **Document:** `INTELLIGENCE_HARDENING_TESTS.md`
+
+---
+
 # GPT_EA Intelligence Hardening Release Tests
 
 These tests extend `INTELLIGENCE_TEST_MATRIX.md`. All applicable **BLOCKING** cases must pass before live arming. A green static GitHub Action is necessary but not sufficient; MetaEditor compile, Strategy Tester, broker/recovery/stop tests and demo soak remain mandatory.

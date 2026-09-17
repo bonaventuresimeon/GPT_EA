@@ -77,7 +77,8 @@ void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,S
    string lateWhy="";
    if(LateSessionLiquidityRisk(lateWhy) && d.strategy!=STRATEGY_NO_TRADE)
    {
-      d.score=MathMax(0,d.score-MathMax(0,InpLateSessionScorePenalty));
+      int penalty=(InpLateSessionScorePenalty>0?InpLateSessionScorePenalty:0);
+      d.score=(d.score>penalty?d.score-penalty:0);
       d.rationale+=" | Late-session liquidity warning: "+lateWhy;
       bool fastSetup=(d.strategy==STRATEGY_BREAKOUT || d.strategy==STRATEGY_BREAKOUT_RETEST ||
                       d.strategy==STRATEGY_COUNTER_TREND_SCALP || d.strategy==STRATEGY_MEAN_REVERSION);

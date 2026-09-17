@@ -17,7 +17,7 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
    s+="Scan: "+scanReason+"\n\n";
    s+="Analysis:\n"+primary.reason+"\n\n";
    s+="Confirmation:\n";
-   s+="✅ Multi-timeframe trend alignment\n";
+   s+="✅ Multi-timeframe context evaluated\n";
    s+=StringFormat("%s Setup rule satisfied\n",primary.valid?"✅":"⚠️");
    s+=StringFormat("%s %s\n",spreadOK?"✅":"❌",spreadText);
    s+=StringFormat("%s %s\n",newsBlock?"❌":"✅",news);
@@ -27,18 +27,18 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
    int d=DigitsFor(primary.symbol);
    s+=StringFormat("\nEntry: %.*f – %.*f\nPreferred Entry: %.*f\nSL: %.*f\nTP1: %.*f\nTP2: %.*f\nTP3: %.*f\n",
       d,primary.zoneLow,d,primary.zoneHigh,d,primary.preferred,d,primary.sl,d,primary.tp1,d,primary.tp2,d,primary.tp3);
-   s+=StringFormat("R:R: TP1 = 1R, TP2 = 2R, TP3 = 3R; effective R:R to TP2 after spread/slippage ≈ 1:%.2f\n",primary.effectiveRR1);
+   s+=StringFormat("R:R: nominal TP1 family %.2fR; effective R:R to TP2 after spread/slippage ≈ 1:%.2f\n",primary.nominalRR1,primary.effectiveRR1);
    s+=StringFormat("Confidence: %d%%\n",primary.confidence);
-   s+=StringFormat("Time invalidation: TP1 should be reached within %d M15 candles after entry (ATR/opening-range adjusted).\n",primary.expiryM15);
+   s+=StringFormat("Time invalidation: TP1 should be reached within %d M15 candles after entry (ATR/opening-range/strategy adjusted).\n",primary.expiryM15);
    s+="Invalidation: "+primary.invalidation+"\n";
    s+="Failure pattern: "+primary.failurePattern+"\n\n";
 
    s+="Pullback vs Breakout-Retest:\n"+SetupSummaryLine(pullback)+"\n"+SetupSummaryLine(breakout)+"\n";
-   s+="Pullback usually fails by acceptance through the support/resistance zone; breakout-retest usually fails by a false break and close back inside the old range.\n";
-   s+="Spread/slippage penalize the tighter setup more: if effective R:R falls below the configured minimum, skip the entry.\n\n";
+   s+="Pullback usually fails by acceptance through support/resistance/value; breakout-retest usually fails by a false break and close back inside the old range.\n";
+   s+="Spread/slippage penalize tighter setups more; effective R:R below the configured threshold invalidates authorization.\n\n";
 
    s+="Position management:\n";
-   s+=StringFormat("• Lot size = %.2f%% of %s using OrderCalcProfit().\n",InpRiskPercent,(InpUseEquity?"equity":"balance"));
+   s+=StringFormat("• Lot size = %.2f%% of %s using broker-aware OrderCalcProfit().\n",InpRiskPercent,(InpUseEquity?"equity":"balance"));
    s+=StringFormat("• TP1: take %.0f%% partial; cost-aware BE protection is retried until broker-valid.\n",InpPartialAtTP1Percent);
    s+=StringFormat("• Profit lock: at %.2fR lock %.2fR; at %.2fR lock %.2fR.\n",
                    InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR);
@@ -46,12 +46,12 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
                    InpTrailStartR,InpTrailMinStepR);
    s+=StringFormat("• TP2: optionally close %.0f%% of the remaining volume, then manage the runner toward TP3/trailing exit.\n",InpPartialAtTP2Percent);
    s+=StringFormat("• After TP1: if price stalls near the next M15 resistance/support for %d M5 candles and momentum deteriorates, close the remainder.\n",InpPostTP1StallM5);
-   s+="• Economic/yield/session, spread, release-safety, portfolio-risk, cooldown, broker/OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
+   s+="• News/intermarket, economic/yield/session, spread, release-safety, partial-protection, portfolio-risk, cooldown, broker/OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
 
    bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
    s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
    s+="Execution rule: "+primary.executionRule+"\n";
-   s+="Risk note: execution costs and fast markets can make realized loss larger than the modelled stop risk.\n";
+   s+="Risk note: execution costs, gaps and fast markets can make realized loss larger than modelled stop risk.\n";
    return s;
 }
 
@@ -98,7 +98,7 @@ bool M5Trigger(const TradeSetup &s)
 
 bool ApprovedPlaceTrade(const TradeSetup &s)
 {
-   // Approval is authorization only. Every release, risk, broker and market condition is revalidated here.
+   // Approval is authorization only. Every strategy, news, release, risk, broker and market condition is revalidated here.
    if(!InpEnableApprovedExecution || !s.valid) return false;
 
    string releaseWhy="";
@@ -116,13 +116,29 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       return false;
    }
 
+   string stopObsWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopObsWhy))
+   {
+      Print(s.symbol,": PARTIAL PROTECTION/STOP OBSERVABILITY BLOCK - ",stopObsWhy);
+      return false;
+   }
+
    TradeSetup x=s;
    x.sl=NormalizePriceToTick(x.symbol,x.sl);
    x.tp1=NormalizePriceToTick(x.symbol,x.tp1);
    x.tp2=NormalizePriceToTick(x.symbol,x.tp2);
    x.tp3=NormalizePriceToTick(x.symbol,x.tp3);
 
-   if(!PriceInsideZone(x) || !M5Trigger(x)) return false;
+   string intelWhy="";
+   if(!PreEntryIntelligenceRevalidation(x,intelWhy))
+   {
+      Print(x.symbol,": STRATEGY/NEWS/INTERMARKET REVALIDATION BLOCK - ",intelWhy);
+      return false;
+   }
+
+   if(!PriceInsideZone(x)) return false;
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   if(!StrategyExecutionTrigger(x,cls)) return false;
    if(CountPositions(x.symbol)>=InpMaxPositionsPerSymbol) return false;
 
    string kill=""; if(RiskKillSwitchActive(kill)){ Print(x.symbol,": execution blocked - ",kill); return false; }
@@ -164,12 +180,14 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       return false;
    }
 
+   PersistStrategyPlanForExecution(x);
    RegisterPlannedExecution(x,lots,riskMoney);
    SafeUniversalCheckpointNow();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(slipPts);
    trade.SetTypeFillingBySymbol(x.symbol);
-   string comment=(x.kind==SETUP_PULLBACK?"GPT-PB-OK":"GPT-BR-OK");
+   cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
+   string comment="GPT-"+StrategyCode(cls)+"-OK";
    bool ok=(x.bullish?trade.Buy(lots,x.symbol,0,x.sl,x.tp3,comment):trade.Sell(lots,x.symbol,0,x.sl,x.tp3,comment));
    if(!ok){ Print("Approved trade failed: ",trade.ResultRetcodeDescription()," | ",brokerWhy," | ",serverWhy); return false; }
 
@@ -187,8 +205,9 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       GVSet(newest,"TP3",x.tp3); GVSet(newest,"EXP",x.expiryM15); GVSet(newest,"TP1DONE",0);
       LegacyTicketWrite(newest,"TP1PARTIAL",0); LegacyTicketWrite(newest,"TP2PARTIAL",0);
    }
+   AttachStrategyMetadataToOpenPositions();
    SafeUniversalCheckpointNow();
-   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | release PASS | %s | %s",
-               x.symbol,Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy,serverWhy);
+   PrintFormat("%s APPROVED: %s %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | intelligence PASS | release PASS | %s | %s",
+               x.symbol,StrategyClassName(cls),Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy,serverWhy);
    return true;
 }

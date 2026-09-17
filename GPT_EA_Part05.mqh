@@ -137,6 +137,13 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    }
 
    int slipPts=DynamicSlippagePoints(x.symbol);
+   string serverWhy="";
+   if(!ServerOrderCheckAllows(x,lots,slipPts,serverWhy))
+   {
+      Print(x.symbol,": OrderCheck preflight blocked order - ",serverWhy);
+      return false;
+   }
+
    RegisterPlannedExecution(x,lots,riskMoney);
    UniversalCheckpointNow();
    trade.SetExpertMagicNumber(InpMagic);
@@ -144,7 +151,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    trade.SetTypeFillingBySymbol(x.symbol);
    string comment=(x.kind==SETUP_PULLBACK?"GPT-PB-OK":"GPT-BR-OK");
    bool ok=(x.bullish?trade.Buy(lots,x.symbol,0,x.sl,x.tp3,comment):trade.Sell(lots,x.symbol,0,x.sl,x.tp3,comment));
-   if(!ok){ Print("Approved trade failed: ",trade.ResultRetcodeDescription()," | ",brokerWhy); return false; }
+   if(!ok){ Print("Approved trade failed: ",trade.ResultRetcodeDescription()," | ",brokerWhy," | ",serverWhy); return false; }
 
    ulong newest=0; datetime newestTime=0;
    for(int i=PositionsTotal()-1;i>=0;i--)
@@ -160,7 +167,7 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       GVSet(newest,"TP3",x.tp3); GVSet(newest,"EXP",x.expiryM15); GVSet(newest,"TP1DONE",0);
    }
    UniversalCheckpointNow();
-   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | %s",
-               x.symbol,Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy);
+   PrintFormat("%s APPROVED: %s opened %.2f lots; planned risk %.2f; dynamic slippage ceiling %d pts; live R:R %.2f | %s | %s",
+               x.symbol,Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,brokerWhy,serverWhy);
    return true;
 }

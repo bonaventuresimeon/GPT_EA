@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🌐 AI & API Operations
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🌐 **Document:** `API_TRANSPORT_TEST_MATRIX.md`
+
+---
+
 # GPT_EA API Transport Release Test Matrix
 
 This matrix is release blocking for any candidate that enables OpenAI/web intelligence. Complete the applicable DIRECT and/or PROXY cases on demo before `InpReleaseAPITransportPassed=true` is used on a REAL account.

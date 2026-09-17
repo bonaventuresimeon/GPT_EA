@@ -218,6 +218,16 @@ bool ConfigurationDriftAllows(string &why)
    return true;
 }
 
+bool ReliabilityOpenPositionForSymbol(const string sym)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)==InpMagic && PositionGetString(POSITION_SYMBOL)==sym) return true;
+   }
+   return false;
+}
+
 bool IntentStateBlocksNewSubmission(const string sym,string &why)
 {
    why="";
@@ -230,7 +240,7 @@ bool IntentStateBlocksNewSubmission(const string sym,string &why)
                        tm>0?(int)(TimeTradeServer()-tm):0);
       return true;
    }
-   if(state==INTENT_FILLED && AdaptiveOpenPositionForSymbol(sym))
+   if(state==INTENT_FILLED && ReliabilityOpenPositionForSymbol(sym))
    {
       why="exactly-once gate: filled intent still has an open position";
       return true;
@@ -540,7 +550,6 @@ void HandleReliabilityTradeTransaction(const MqlTradeTransaction &trans,const Mq
          MarkManualIntervention(pid,sym,"position modification originated outside EA magic");
    }
 
-   result.retcode=result.retcode; // preserve event signature without mutating state.
 }
 
 void ExecutionReliabilityInit()

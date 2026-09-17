@@ -141,7 +141,7 @@ else:
         if fr.get("schema_version") != "final_release_review_v1": errors.append("final review template schema mismatch")
         if fr.get("decision") != "HOLD": errors.append("final review template must default decision to HOLD")
         checks = fr.get("review", {})
-        for key in ("ci_bundle_pass", "ci_attestation_verified", "api_transport_pass", "five_day_acceptance_pass", "five_day_operator_record_complete"):
+        for key in ("runner_recovery_pass", "ci_bundle_pass", "ci_attestation_verified", "api_transport_pass", "five_day_acceptance_pass", "soak_day_reconciliation_pass", "five_day_operator_record_complete"):
             if key not in checks: errors.append(f"final review template missing {key}")
             elif checks.get(key) is not False: errors.append(f"final review template {key} must default false")
     except Exception as exc:
@@ -174,16 +174,17 @@ if ci_schema_path.exists():
         pass
 
 for path_name, tokens in {
-    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_bundle", "validate_api_transport", "ci_static", "api_transport"],
+    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_recovery", "validate_bundle", "validate_api_transport", "runner_recovery", "ci_static", "api_transport"],
     "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN", "/attempts/{args.run_attempt}/jobs"],
     "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
     "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],
     "tools/build_ci_bundle_manifest.py": ["ci_evidence_bundle_v1", "CI ATTESTATION VERIFY: PASS", "bundle_digest"],
     "tools/validate_ci_bundle.py": ["validate_bundle", "ci_evidence_bundle_v1", "attestation_verified", "CI BUNDLE VALIDATION"],
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
-    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],\n    "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
+    "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v2", "reconciliation_checklist_path", "day_reconciled", "ACCEPT DAY", "record_digest"],
+    "tools/validate_runner_recovery_evidence.py": ["runner_recovery_evidence_v1", "PRE_RUNNER_NO_STEPS", "recovery_probe", "release_static", "RUNNER RECOVERY EVIDENCE"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
-    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"ci_static": data.get("ci_static", {})', '"api_transport": data.get("api_transport", {})', "ci_bundle_pass", "five_day_operator_record_complete"],
+    "tools/validate_final_release_review.py": ["FINAL RELEASE REVIEW", '"runner_recovery":data.get("runner_recovery",{})', '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})', "runner_recovery_pass", "soak_day_reconciliation_pass"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
 }.items():
     p = ROOT / path_name

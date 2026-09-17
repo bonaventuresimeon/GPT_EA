@@ -18,15 +18,39 @@ input bool   InpUseDecisionHalfLife              = true;
 input bool   InpUseExecutionLatencyBudget        = true;
 input double InpMaxLatencyBudgetFraction         = 0.35;
 
+string StressAssetClass(const string sym)
+{
+   string u=sym+" "+SymbolInfoString(sym,SYMBOL_DESCRIPTION)+" "+SymbolInfoString(sym,SYMBOL_PATH);
+   StringToUpper(u);
+   if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0 || StringFind(u,"XAG")>=0 || StringFind(u,"SILVER")>=0) return "METAL";
+   if(StringFind(u,"WTI")>=0 || StringFind(u,"BRENT")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"UKOIL")>=0) return "ENERGY";
+   if(StringFind(u,"BTC")>=0 || StringFind(u,"ETH")>=0 || StringFind(u,"CRYPTO")>=0) return "CRYPTO";
+   if(StringFind(u,"US100")>=0 || StringFind(u,"NASDAQ")>=0 || StringFind(u,"NAS100")>=0 ||
+      StringFind(u,"US500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P")>=0 ||
+      StringFind(u,"US30")>=0 || StringFind(u,"DOW")>=0 || StringFind(u,"GER40")>=0 ||
+      StringFind(u,"DAX")>=0 || StringFind(u,"UK100")>=0 || StringFind(u,"FTSE")>=0 ||
+      StringFind(u,"JP225")>=0 || StringFind(u,"NIKKEI")>=0) return "INDEX";
+   string ccys=RelatedCurrencies(sym);
+   if(ccys!="") return "FX";
+   return "OTHER";
+}
+
 double StressShockPct(const string sym)
 {
-   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
-   if(StringFind(key,"INDEX:")==0) return InpStressIndexShockPct;
-   if(StringFind(key,"FX:")==0) return InpStressFXShockPct;
-   if(StringFind(key,"METAL:")==0) return InpStressMetalShockPct;
-   if(StringFind(key,"ENERGY:")==0) return InpStressEnergyShockPct;
-   if(StringFind(key,"CRYPTO:")==0) return InpStressCryptoShockPct;
+   string cls=StressAssetClass(sym);
+   if(cls=="INDEX") return InpStressIndexShockPct;
+   if(cls=="FX") return InpStressFXShockPct;
+   if(cls=="METAL") return InpStressMetalShockPct;
+   if(cls=="ENERGY") return InpStressEnergyShockPct;
+   if(cls=="CRYPTO") return InpStressCryptoShockPct;
    return InpStressOtherShockPct;
+}
+
+StrategyClass StressCandidateStrategyForSymbol(const string sym)
+{
+   int c=(int)GVRead(SymKey(sym,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
+   if(c<=0) c=(int)GVRead(SymKey(sym,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   return (StrategyClass)c;
 }
 
 int StrategyDecisionHalfLifeSeconds(StrategyClass c)
@@ -140,7 +164,7 @@ bool DecisionAgeLatencyAllows(const TradeSetup &s,StrategyClass c,string &why)
 bool PortfolioStressLatencyAllows(const TradeSetup &s,double lots,string &why)
 {
    why="";
-   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   StrategyClass c=StressCandidateStrategyForSymbol(s.symbol);
    string age="";
    if(!DecisionAgeLatencyAllows(s,c,age)){ why=age; return false; }
 

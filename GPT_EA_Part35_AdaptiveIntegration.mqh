@@ -4,14 +4,15 @@
 // These wrappers preserve the proven legacy paths and insert Parts 30-34 at
 // selector, authorization, AI-veto, telemetry and runtime lifecycle boundaries.
 
-TradeSetup      g_r5Primary;
-TradeSetup      g_r5Pullback;
-TradeSetup      g_r5BreakoutRetest;
+TradeSetup       g_r5Primary;
+TradeSetup       g_r5Pullback;
+TradeSetup       g_r5BreakoutRetest;
 StrategyDecision g_r5Decision;
-string          g_r5SelectionNote="";
-string          g_r5CalibrationNote="";
-string          g_r5ExpiryNote="";
-bool            g_r5ContextReady=false;
+string           g_r5SelectionNote="";
+string           g_r5CalibrationNote="";
+string           g_r5ExpiryNote="";
+string           g_r5AIAnswer="";
+bool             g_r5ContextReady=false;
 
 bool AdaptiveOpenPositionForSymbol(const string sym)
 {
@@ -52,6 +53,7 @@ void SelectDynamicStrategyR5(const string sym,TradeSetup &pb,TradeSetup &br,Stra
    g_r5SelectionNote=cc;
    g_r5CalibrationNote=pbCal+" | "+brCal+" | selected: "+selectedCal;
    g_r5ExpiryNote=expiry;
+   g_r5AIAnswer="";
    g_r5ContextReady=true;
 
    // Re-persist after calibration/challenger/expiry changes so approval and
@@ -96,6 +98,7 @@ bool AIReviewAllowsExecutionR5(const string aiText,bool aiAvailable,string &why)
 {
    string legacy="";
    bool legacyOK=AIReviewAllowsExecution(aiText,aiAvailable,legacy);
+   g_r5AIAnswer=aiText;
    if(!g_r5ContextReady)
    {
       why=legacy+" | adaptive scan context unavailable.";
@@ -149,7 +152,7 @@ void NotifyCardR5(const string card)
    enriched+="Final sizing: "+FinalAdaptiveSizingText(g_r5Primary)+"\n";
 
    ChampionChallengerScanHook(g_r5Primary,g_r5Pullback,g_r5BreakoutRetest,g_r5Decision,liveReady,decision);
-   WriteDecisionSnapshot(g_r5Primary,g_r5Decision,decision,"scanner hard filters embedded in card",g_lastWebIntelText,"",decision);
+   WriteDecisionSnapshot(g_r5Primary,g_r5Decision,decision,"scanner hard filters and news/web state are retained in the emitted card","",g_r5AIAnswer,decision);
    RefreshAdaptiveLifecycleFromDecision(decision);
    NotifyCardObserved(enriched);
 }

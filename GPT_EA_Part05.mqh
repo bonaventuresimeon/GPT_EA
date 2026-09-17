@@ -207,6 +207,20 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
       return false;
    }
 
+   string reliabilityWhy="";
+   if(!ExecutionReliabilityPreEntryAllows(x,reliabilityWhy))
+   {
+      Print(x.symbol,": EXECUTION RELIABILITY BLOCK - ",reliabilityWhy);
+      return false;
+   }
+
+   string intentNonce="",intentWhy="";
+   if(!PrepareAtomicTradeIntent(x,lots,riskMoney,intentNonce,intentWhy))
+   {
+      Print(x.symbol,": ATOMIC INTENT BLOCK - ",intentWhy);
+      return false;
+   }
+
    PersistAdaptivePlanMetadata(x);
    PersistStrategyPlanForExecution(x);
    RegisterPlannedExecution(x,lots,riskMoney);
@@ -215,22 +229,51 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    int currentLife=(int)GVRead(SymKey(x.symbol,"LIFECYCLE_STATE"),LIFE_NONE);
    if(currentLife==LIFE_NONE || currentLife==LIFE_REJECTED || currentLife==LIFE_INVALIDATED || currentLife==LIFE_CLOSED)
       SetSymbolLifecycle(x.symbol,LIFE_CANDIDATE,"final execution path candidate reconstruction");
-   SetSymbolLifecycle(x.symbol,LIFE_APPROVED,"all final deterministic/adaptive/release gates passed");
-   if(!SetSymbolLifecycle(x.symbol,LIFE_SENT,"market order request about to be submitted")) return false;
+   SetSymbolLifecycle(x.symbol,LIFE_APPROVED,"all final deterministic/adaptive/release/reliability gates passed");
+
+   string sentWhy="";
+   if(!MarkTradeIntentSent(x,intentNonce,lots,riskMoney,sentWhy))
+   {
+      SetSymbolLifecycle(x.symbol,LIFE_INVALIDATED,"atomic intent could not enter durable SENT state");
+      return false;
+   }
+   if(!SetSymbolLifecycle(x.symbol,LIFE_SENT,"durable intent SENT; market order request about to be submitted"))
+   {
+      MarkTradeIntentFailed(x,intentNonce,lots,riskMoney,0,"lifecycle could not enter SENT before network submission");
+      return false;
+   }
 
    RegisterAdaptiveExecutionRequest(x,lots,riskMoney);
+   if(ChaosInjectBeforeOrderSend())
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,0,
+         "CHAOS: simulated crash/ambiguity after durable SENT and before broker call");
+      Print(x.symbol,": CHAOS ambiguous pre-send window injected; no retry is permitted until reconciliation.");
+      return false;
+   }
+
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(slipPts);
    trade.SetTypeFillingBySymbol(x.symbol);
    cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
-   string comment="GPT-"+StrategyCode(cls)+"-OK";
+   string comment=(intentNonce!=""?TradeIntentComment(intentNonce,cls):"GPT-"+StrategyCode(cls)+"-OK");
    bool ok=(x.bullish?trade.Buy(lots,x.symbol,0,x.sl,x.tp3,comment):trade.Sell(lots,x.symbol,0,x.sl,x.tp3,comment));
    if(!ok)
    {
       RegisterAdaptiveExecutionFailure(x.symbol,trade.ResultRetcodeDescription());
-      SetSymbolLifecycle(x.symbol,LIFE_REJECTED,"broker order request failed: "+trade.ResultRetcodeDescription());
-      Print("Approved trade failed: ",trade.ResultRetcodeDescription()," | ",brokerWhy," | ",serverWhy);
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "CTrade returned failure; broker acknowledgement is treated as ambiguous until reconciliation: "+trade.ResultRetcodeDescription());
+      Print("Approved trade returned failure/ambiguity: ",trade.ResultRetcodeDescription(),
+            " | exactly-once retry prohibited until broker reconciliation | ",brokerWhy," | ",serverWhy);
       return false;
+   }
+
+   if(ChaosInjectPostFillPreBind())
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "CHAOS: broker call succeeded but local fill binding intentionally skipped");
+      Print(x.symbol,": CHAOS post-fill/pre-bind window injected; reconciliation must reconstruct metadata.");
+      return true;
    }
 
    ulong newest=0; datetime newestTime=0;
@@ -238,6 +281,11 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    {
       ulong tk=PositionGetTicket(i); if(tk==0) continue;
       if(PositionGetString(POSITION_SYMBOL)!=x.symbol || PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      if(intentNonce!="")
+      {
+         string posNonce=ExtractIntentNonce(PositionGetString(POSITION_COMMENT));
+         if(posNonce==intentNonce){ newest=tk; newestTime=(datetime)PositionGetInteger(POSITION_TIME); break; }
+      }
       datetime pt=(datetime)PositionGetInteger(POSITION_TIME);
       if(pt>=newestTime){ newestTime=pt; newest=tk; }
    }
@@ -251,11 +299,18 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
    AttachStrategyContextMetadata();
    if(newest>0)
    {
+      BindTradeIntentToPosition(newest,x,intentNonce,lots,riskMoney);
       RegisterAdaptiveExecutionFill(newest,x,lots,riskMoney);
-      AttachLifecycleToNewestPosition(newest,"broker market order fill confirmed");
+      AttachLifecycleToNewestPosition(newest,"broker market order fill confirmed and bound to exactly-once intent");
+   }
+   else
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "broker call reported success but matching open position was not immediately discoverable");
    }
    SafeUniversalCheckpointNow();
    PrintFormat("%s APPROVED: %s %s opened %.2f lots; adaptive risk %.2f; execution slippage ceiling %d pts; live R:R %.2f | intelligence PASS | adaptive supervisor PASS | release PASS | %s | %s | %s",
-               x.symbol,StrategyClassName(cls),Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,adaptiveWhy,learningWhy,slipForecast);
+               x.symbol,StrategyClassName(cls),Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,
+               adaptiveWhy,learningWhy,slipForecast+" | "+reliabilityWhy+" | "+intentWhy);
    return true;
 }

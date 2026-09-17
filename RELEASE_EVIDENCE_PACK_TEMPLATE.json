@@ -1,0 +1,39 @@
+{
+  "pack_schema": "gpt_ea_release_evidence_pack_v1",
+  "release_id": "",
+  "git_sha": "",
+  "source_root": ".",
+  "output_directory": "GPT_EA_RELEASE_PACK",
+  "artifacts": [
+    {
+      "path": "static-check.txt",
+      "evidence_type": "static_ci",
+      "required": true
+    },
+    {
+      "path": "RELEASE_EVIDENCE_TEMPLATE.json",
+      "evidence_type": "release_evidence",
+      "required": true
+    },
+    {
+      "path": "release-evidence-validation.txt",
+      "evidence_type": "release_evidence_validation",
+      "required": true
+    },
+    {
+      "path": "soak-evidence-validation.txt",
+      "evidence_type": "demo_soak_validation",
+      "required": true
+    },
+    {
+      "path": "final-release-review.json",
+      "evidence_type": "final_review",
+      "required": true
+    },
+    {
+      "path": "final-review-validation.txt",
+      "evidence_type": "final_review_validation",
+      "required": true
+    }
+  ]
+}

@@ -128,7 +128,6 @@ void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical=fa
                     GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
    }
 
-   // Part18 classifies the broker failure and persists class/action/retry timing.
    RecordStopFailureObservation(ticket,critical?"CRITICAL_PROTECTION":"STOP_UPDATE",reason,critical,requestedSL,rNow);
 
    PrintFormat("%s: stop-update failure #%d | critical=%s | %s",sym,count,critical?"YES":"NO",reason);
@@ -158,7 +157,6 @@ void ClearStopFailureState(ulong ticket,const string note="protection recovered"
    double sl=PositionGetDouble(POSITION_SL);
    int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
 
-   // Record the resolved broker/protection state before clearing its class/action fields.
    RecordStopRecoveryObservation(ticket,"STOP_RECOVERY",note);
 
    GVWrite(PosKey(pid,"STOP_FAIL_COUNT"),0);
@@ -169,7 +167,7 @@ void ClearStopFailureState(ulong ticket,const string note="protection recovered"
    GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0);
    GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),0);
    GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),0);
-   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_HASH"),0); // legacy field cleanup
+   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_HASH"),0);
 
    AppendJournal("STOP_UPDATE_RECOVERED",sym,kind,0,pid,entry,sl,0,0,
                  GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),note);
@@ -213,9 +211,39 @@ bool TrailingImprovementStillExpected(ulong ticket,double rNow,string &why)
    return true;
 }
 
+bool ExpectedFixedProtectionCandidate(ulong ticket,int expected,double &candidate,string &geometryWhy)
+{
+   candidate=0; geometryWhy="";
+   if(expected<1 || expected>3 || !PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double rNow=0,R=0,entry=0,px=0; bool bull=true;
+   if(!CurrentPositionR(ticket,rNow,R,entry,px,bull) || R<=0) return false;
+
+   if(expected==1)
+   {
+      MqlTick t={}; if(!GetTickSafe(sym,t)) return false;
+      double atr=0; ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
+      double cost=MathMax(InpBECostATRFrac*atr,(t.ask-t.bid)+DynamicSlippagePoints(sym)*PointFor(sym));
+      double buffer=MathMax(cost,InpBELockMinR*R);
+      candidate=(bull?entry+buffer:entry-buffer);
+   }
+   else if(expected==2)
+      candidate=(bull?entry+InpProfitLockR*R:entry-InpProfitLockR*R);
+   else
+      candidate=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+
+   candidate=NormalizePriceToTick(sym,candidate);
+   string brokerWhy="";
+   if(!StopBrokerSafe(sym,bull,candidate,brokerWhy)) geometryWhy=brokerWhy;
+   return candidate>0;
+}
+
 void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
 {
    if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(!StopUpdateRetryDue(pid)) return; // a direct/previous failure already scheduled the next controlled retry
+
    int expected=ExpectedProtectionStage(rNow);
    if(expected>0)
    {
@@ -224,8 +252,11 @@ void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
       {
          double sl=PositionGetDouble(POSITION_SL);
          bool critical=(sl<=0);
+         double requested=0; string geometry="";
+         ExpectedFixedProtectionCandidate(ticket,expected,requested,geometry);
          string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
-         RegisterStopUpdateFailure(ticket,why,critical,0,rNow);
+         if(geometry!="") why+=" | "+geometry;
+         RegisterStopUpdateFailure(ticket,why,critical,requested,rNow);
          return;
       }
    }

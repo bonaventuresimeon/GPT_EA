@@ -21,6 +21,13 @@ void DeletePending(const int idx,const string reason)
 void QueueForApproval(const TradeSetup &s,const string card,const string scanReason)
 {
    if(!s.valid) return;
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   {
+      Print(s.symbol,": approval prompt suppressed by release gate - ",releaseWhy);
+      return;
+   }
+
    datetime now=TimeTradeServer();
    int timeout=MathMax(10,InpApprovalTimeoutSeconds);
    int idx=ActivePendingForSymbol(s.symbol);
@@ -60,6 +67,14 @@ bool FreshApprovalValidation(const TradeSetup &s,string &why)
 {
    why="";
    if(!s.valid){ why="Stored setup is no longer marked valid."; return false; }
+
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   {
+      why="Release safety gate failed: "+releaseWhy;
+      return false;
+   }
+
    if(!PriceInsideZone(s)){ why="Price left the approved entry zone."; return false; }
    if(!M5Trigger(s)){ why="M5 execution trigger is no longer present."; return false; }
 
@@ -155,7 +170,7 @@ void ApprovePending(const int idx)
    }
    else
    {
-      Print(s.symbol,": APPROVED but broker/filter/risk revalidation failed. No order opened.");
+      Print(s.symbol,": APPROVED but release/broker/filter/risk revalidation failed. No order opened.");
       if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
          SendNotification(s.symbol+": approved, but final execution validation failed; no trade opened.");
    }
@@ -237,6 +252,9 @@ void ScanSymbol(const string sym,const string scanReason)
       aiGateWhy="AI review not requested for this scan.";
    }
 
+   string releaseWhy="";
+   bool releaseAllows=ReleaseSafetyAllows(sym,releaseWhy);
+
    string riskWhy="";
    bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
    double previewRisk=0,previewOneLot=0;
@@ -254,12 +272,15 @@ void ScanSymbol(const string sym,const string scanReason)
 
    bool confluencePass=(!InpUseAdvancedConfluence || primaryReport.valid);
    bool hardValid=(primary.valid && confluencePass && !newsBlock && !yieldBlock && !sessionBlock &&
-                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && riskAllows && brokerAllows && serverAllows);
+                   spreadOk && primary.effectiveRR1>=InpMinEffectiveRR && aiAllows && releaseAllows &&
+                   riskAllows && brokerAllows && serverAllows);
    bool approvalReady=(hardValid && readyNow);
 
    string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
+   filterState+=" | Release "+(releaseAllows?"OK":"BLOCK");
    card+="\n"+filterState+"\n";
    card+="AI execution gate: "+aiGateWhy+"\n";
+   card+="Release safety gate: "+(releaseAllows?"PASS":"BLOCK - "+releaseWhy)+"\n";
    card+="Portfolio/risk gate: "+riskWhy+"\n";
    card+="Broker execution gate: "+brokerWhy+"\n";
    card+="MT5 OrderCheck gate: "+serverWhy+"\n";
@@ -319,12 +340,15 @@ int OnInit()
    PrepareRecoveryCheckpointFallback();
    UniversalRecoveryInit();
    RecoverySafetyAudit();
+   SafeUniversalCheckpointNow();
+   AdvancedSafetyInit();
 
    Print("GPT_EA Advanced initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
          ", Min confluence=",InpMinAdvancedConfluence,
          ", Portfolio cap=",DoubleToString(InpMaxPortfolioRiskPercent,2),"%",
-         ", ApprovedExecution=",InpEnableApprovedExecution?"ON":"OFF");
+         ", ApprovedExecution=",InpEnableApprovedExecution?"ON":"OFF",
+         ", ReleaseGate=",ReleaseGateSummary());
 
    if(InpUseOpenAI && StringLen(Trim(InpOpenAIAPIKey))<20)
       Print("OpenAI enabled but API key is blank. Enter it locally in EA Inputs. Never commit the key.");
@@ -352,10 +376,12 @@ void OnDeinit(const int reason)
 
 void OnTimer()
 {
-   ManagePositions();
+   // Existing positions remain managed even when release gates block new entries.
+   ManagePositionsAdvanced();
    ProcessApprovalTimeouts();
    RiskRecoveryTimer();
    SafeUniversalRecoveryTimer();
+   AdvancedSafetyTimer();
    StyleApprovalUI();
 
    string why="";

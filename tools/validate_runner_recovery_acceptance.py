@@ -35,6 +35,32 @@ def resolve(value:str)->Path:
     p=Path(value)
     return p if p.is_absolute() else ROOT/p
 
+def sha256_file(path:Path)->str:
+    h=hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""): h.update(chunk)
+    return h.hexdigest()
+
+def validate_matrix(path:Path)->list[str]:
+    errors:list[str]=[]
+    text=path.read_text(encoding="utf-8",errors="replace")
+    lines=text.splitlines()
+    for n in range(1,23):
+        rid=f"RA-{n:03d}"
+        matches=[line for line in lines if f"| {rid} |" in line]
+        if len(matches)!=1:
+            errors.append(f"acceptance matrix must contain exactly one row for {rid}")
+            continue
+        cells=[c.strip() for c in matches[0].split("|")]
+        if len(cells)<8:
+            errors.append(f"acceptance matrix row {rid} is malformed")
+            continue
+        status=cells[5]
+        evidence=cells[6]
+        if status!="PASS": errors.append(f"acceptance matrix {rid} status must be PASS")
+        if not evidence: errors.append(f"acceptance matrix {rid} evidence/reference is required")
+    return errors
+
 def require(errors:list[str],cond:bool,msg:str)->None:
     if not cond: errors.append(msg)
 
@@ -56,6 +82,18 @@ def validate_acceptance(data:dict[str,Any],require_digest:bool=True,expected_sha
         require(errors,candidate_sha.lower()==expected_sha.lower(),"candidate_git_sha does not match expected candidate")
     if expected_bundle_digest:
         require(errors,bundle_digest.lower()==expected_bundle_digest.lower(),"ci_bundle_digest does not match accepted CI bundle")
+
+    matrix_raw=str(data.get("matrix_path","")).strip()
+    matrix_digest=str(data.get("matrix_sha256",""))
+    require(errors,bool(matrix_raw),"matrix_path is required")
+    require(errors,bool(HEX64.fullmatch(matrix_digest)),"matrix_sha256 must be SHA-256")
+    if matrix_raw:
+        matrix_path=resolve(matrix_raw)
+        require(errors,matrix_path.exists(),f"runner recovery acceptance matrix not found: {matrix_path}")
+        if matrix_path.exists() and HEX64.fullmatch(matrix_digest):
+            actual=sha256_file(matrix_path)
+            require(errors,actual.lower()==matrix_digest.lower(),f"matrix_sha256 mismatch: expected {matrix_digest}, actual {actual}")
+            errors.extend(validate_matrix(matrix_path))
 
     recovery_path_raw=str(data.get("runner_recovery_evidence_path","")).strip()
     require(errors,bool(recovery_path_raw),"runner_recovery_evidence_path is required")

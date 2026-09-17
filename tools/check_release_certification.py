@@ -12,6 +12,7 @@ PART28 = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="u
 PART28B = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
 PART29 = (ROOT / "GPT_EA_Part29_DeploymentDriftGuard.mqh").read_text(encoding="utf-8")
 PART37 = (ROOT / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
+WORKFLOW = (ROOT / ".github/workflows/static-quality.yml").read_text(encoding="utf-8")
 errors: list[str] = []
 
 required_main = [
@@ -43,8 +44,9 @@ required_false_flags = [
 for name in required_false_flags:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28):
         errors.append(f"release evidence flag must default false: {name}")
-if not re.search(r"input\s+bool\s+InpReleaseCIStaticEvidencePassed\s*=\s*false\s*;", PART28B):
-    errors.append("InpReleaseCIStaticEvidencePassed must default false")
+for name in ["InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"]:
+    if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART28B):
+        errors.append(f"{name} must default false")
 if not re.search(r"input\s+bool\s+InpReleaseAPITransportPassed\s*=\s*false\s*;", PART37):
     errors.append("InpReleaseAPITransportPassed must default false")
 
@@ -59,18 +61,31 @@ for token in ["ReleaseArtifactIdentityAllows", "ReleaseDemoSoakEvidenceAllows", 
     if token not in PART28: errors.append(f"Part28 missing R6 release contract token: {token}")
 for token in ["CaptureDeploymentBaseline", "StructuralSymbolDriftAllows", "DeploymentDriftAllows", "ReleaseSafetyAllowsR6", "RefreshR6ReleaseState"]:
     if token not in PART29: errors.append(f"Part29 missing deployment-drift token: {token}")
-for token in ["GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA", "ReleaseCIStaticEvidenceAllows",
-              "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted",
-              "InpReleaseCIAttestationVerified", "InpReleaseSoakAcceptanceRecordDigest", "GPT_EA_R6SupplementalEvidence.csv"]:
+for token in [
+    "GPT_EA_REQUIRED_CI_SCHEMA_VERSION", "GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA", "GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA",
+    "ReleaseCIStaticEvidenceAllows", "ReleaseFiveDaySoakRecordAllows", "ReleaseSafetyAllowsR6Evidence",
+    "InpReleaseCIJobId", "InpReleaseCIRunnerId", "InpReleaseCIStepsExecuted", "InpReleaseCIAttestationVerified",
+    "InpReleaseCIBundleSchemaVersion", "InpReleaseCIBundleDigest", "InpReleaseCIBundleValidated",
+    "InpReleaseSoakAcceptanceRecordDigest", "GPT_EA_R6SupplementalEvidence.csv",
+]:
     if token not in PART28B: errors.append(f"Part28B missing supplemental R6 evidence token: {token}")
 for token in ["APITransportReleaseEvidenceAllows", "ReleaseSafetyAllowsR7API", "InpReleaseAPITransportPassed", "GPTAPIWebRequest",
               "GPT_API_DIRECT_OPENAI", "GPT_API_SECURE_PROXY", "APITrustedDirectEndpoint", "X-Client-Request-Id", "X-GPT-EA-Token"]:
     if token not in PART37: errors.append(f"Part37 missing current API release token: {token}")
 
-docs = ["RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
-        "CI_EVIDENCE_CONTRACT.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md",
-        "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md", "RELEASE_EVIDENCE_MANIFEST.md",
-        "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md"]
+for token in [
+    "static-release-gate:", "ci-evidence-bundle:", "tools/fetch_ci_job_metadata.py", "tools/build_ci_evidence.py",
+    "tools/validate_ci_evidence.py", "tools/build_ci_bundle_manifest.py", "tools/validate_ci_bundle.py",
+    "gh attestation verify", "ci-job-metadata.json", "ci-bundle-manifest.json", "ci-bundle-validation.txt",
+]:
+    if token not in WORKFLOW: errors.append(f"static-quality workflow missing CI bundle token: {token}")
+
+docs = [
+    "RELEASE_CERTIFICATION.md", "METAEDITOR_COMPILE_GATE.md", "DEMO_SOAK_ACCEPTANCE.md", "DEMO_SOAK_EVIDENCE.md",
+    "CI_EVIDENCE_CONTRACT.md", "FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
+    "RELEASE_GO_NO_GO.md", "FINAL_GO_NO_GO_REVIEW.md", "DEPLOYMENT_DRIFT_TESTS.md", "RELEASE_EVIDENCE_VALIDATION.md",
+    "RELEASE_EVIDENCE_MANIFEST.md", "API_TRANSPORT_ARCHITECTURE.md", "MT5_WEBREQUEST_REQUIREMENTS.md", "API_TRANSPORT_TEST_MATRIX.md",
+]
 combined = ""
 for name in docs:
     p = ROOT / name
@@ -85,7 +100,11 @@ else:
     try:
         template = json.loads(template_path.read_text(encoding="utf-8"))
         if template.get("release_validation_id") != release_id: errors.append("release evidence template release ID mismatch")
-        if template.get("ci_static", {}).get("schema_version") != "github_actions_static_evidence_v1": errors.append("release template missing CI evidence schema")
+        ci = template.get("ci_static", {})
+        if ci.get("schema_version") != "github_actions_static_evidence_v1": errors.append("release template missing CI evidence schema")
+        if ci.get("bundle_schema_version") != "ci_evidence_bundle_v1": errors.append("release template missing CI bundle schema")
+        for key in ("job_metadata_path", "bundle_manifest_path", "bundle_digest", "bundle_validated", "bundle_validation_path"):
+            if key not in ci: errors.append(f"release template ci_static missing {key}")
         if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
         if template.get("api_transport", {}).get("schema_version") != "api_transport_evidence_v1": errors.append("release template missing API transport evidence schema")
         if template.get("gates", {}).get("api_transport") is not False: errors.append("release template api_transport gate must default false")
@@ -104,7 +123,12 @@ else:
         if rt.get("operator_review", {}).get("decision") != "HOLD": errors.append("five-day template must default operator decision to HOLD")
     except Exception as exc: errors.append(f"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json invalid: {exc}")
 
-for path_name, expected in [("SOAK_EVIDENCE_SCHEMA.json", "demo_soak_evidence_v1"), ("CI_EVIDENCE_SCHEMA.json", "github_actions_static_evidence_v1"), ("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json", "five_day_soak_acceptance_v1")]:
+for path_name, expected in [
+    ("SOAK_EVIDENCE_SCHEMA.json", "demo_soak_evidence_v1"),
+    ("CI_EVIDENCE_SCHEMA.json", "github_actions_static_evidence_v1"),
+    ("CI_EVIDENCE_BUNDLE_SCHEMA.json", "ci_evidence_bundle_v1"),
+    ("FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json", "five_day_soak_acceptance_v1"),
+]:
     p = ROOT / path_name
     if not p.exists(): errors.append(f"missing schema: {path_name}"); continue
     try:
@@ -112,9 +136,23 @@ for path_name, expected in [("SOAK_EVIDENCE_SCHEMA.json", "demo_soak_evidence_v1
         if const != expected: errors.append(f"{path_name} schema version mismatch")
     except Exception as exc: errors.append(f"{path_name} invalid JSON: {exc}")
 
+ci_schema_path = ROOT / "CI_EVIDENCE_SCHEMA.json"
+if ci_schema_path.exists():
+    try:
+        ci_schema = json.loads(ci_schema_path.read_text(encoding="utf-8"))
+        required = set(ci_schema.get("required", []))
+        for field in ("job_id", "runner_id", "steps_executed", "static_job_conclusion", "job_metadata_sha256"):
+            if field not in required: errors.append(f"CI_EVIDENCE_SCHEMA.json must require {field}")
+    except Exception:
+        pass
+
 for path_name, tokens in {
-    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_soak", "validate_record", "ci_static"],
-    "tools/validate_ci_evidence.py": ["validate_ci_value", "runner_name", "evidence_digest"],
+    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_bundle", "validate_api_transport", "ci_static", "api_transport"],
+    "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN"],
+    "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
+    "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],
+    "tools/build_ci_bundle_manifest.py": ["ci_evidence_bundle_v1", "CI ATTESTATION VERIFY: PASS", "bundle_digest"],
+    "tools/validate_ci_bundle.py": ["validate_bundle", "ci_evidence_bundle_v1", "attestation_verified", "CI BUNDLE VALIDATION"],
     "tools/validate_soak_evidence.py": ["validate_record", "acceptance_record_digest", "SOAK EVIDENCE SCHEMA CHECK"],
     "tools/validate_five_day_soak_record.py": ["five_day_soak_acceptance_v1", "stale_human_wait_closed", "record_digest"],
     "tools/import_soak_snapshot.py": ["acceptance_record", "validate_record", "acceptance_record_digest"],
@@ -127,8 +165,10 @@ for path_name, tokens in {
     for token in tokens:
         if token not in text: errors.append(f"{path_name} missing required token: {token}")
 
-for concept in ["SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "artifact attestation", "five-day",
-                "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy"]:
+for concept in [
+    "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "artifact attestation", "CI evidence bundle",
+    "five-day", "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy",
+]:
     if concept.lower() not in combined.lower(): errors.append(f"release docs missing concept: {concept}")
 
 if errors:

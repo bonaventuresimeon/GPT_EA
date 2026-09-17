@@ -58,8 +58,6 @@ void SelectDynamicStrategyR5(const string sym,TradeSetup &pb,TradeSetup &br,Stra
    g_r5AIAnswer="";
    g_r5ContextReady=true;
 
-   // Re-persist after calibration/challenger/expiry changes so approval and
-   // execution consume the current strategy identity rather than stale state.
    PersistStrategyCandidate(sym,d);
 }
 
@@ -170,7 +168,7 @@ void NewsIntermarketInitR5()
 {
    NewsIntermarketInit();
    AdaptiveRiskSupervisorInit();
-   ExecutionLearningInit();
+   ExecutionLearningInitR5();
    ChampionChallengerInit();
    LifecycleIntegrityInit();
    StrategyHealthDashboardInit();
@@ -180,7 +178,7 @@ void NewsIntermarketTimerR5()
 {
    NewsIntermarketTimer();
    AdaptiveRiskSupervisorTimer();
-   ExecutionLearningTimer();
+   ExecutionLearningTimerR5();
    ChampionChallengerTimer();
    LifecycleIntegrityTimer();
    StrategyHealthDashboardTimer();

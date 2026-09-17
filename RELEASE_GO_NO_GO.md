@@ -9,6 +9,7 @@ This is the final production decision contract. A candidate is **GO** only when 
 - Exact EX5 SHA-256 archived.
 - Exact SET SHA-256 archived, or explicit `NONE`.
 - `RELEASE_EVIDENCE_TEMPLATE.json` completed for the exact candidate.
+- Validated `runner_recovery_evidence_v1` proving recovery from the known pre-runner failure.
 - Executed GitHub Actions static job on a real allocated runner.
 - CI run/attempt/job IDs > 0, `runner_id > 0`, non-empty runner name and at least 7 executed static-job steps.
 - CI static job conclusion is literal `success` and its head SHA equals the certified build Git SHA.
@@ -22,7 +23,8 @@ This is the final production decision contract. A candidate is **GO** only when 
 - `api_transport` evidence records the tested DIRECT_OPENAI or SECURE_PROXY mode, WebRequest allow-list verification, deep-review path, web-search path, failure/recovery behavior, request tracing and zero secret leaks.
 - `tools/validate_api_transport_evidence.py` returns PASS.
 - `InpReleaseAPITransportPassed=true` is set only from matching archived evidence.
-- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` is completed for exactly five accepted trading days on the same candidate.
+- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json` uses `five_day_soak_acceptance_v2` and is completed for exactly five accepted trading days on the same candidate.
+- Every accepted day references a completed `SOAK_DAY_RECONCILIATION_CHECKLIST.md` copy with literal `ACCEPT DAY`, reviewer and timestamp.
 - `operator_record_path` points to a completed `FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md` copy.
 - `report_path` points to the completed demo-soak report.
 - `tools/validate_five_day_soak_record.py ... --finalize` and the subsequent validation return PASS.
@@ -45,7 +47,7 @@ The release is **NO-GO** for any of the following:
 - compiled EX5 cannot be tied to the recorded source commit;
 - EX5/SET hash mismatch;
 - stale release validation/evidence contract;
-- CI job completed without a real runner identity;
+- runner-recovery evidence missing/invalid or recovery regresses to the pre-runner signature;\n- CI job completed without a real runner identity;
 - `runner_id=0`, empty runner name or empty/unexecuted step list used as release evidence;
 - CI head SHA differs from `build.git_sha`;
 - static check does not end in `RESULT=PASS`;

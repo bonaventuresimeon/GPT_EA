@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🚀 Release Engineering & Evidence
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🚀 **Document:** `RELEASE_SAFETY_GATES.md`
+
+---
+
 # GPT_EA Release-Blocking Safety Gates
 
 This document separates **release blockers** from ordinary trading filters. A release blocker means GPT_EA must not create a new position even if the market setup itself is valid.

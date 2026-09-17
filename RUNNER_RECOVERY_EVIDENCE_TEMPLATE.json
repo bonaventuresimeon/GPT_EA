@@ -1,0 +1,58 @@
+{
+  "schema_version": "runner_recovery_evidence_v1",
+  "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+  "evidence_id": "",
+  "evidence_digest": "",
+  "incident": {
+    "workflow": "GPT_EA Runner Provisioning Probe",
+    "run_id": 35275383852,
+    "run_attempt": 1,
+    "job_id": 105384628531,
+    "conclusion": "failure",
+    "runner_id": 0,
+    "runner_name": "",
+    "steps_executed": 0,
+    "observed_signature": "PRE_RUNNER_NO_STEPS",
+    "evidence_reference": "ACTIONS_RUNNER_DIAGNOSTICS.md"
+  },
+  "recovery_probe": {
+    "workflow": "GPT_EA Runner Provisioning Probe",
+    "run_id": 0,
+    "run_attempt": 0,
+    "job_id": 0,
+    "conclusion": "",
+    "runner_id": 0,
+    "runner_name": "",
+    "steps_executed": 0,
+    "run_url": "",
+    "observed_at_utc": ""
+  },
+  "release_static": {
+    "workflow": "GPT_EA Static Release Gate",
+    "run_id": 0,
+    "run_attempt": 0,
+    "job_id": 0,
+    "conclusion": "",
+    "runner_id": 0,
+    "runner_name": "",
+    "steps_executed": 0,
+    "head_sha": "",
+    "ci_bundle_schema_version": "ci_evidence_bundle_v1",
+    "ci_bundle_digest": "",
+    "run_url": ""
+  },
+  "remediation": {
+    "github_status_checked": false,
+    "billing_usage_checked": false,
+    "budgets_checked": false,
+    "payment_state_checked": false,
+    "support_case_id": "",
+    "notes": ""
+  },
+  "operator_review": {
+    "decision": "HOLD",
+    "reviewer": "",
+    "timestamp": "",
+    "notes": ""
+  }
+}

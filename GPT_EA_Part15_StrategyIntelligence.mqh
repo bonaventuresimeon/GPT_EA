@@ -665,7 +665,17 @@ bool StrategyExecutionTrigger(const TradeSetup &s,StrategyClass c)
    if(c==STRATEGY_RANGE_TRADE || c==STRATEGY_MEAN_REVERSION)
       return PriceInsideZone(s) && M5RejectionAligned(s.symbol,s.bullish);
    if(c==STRATEGY_BREAKOUT)
+   {
+      // Direct breakout is a first-class execution path. It must never inherit
+      // breakout-retest semantics from a legacy setup-kind value.
+      if(s.kind!=SETUP_BREAKOUT) return false;
       return PriceInsideZone(s) && M5Trigger(s) && EMAImpulseAligned(s.symbol,s.bullish);
+   }
+   if(c==STRATEGY_BREAKOUT_RETEST)
+   {
+      if(s.kind!=SETUP_BREAKOUT_RETEST) return false;
+      return PriceInsideZone(s) && M5Trigger(s);
+   }
    return PriceInsideZone(s) && M5Trigger(s);
 }
 

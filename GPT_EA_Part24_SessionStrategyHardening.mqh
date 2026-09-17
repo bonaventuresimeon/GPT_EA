@@ -66,6 +66,16 @@ void RefreshFrameworkForAccurateSession(const string sym,StrategyDecision &d)
    d.rationale+=" | Accurate session context: "+x.session+"; framework refreshed to "+framework+".";
 }
 
+bool AccurateSessionEvidenceAllows(const string sym,StrategyClass c,string &detail)
+{
+   detail="Accurate-session evidence: not applicable.";
+   if(c==STRATEGY_NO_TRADE) return true;
+   string session=AccurateSessionBucket();
+   int code=StrategySessionCode(session);
+   return ContextBucketAllows(SysKey(StringFormat("STRAT_%d_SESSION_%d",(int)c,code)),
+                              "ACCURATE SESSION "+session,detail);
+}
+
 void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
 {
    SelectDynamicStrategyResearch(sym,pb,br,d);
@@ -74,8 +84,21 @@ void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,S
    if(d.strategy!=STRATEGY_NO_TRADE)
       d.setup.expiryM15=StrategyAdaptiveExpiry(sym,d.strategy);
 
+   if(d.strategy!=STRATEGY_NO_TRADE)
+   {
+      string sessionEvidence="";
+      bool sessionEvidenceOK=AccurateSessionEvidenceAllows(sym,d.strategy,sessionEvidence);
+      d.evidence+=" | "+sessionEvidence;
+      if(!sessionEvidenceOK)
+      {
+         d.action=STRATEGY_ACTION_NO_TRADE;
+         d.setup.valid=false;
+         d.rationale+=" | Corrected-session evidence gate BLOCKED the strategy in the current session segment.";
+      }
+   }
+
    string lateWhy="";
-   if(LateSessionLiquidityRisk(lateWhy) && d.strategy!=STRATEGY_NO_TRADE)
+   if(LateSessionLiquidityRisk(lateWhy) && d.strategy!=STRATEGY_NO_TRADE && d.action!=STRATEGY_ACTION_NO_TRADE)
    {
       int penalty=(InpLateSessionScorePenalty>0?InpLateSessionScorePenalty:0);
       d.score=(d.score>penalty?d.score-penalty:0);

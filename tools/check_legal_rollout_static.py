@@ -24,14 +24,14 @@ for token in [
         errors.append(f"GPT_EA.mq5 missing legal rollout wiring: {token}")
 
 for token in [
-    'GPT_EA_LEGAL_TERMS_VERSION',
-    'GPT_EA_REQUIRED_ACCEPTANCE_PHRASE',
-    'InpAcceptGPTCommercialTerms',
-    'InpAcceptGPTTradingRisk',
-    'InpGPTTermsAcceptancePhrase',
-    'InpCustomerLicenseReference',
-    'GPTLegalAcknowledgementAllows',
-    'ReleaseSafetyAllowsR8Legal',
+    "GPT_EA_LEGAL_TERMS_VERSION",
+    "GPT_EA_REQUIRED_ACCEPTANCE_PHRASE",
+    "InpAcceptGPTCommercialTerms",
+    "InpAcceptGPTTradingRisk",
+    "InpGPTTermsAcceptancePhrase",
+    "InpCustomerLicenseReference",
+    "GPTLegalAcknowledgementAllows",
+    "ReleaseSafetyAllowsR8Legal",
 ]:
     if token not in PART38:
         errors.append(f"Part38 missing legal gate token: {token}")
@@ -40,7 +40,7 @@ for name in ["InpAcceptGPTCommercialTerms","InpAcceptGPTTradingRisk"]:
     if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART38):
         errors.append(f"{name} must default false")
 
-if 'I ACCEPT GPT_EA TERMS AND TRADING RISK' not in PART38:
+if "I ACCEPT GPT_EA TERMS AND TRADING RISK" not in PART38:
     errors.append("required acceptance phrase missing")
 
 for token in [
@@ -61,11 +61,14 @@ for token in [
         errors.append(f"Part39 missing customer acknowledgement token: {token}")
 
 for name in [
-    "InpAcknowledgeNoProfitGuarantee","InpAcknowledgePossibleTotalLoss",
-    "InpAcknowledgeAILimitations","InpAcknowledgeBrokerThirdPartyRisk",
-    "InpAcknowledgePersonalResponsibility","InpAcknowledgeDemoFirst"
+    "InpAcknowledgeNoProfitGuarantee",
+    "InpAcknowledgePossibleTotalLoss",
+    "InpAcknowledgeAILimitations",
+    "InpAcknowledgeBrokerThirdPartyRisk",
+    "InpAcknowledgePersonalResponsibility",
+    "InpAcknowledgeDemoFirst",
 ]:
-    if not re.search(rf"input\\s+bool\\s+{name}\\s*=\\s*false\\s*;", PART39):
+    if not re.search(rf"input\s+bool\s+{name}\s*=\s*false\s*;", PART39):
         errors.append(f"{name} must default false")
 
 docs=[
@@ -84,14 +87,19 @@ for name in docs:
     if not p.exists() or len(p.read_text(encoding="utf-8").strip())<300:
         errors.append(f"missing/too-small rollout document: {name}")
 
+for name in [
+    "CUSTOMER_RISK_ACKNOWLEDGEMENT_SCHEMA.json",
+    "CUSTOMER_RISK_ACKNOWLEDGEMENT_TEMPLATE.json",
+    "tools/validate_customer_risk_acknowledgement.py",
+]:
+    p=ROOT/name
+    if not p.exists() or len(p.read_text(encoding="utf-8").strip())<100:
+        errors.append(f"missing/too-small acknowledgement evidence artifact: {name}")
+
 if errors:
     print("LEGAL/ROLLOUT STATIC CHECK: FAILED")
     for e in errors:
         print("ERROR:",e)
     sys.exit(1)
-print("LEGAL/ROLLOUT STATIC CHECK: PASS")
 
-for name in ["CUSTOMER_RISK_ACKNOWLEDGEMENT_SCHEMA.json","CUSTOMER_RISK_ACKNOWLEDGEMENT_TEMPLATE.json","tools/validate_customer_risk_acknowledgement.py"]:
-    p=ROOT/name
-    if not p.exists() or len(p.read_text(encoding="utf-8").strip())<100:
-        errors.append(f"missing/too-small acknowledgement evidence artifact: {name}")
+print("LEGAL/ROLLOUT STATIC CHECK: PASS")

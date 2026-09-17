@@ -26,11 +26,15 @@ REQUIRED_FILES = [
     "GPT_EA_Part19_ContinuousIntelligence.mqh",
     "GPT_EA_Part20_RealisticCostModel.mqh",
     "GPT_EA_Part21_ResearchValidation.mqh",
+    "GPT_EA_Part22A_IntermarketForward.mqh",
     "GPT_EA_Part22_IntelligenceFreshness.mqh",
     "GPT_EA_Part23_IntelligenceObservability.mqh",
     "GPT_EA_Part24_SessionStrategyHardening.mqh",
     "GPT_EA_Part25_ThesisHardening.mqh",
+    "GPT_EA_Part26_DeepGPTPolicy.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
+    "INTELLIGENCE_HARDENING_TESTS.md",
+    "FULL_INTELLIGENCE_COVERAGE.md",
     "STOP_MANAGEMENT_TEST_MATRIX.md",
     "PARTIAL_PROTECTION_RELEASE_TEST.md",
     "STOP_FAILURE_OBSERVABILITY.md",
@@ -38,63 +42,54 @@ REQUIRED_FILES = [
 
 REQUIRED_TOKENS = {
     "GPT_EA_Part15_StrategyIntelligence.mqh": [
-        "STRATEGY_TREND_CONTINUATION",
-        "STRATEGY_RETRACEMENT_ENTRY",
-        "STRATEGY_COUNTER_TREND_SCALP",
-        "STRATEGY_COUNTER_TREND_SWING",
-        "STRATEGY_POTENTIAL_REVERSAL",
-        "STRATEGY_BREAKOUT",
-        "STRATEGY_BREAKOUT_RETEST",
-        "STRATEGY_RANGE_TRADE",
-        "STRATEGY_MEAN_REVERSION",
-        "STATE_HEALTHY_RETRACEMENT",
-        "STATE_DEEP_RETRACEMENT",
-        "STATE_TREND_FAILURE",
-        "STATE_FALSE_BREAKOUT",
-        "STATE_LIQUIDITY_SWEEP",
-        "STATE_ACCUMULATION",
-        "STATE_DISTRIBUTION",
+        "STRATEGY_TREND_CONTINUATION", "STRATEGY_RETRACEMENT_ENTRY",
+        "STRATEGY_COUNTER_TREND_SCALP", "STRATEGY_COUNTER_TREND_SWING",
+        "STRATEGY_POTENTIAL_REVERSAL", "STRATEGY_BREAKOUT",
+        "STRATEGY_BREAKOUT_RETEST", "STRATEGY_RANGE_TRADE",
+        "STRATEGY_MEAN_REVERSION", "STATE_HEALTHY_RETRACEMENT",
+        "STATE_DEEP_RETRACEMENT", "STATE_TREND_FAILURE",
+        "STATE_FALSE_BREAKOUT", "STATE_LIQUIDITY_SWEEP",
+        "STATE_ACCUMULATION", "STATE_DISTRIBUTION",
     ],
     "GPT_EA_Part21_ResearchValidation.mqh": [
-        "StrategyWalkForwardEvidence",
-        "CurrentStrategyContextEvidence",
-        "RetracementIntelligenceText",
-        "RetracementDestinationText",
-        "ChaseRiskDetected",
-        "ExtremeRegimeDetected",
+        "StrategyWalkForwardEvidence", "CurrentStrategyContextEvidence",
+        "RetracementIntelligenceText", "RetracementDestinationText",
+        "ChaseRiskDetected", "ExtremeRegimeDetected",
     ],
     "GPT_EA_Part22_IntelligenceFreshness.mqh": [
-        "CallOpenAIWebIntelStructured",
-        "json_schema",
-        "GetLiveWebIntelHardened",
-        "AssessIntermarketHardened",
+        "CallOpenAIWebIntelStructured", "json_schema",
+        "GetLiveWebIntelHardened", "AssessIntermarketHardened",
         "WEB-INTELLIGENCE CIRCUIT BREAKER OPEN",
     ],
     "GPT_EA_Part24_SessionStrategyHardening.mqh": [
-        "AccurateSessionBucket",
-        "LONDON_NY_OVERLAP",
-        "LateSessionLiquidityRisk",
+        "AccurateSessionBucket", "LONDON_NY_OVERLAP",
+        "AccurateSessionEvidenceAllows", "LateSessionLiquidityRisk",
         "StrategyAdaptiveExpiry",
     ],
     "GPT_EA_Part25_ThesisHardening.mqh": [
-        "RealisticRiskReward(pb)",
-        "RealisticRiskReward(br)",
+        "RealisticRiskReward(pb)", "RealisticRiskReward(br)",
         "DeterministicDisproofChecklist",
+    ],
+    "GPT_EA_Part26_DeepGPTPolicy.mqh": [
+        "gpt-5.6-sol", "reasoning", "effort", "CallOpenAIDeep",
     ],
 }
 
 REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part21_ResearchValidation.mqh"',
+    '#include "GPT_EA_Part22A_IntermarketForward.mqh"',
     '#include "GPT_EA_Part22_IntelligenceFreshness.mqh"',
     '#include "GPT_EA_Part23_IntelligenceObservability.mqh"',
     '#include "GPT_EA_Part24_SessionStrategyHardening.mqh"',
     '#include "GPT_EA_Part25_ThesisHardening.mqh"',
+    '#include "GPT_EA_Part26_DeepGPTPolicy.mqh"',
     "#define SelectDynamicStrategy SelectDynamicStrategyFinal",
     "#define GetLiveWebIntel GetLiveWebIntelHardened",
     "#define AssessIntermarket AssessIntermarketHardened",
     "#define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict",
     "#define EffectiveRRDynamic EffectiveRRFullRatio",
     "#define ScheduledScanDue ScheduledOrContinuousScanDue",
+    "#define CallOpenAI CallOpenAIDeep",
     "#define NotifyCard NotifyCardObserved",
     "#define BuildMandatory25PointThesis BuildMandatory25PointThesisFinal",
 ]
@@ -168,8 +163,6 @@ def main() -> int:
 
     includes = collect_includes(main_text)
     for inc in includes:
-        if inc.startswith("<"):
-            continue
         if not (ROOT / inc).exists(): errors.append(f"local include missing: {inc}")
 
     source_files = [MAIN] + [ROOT / i for i in includes if (ROOT / i).exists()]
@@ -203,10 +196,12 @@ def main() -> int:
         "GPT_EA_Part21_ResearchValidation.mqh",
         "GPT_EA_Part24_SessionStrategyHardening.mqh",
         "GPT_EA_Part16_NewsIntermarket.mqh",
+        "GPT_EA_Part22A_IntermarketForward.mqh",
         "GPT_EA_Part22_IntelligenceFreshness.mqh",
         "GPT_EA_Part16A_StrictRevalidation.mqh",
         "GPT_EA_Part17_ThesisEngine.mqh",
         "GPT_EA_Part25_ThesisHardening.mqh",
+        "GPT_EA_Part26_DeepGPTPolicy.mqh",
         "GPT_EA_Part07.mqh",
     ]
     positions = [main_text.find(f'#include "{x}"') for x in order]

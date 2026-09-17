@@ -32,9 +32,12 @@
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
 #include "GPT_EA_Part17_ThesisEngine.mqh"
 #include "GPT_EA_Part05.mqh"
+#include "GPT_EA_Part23_IntelligenceObservability.mqh"
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
+#define NotifyCard NotifyCardObserved
 #include "GPT_EA_Part07.mqh"
+#undef NotifyCard
 #undef PreEntryIntelligenceRevalidation
 #undef AssessIntermarket
 #undef GetLiveWebIntel

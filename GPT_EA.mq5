@@ -18,8 +18,9 @@
 #include "GPT_EA_Part15D_StructureTargets.mqh"
 #include "GPT_EA_Part21_ResearchValidation.mqh"
 #include "GPT_EA_Part24_SessionStrategyHardening.mqh"
+#include "GPT_EA_Part27_StrategyCompletion.mqh"
 #include "GPT_EA_Part19_ContinuousIntelligence.mqh"
-#define SelectDynamicStrategy SelectDynamicStrategyFinal
+#define SelectDynamicStrategy SelectDynamicStrategyUltimate
 #define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
 #define StrategyIntelligenceTimer StrategyIntelligenceTimerFull

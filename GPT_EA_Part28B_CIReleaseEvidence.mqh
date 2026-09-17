@@ -37,6 +37,12 @@ input string InpReleaseMT5ValidationSchemaVersion       = "";
 input string InpReleaseMT5ValidationEvidenceId          = "";
 input string InpReleaseMT5ValidationDigest              = "";
 
+input bool   InpReleaseResilienceHardeningPassed        = false;
+input string InpReleaseResilienceSchemaVersion          = "";
+input string InpReleaseResilienceEvidenceId             = "";
+input string InpReleaseResilienceDigest                 = "";
+input string InpReleaseCertifiedConfigFingerprint       = "";
+
 input string InpReleaseSoakAcceptanceSchemaVersion      = "";
 input string InpReleaseSoakAcceptanceRecordId           = "";
 input string InpReleaseSoakAcceptanceRecordDigest       = "";
@@ -49,6 +55,7 @@ const string GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA     = "runner_recovery_acc
 const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION            = "github_actions_static_evidence_v1";
 const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA             = "ci_evidence_bundle_v1";
 const string GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA        = "mt5_validation_evidence_v1";
+const string GPT_EA_REQUIRED_RESILIENCE_SCHEMA             = "resilience_hardening_evidence_v1";
 const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA           = "five_day_soak_acceptance_v2";
 
 bool ReleaseRunnerRecoveryEvidenceAllows(string &why)
@@ -194,6 +201,44 @@ bool ReleaseMT5ValidationEvidenceAllows(string &why)
    return true;
 }
 
+bool ReleaseResilienceHardeningAllows(string &why)
+{
+   why="";
+   if(!InpReleaseResilienceHardeningPassed)
+   {
+      why="R6 resilience-hardening acceptance matrix has not been attested.";
+      return false;
+   }
+   if(InpReleaseResilienceSchemaVersion!=GPT_EA_REQUIRED_RESILIENCE_SCHEMA)
+   {
+      why="Resilience-hardening evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseResilienceEvidenceId)<8)
+   {
+      why="Resilience-hardening evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseResilienceDigest,64))
+   {
+      why="Resilience-hardening evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(StringLen(InpReleaseCertifiedConfigFingerprint)!=8)
+   {
+      why="Certified runtime configuration fingerprint must be exactly 8 hexadecimal characters.";
+      return false;
+   }
+   for(int i=0;i<8;i++)
+   {
+      ushort c=StringGetCharacter(InpReleaseCertifiedConfigFingerprint,i);
+      bool hex=((c>='0'&&c<='9')||(c>='A'&&c<='F')||(c>='a'&&c<='f'));
+      if(!hex){ why="Certified configuration fingerprint contains non-hex characters."; return false; }
+   }
+   why="R6 resilience hardening and certified configuration fingerprint PASS.";
+   return true;
+}
+
 bool ReleaseFiveDaySoakRecordAllows(string &why)
 {
    why="";
@@ -255,13 +300,19 @@ bool ReleaseSupplementalR6EvidenceAllows(string &why)
       why="REAL account blocked: "+mt5;
       return false;
    }
+   string resilience="";
+   if(!ReleaseResilienceHardeningAllows(resilience))
+   {
+      why="REAL account blocked: "+resilience;
+      return false;
+   }
    string soak="";
    if(!ReleaseFiveDaySoakRecordAllows(soak))
    {
       why="REAL account blocked: "+soak;
       return false;
    }
-   why=runner+" | "+runnerAcceptance+" | "+ci+" | "+mt5+" | "+soak;
+   why=runner+" | "+runnerAcceptance+" | "+ci+" | "+mt5+" | "+resilience+" | "+soak;
    return true;
 }
 
@@ -315,6 +366,7 @@ void WriteR6SupplementalEvidenceSnapshot()
          "ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id","ci_steps","ci_head_sha","ci_digest",
          "ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified","ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
          "mt5_validation_passed","mt5_validation_schema","mt5_validation_id","mt5_validation_digest",
+         "resilience_passed","resilience_schema","resilience_id","resilience_digest","certified_config_fingerprint",
          "soak_acceptance_schema","soak_record_id","soak_record_digest","gate_result","reason");
    FileSeek(h,0,SEEK_END);
    string why=""; bool ok=ReleaseSafetyAllowsR6Evidence("",why);
@@ -326,6 +378,8 @@ void WriteR6SupplementalEvidenceSnapshot()
       InpReleaseCIConclusion,InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
       InpReleaseCIBundleSchemaVersion,InpReleaseCIBundleDigest,InpReleaseCIBundleValidated?"1":"0",
       InpReleaseMT5ValidationPassed?"1":"0",InpReleaseMT5ValidationSchemaVersion,InpReleaseMT5ValidationEvidenceId,InpReleaseMT5ValidationDigest,
+      InpReleaseResilienceHardeningPassed?"1":"0",InpReleaseResilienceSchemaVersion,InpReleaseResilienceEvidenceId,InpReleaseResilienceDigest,
+      InpReleaseCertifiedConfigFingerprint,
       InpReleaseSoakAcceptanceSchemaVersion,InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,
       ok?"PASS":"BLOCK",why);
    FileFlush(h); FileClose(h);

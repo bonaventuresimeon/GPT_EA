@@ -97,11 +97,20 @@ Read **`USER_INSTALLATION_GUIDE.md`**, **`FIRST_RUN_CHECKLIST.md`**, and **`API_
 
 ## Real-account legal acknowledgement
 
-Before a REAL account can clear the R8 legal gate, the customer must read the commercial terms and trading-risk disclosure and enter the acknowledgement personally. Distributed presets must leave these fields unaccepted/blank.
+Before a REAL account can clear the R9 customer-risk/legal gate, the customer must read the commercial terms and trading-risk disclosure and enter the acknowledgement personally. Distributed presets must leave these fields unaccepted/blank.
 
     InpAcceptGPTCommercialTerms = true
     InpAcceptGPTTradingRisk = true
     InpGPTTermsAcceptancePhrase = I ACCEPT GPT_EA TERMS AND TRADING RISK
     InpCustomerLicenseReference = <LICENSE REFERENCE ISSUED TO CUSTOMER>
+    InpAcknowledgeNoProfitGuarantee = true
+    InpAcknowledgePossibleTotalLoss = true
+    InpAcknowledgeAILimitations = true
+    InpAcknowledgeBrokerThirdPartyRisk = true
+    InpAcknowledgePersonalResponsibility = true
+    InpAcknowledgeDemoFirst = true
+    InpCustomerJurisdiction = <JURISDICTION CODE>
+    InpAcceptedGPTTermsVersion = GPT_EA_TERMS_20260917_V1
+    InpAcceptedGPTRiskAckVersion = GPT_EA_RISK_ACK_V1
 
 This acknowledgement does not guarantee profitability and does not waive rights or liabilities that applicable law does not allow to be waived.

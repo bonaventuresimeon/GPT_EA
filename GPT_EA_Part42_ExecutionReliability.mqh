@@ -13,7 +13,6 @@ input bool   InpUseStorageHealthGate             = true;
 input string InpStorageHeartbeatFile             = "GPT_EA_StorageHealth.csv";
 input int    InpStorageHealthIntervalSeconds     = 60;
 input bool   InpUseConfigurationDriftGate        = true;
-input string InpCertifiedConfigFingerprint       = ""; // populate from certified release evidence for REAL
 input bool   InpAllowLegacyOpenPositionsOnUpgrade= true;
 
 enum IntentState
@@ -189,10 +188,10 @@ bool ConfigurationDriftAllows(string &why)
    ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
    if(mode==ACCOUNT_TRADE_MODE_REAL)
    {
-      if(StringLen(Trim(InpCertifiedConfigFingerprint))<8)
+      if(StringLen(Trim(InpReleaseCertifiedConfigFingerprint))<8)
       { why="REAL account requires certified configuration fingerprint."; return false; }
-      if(current!=Trim(InpCertifiedConfigFingerprint))
-      { why="CONFIGURATION DRIFT: runtime "+current+" != certified "+Trim(InpCertifiedConfigFingerprint); return false; }
+      if(current!=Trim(InpReleaseCertifiedConfigFingerprint))
+      { why="CONFIGURATION DRIFT: runtime "+current+" != certified "+Trim(InpReleaseCertifiedConfigFingerprint); return false; }
       why="configuration fingerprint matches certified "+current;
       return true;
    }

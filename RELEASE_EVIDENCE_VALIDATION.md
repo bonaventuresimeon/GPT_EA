@@ -1,110 +1,161 @@
-# GPT_EA Release Evidence Validation
+# GPT_EA Release Evidence Validation — R6
 
-This document connects the human release contracts to the runtime release inputs and the machine-readable validator.
+This document connects the human release contracts, machine-readable evidence, final review and MT5 runtime attestation.
 
-## Purpose
+Current release ID is read directly from `GPT_EA_Part28_ReleaseCertification.mqh`. Do not reuse an older release ID.
 
-The release booleans in `GPT_EA_Part28_ReleaseCertification.mqh` are attestations, not proof by themselves. Before a real-account build is armed, the release owner should create one evidence JSON file from `RELEASE_EVIDENCE_TEMPLATE.json`, populate it from the actual candidate artifacts and test campaign, and validate it with:
+## Evidence files
+
+Use:
+
+- `RELEASE_EVIDENCE_TEMPLATE.json` → working `release_evidence.json`;
+- `SOAK_EVIDENCE_SCHEMA.json` → versioned soak contract;
+- `FINAL_RELEASE_REVIEW_TEMPLATE.json` → working `final_release_review.json`.
+
+## 1. Compile/artifact evidence
+
+Populate the release evidence with the exact candidate:
+
+- Git SHA;
+- EX5 path/SHA-256;
+- SET path/SHA-256 or `NONE`;
+- compile error/warning counts;
+- MetaEditor build;
+- MT5 build;
+- compile evidence ID;
+- compile log path.
+
+Run only against the exact candidate compiled under `METAEDITOR_COMPILE_GATE.md`.
+
+## 2. Soak schema and digest
+
+The required soak schema is:
+
+`demo_soak_evidence_v1`
+
+Populate every field in `demo_soak` using actual soak observations.
+
+The soak SHA-256 is calculated over the canonical `demo_soak` object **with `evidence_digest` removed**. This avoids a self-referential digest.
+
+Run:
 
 ```text
-python tools/validate_release_evidence.py path/to/release_evidence.json
+python tools/validate_soak_evidence.py release_evidence.json
 ```
 
-A PASS produces `release-evidence-validation.txt` and an `EVIDENCE_JSON_SHA256` digest. Archive both the JSON and the validation output with the candidate `.ex5`, `.set`, compile log and demo-soak report.
+If the digest field is blank/incorrect, the validator reports the expected `SOAK_EVIDENCE_SHA256`. Copy that exact digest into `demo_soak.evidence_digest` and rerun. PASS writes `soak-evidence-validation.txt`.
 
-## Compile evidence mapping
+The schema requires at least 5 trading days, 3 London sessions, 3 New York sessions, required overlap/news/rollover/restart/reconnect coverage, scheduled and continuous scans, primary and backup checkpoint activity, required logs and all defined zero-tolerance counters equal to zero.
 
-The following JSON fields must correspond to the same candidate used in MetaTrader:
+## 3. Pre-review release basis
+
+The stable release-evidence basis used by the final review consists of:
+
+- release validation ID;
+- `build`;
+- `deployment`;
+- `demo_soak`;
+- all release gates **except** `operator_review`.
+
+This basis remains stable when the final operator-review flag is later set to true.
+
+## 4. Final GO/NO-GO review
+
+Complete `final_release_review.json` from `FINAL_RELEASE_REVIEW_TEMPLATE.json` following `FINAL_GO_NO_GO_REVIEW.md`.
+
+The review must match the candidate Git SHA, EX5/SET hashes and deployment identity from `release_evidence.json`.
+
+`candidate.release_evidence_digest` is the SHA-256 of the stable pre-review release basis described above.
+
+The final review SHA-256 is calculated over the review JSON **with `review_digest` removed**.
+
+Run:
+
+```text
+python tools/validate_final_release_review.py release_evidence.json final_release_review.json
+```
+
+If either digest is wrong, the validator reports the expected `RELEASE_EVIDENCE_BASIS_SHA256` and `FINAL_REVIEW_SHA256`. Insert them into the review and rerun.
+
+PASS writes `final-release-review-validation.txt`.
+
+Only literal decision `GO` can pass.
+
+## 5. Copy final review identity into release evidence
+
+After the final review validator passes:
+
+- set `gates.operator_review=true`;
+- set `final_review.schema_version=final_release_review_v1`;
+- copy `review_evidence_id`;
+- copy `FINAL_REVIEW_SHA256` to `final_review.review_digest`;
+- set `final_review.decision=GO`;
+- copy reviewer and review timestamp.
+
+## 6. Final release evidence validation
+
+Run:
+
+```text
+python tools/validate_release_evidence.py release_evidence.json
+```
+
+The validator checks:
+
+- current release ID;
+- Git/hash formats and repository HEAD when available;
+- actual EX5/SET file hashes when files are available;
+- zero compile errors/warnings;
+- MetaEditor/MT5 build identity;
+- compile log;
+- deployment identity;
+- `SOAK_EVIDENCE_SCHEMA.json` compliance and soak digest;
+- all mandatory release gates;
+- final-review schema, ID, digest, GO decision, reviewer and timestamp.
+
+PASS writes `release-evidence-validation.txt` and the final evidence JSON SHA-256.
+
+## 7. Runtime mapping
+
+Map the validated evidence to MT5 inputs exactly.
+
+Compile/artifact fields:
 
 - `build.git_sha` → `InpReleaseSourceCommitSha`
 - `build.ex5_sha256` → `InpReleaseEx5Sha256`
-- `build.set_sha256` → `InpReleaseSetSha256`; use literal `NONE` only when no preset is used
+- `build.set_sha256` → `InpReleaseSetSha256`
 - `build.compile_evidence_id` → `InpReleaseCompileEvidenceId`
 - `build.metaeditor_build` → `InpReleaseMetaEditorBuild`
 - `build.mt5_build` → `InpReleaseMT5Build`
 
-The validator requires:
+Soak fields map to the corresponding `InpReleaseSoak*` inputs, including schema version, evidence ID/digest, scan/checkpoint counts, zero-tolerance counters and required log-presence booleans.
 
-- exact current release validation ID;
-- 40-hex Git commit SHA;
-- 64-hex EX5 SHA-256;
-- 64-hex SET SHA-256 or `NONE`;
-- zero compile errors;
-- zero compile warnings for production certification;
-- MetaEditor and MT5 build identifiers;
-- compile-evidence reference;
-- compile log path;
-- EX5/SET file hash equality when the referenced files are locally available;
-- repository `HEAD` to equal the evidence Git SHA when the validator is run from a Git checkout.
+Final review fields:
 
-Do not set `InpReleaseMetaEditorCompilePassed=true` or `InpReleaseArtifactIdentityArchived=true` until these checks pass and evidence is archived.
+- review evidence ID → `InpReleaseFinalReviewEvidenceId`
+- final review SHA-256 → `InpReleaseFinalReviewDigest`
+- decision → `InpReleaseFinalDecision`
+- reviewer → `InpReleaseFinalReviewer`
+- timestamp → `InpReleaseFinalReviewTimestamp`
+- `gates.operator_review` → `InpReleaseOperatorReviewPassed`
 
-## Demo-soak evidence mapping
+## 8. Archive set
 
-The following JSON fields map to runtime attestation inputs:
+Archive together:
 
-- `demo_soak.evidence_id` → `InpReleaseSoakEvidenceId`
-- `demo_soak.trading_days` → `InpReleaseSoakTradingDays`
-- `demo_soak.london_sessions` → `InpReleaseSoakLondonSessions`
-- `demo_soak.ny_sessions` → `InpReleaseSoakNYSessions`
-- `demo_soak.overlap_observed` → `InpReleaseSoakOverlapObserved`
-- `demo_soak.news_day_observed` → `InpReleaseSoakNewsDayObserved`
-- `demo_soak.rollover_observed` → `InpReleaseSoakRolloverObserved`
-- `demo_soak.restart_observed` → `InpReleaseSoakRestartObserved`
-- `demo_soak.reconnect_observed` → `InpReleaseSoakReconnectObserved`
-- `demo_soak.zero_tolerance_failures` → `InpReleaseSoakZeroToleranceFailures`
-- `demo_soak.unresolved_critical_states` → `InpReleaseSoakUnresolvedCriticalStates`
+1. exact candidate source/Git SHA;
+2. EX5 and SHA-256;
+3. SET and SHA-256/`NONE`;
+4. compile log;
+5. `release_evidence.json`;
+6. `soak-evidence-validation.txt`;
+7. demo-soak report;
+8. `final_release_review.json`;
+9. `final-release-review-validation.txt`;
+10. `release-evidence-validation.txt`;
+11. broker/deployment profile;
+12. runtime CSVs/terminal logs required by `RELEASE_EVIDENCE_MANIFEST.md`.
 
-The real-account runtime gate independently requires:
+## Invalidation rule
 
-- at least 5 consecutive trading days;
-- at least 3 London sessions;
-- at least 3 New York/U.S. cash sessions;
-- London/New York overlap observed;
-- a relevant high-impact news day observed;
-- rollover/spread-expansion window observed;
-- restart observed;
-- disconnect/reconnect observed;
-- zero zero-tolerance failures;
-- zero unresolved critical states at soak end.
-
-These numeric/boolean fields do not replace `DEMO_SOAK_ACCEPTANCE.md`; they make its minimum coverage and zero-tolerance rules impossible to satisfy with the `InpReleaseDemoSoakPassed` checkbox alone.
-
-## Deployment evidence
-
-Populate `deployment` with the intended broker/server/account profile. It must agree with the deployment profile used for `DEPLOYMENT_DRIFT_TESTS.md` and, where configured, the expected identity inputs in `GPT_EA_Part29_DeploymentDriftGuard.mqh`.
-
-A materially different broker, server, margin mode, account currency/leverage or structural symbol contract invalidates the release evidence until reviewed/retested.
-
-## Full gate record
-
-Every field under `gates` must be `true` only after its underlying evidence exists. The validator rejects a candidate when any mandatory R5 gate remains false.
-
-The machine validator does not claim to prove the truth of every human test. Its purpose is to detect:
-
-- wrong release ID;
-- mismatched source/artifact identity;
-- malformed or missing hashes;
-- missing compile evidence;
-- incomplete demo-soak coverage;
-- non-zero critical/zero-tolerance failures;
-- missing deployment identity;
-- an incomplete mandatory gate set.
-
-## Final archive set
-
-For each production candidate archive at minimum:
-
-1. `release_evidence.json` completed from the template;
-2. `release-evidence-validation.txt`;
-3. evidence JSON SHA-256 from the validator;
-4. exact Git commit SHA;
-5. candidate `.ex5` and SHA-256;
-6. candidate `.set` and SHA-256 when used;
-7. MetaEditor compile log;
-8. demo-soak report and timestamps;
-9. broker/deployment profile;
-10. required runtime CSVs and terminal logs listed in `RELEASE_EVIDENCE_MANIFEST.md`;
-11. final signed GO/NO-GO record.
-
-Any executable change after this evidence is generated invalidates the candidate artifact identity and requires a new compile/hash plus whatever downstream revalidation the change affects.
+Any executable source change after evidence is captured creates a new candidate unless explicitly recorded as documentation-only and non-executable. Material preset, broker/deployment or release-contract changes also require the affected validation to be repeated.

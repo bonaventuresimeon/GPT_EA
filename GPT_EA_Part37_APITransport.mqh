@@ -268,8 +268,13 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
    int effectiveTimeout=(timeout<1000?1000:timeout);
    if(effectiveTimeout>maxTimeout) effectiveTimeout=maxTimeout;
 
+   ulong transportStart=GetTickCount64();
    ResetLastError();
    int code=WebRequest(method,target,outgoingHeaders,effectiveTimeout,data,result,result_headers);
+   double transportLatency=(double)(GetTickCount64()-transportStart);
+   double oldLatency=GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0);
+   GVWrite(SysKey("MODEL_LATENCY_EWMA_MS"),(oldLatency<=0?transportLatency:0.20*transportLatency+0.80*oldLatency));
+   GVWrite(SysKey("MODEL_LAST_LATENCY_MS"),transportLatency);
    int mqlError=(code==-1?GetLastError():0);
    if(code==-1)
    {

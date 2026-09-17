@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `RECOVERY_INVARIANTS.md`
+
+---
+
 # GPT_EA Recovery Invariants
 
 These invariants define conditions that must remain true before GPT_EA may authorize a new trade after startup, reconnection, VPS migration or state restoration. Existing positions remain managed even when a release/recovery gate blocks new entries.

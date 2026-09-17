@@ -42,6 +42,9 @@ Attach PASS/FAIL evidence for each applicable document:
 - [ ] `ADVANCED_INTELLIGENCE_CONTRACT.md`
 - [ ] `FULL_INTELLIGENCE_COVERAGE.md`
 - [ ] `INTELLIGENCE_TEST_MATRIX.md`
+- [ ] `INTELLIGENCE_HARDENING_TESTS.md`
+- [ ] `ADAPTIVE_EXECUTION_ARCHITECTURE.md`
+- [ ] `ADAPTIVE_EXECUTION_TEST_MATRIX.md`
 - [ ] `BROKER_MATRIX_TESTS.md`
 - [ ] `DEPLOYMENT_DRIFT_TESTS.md`
 - [ ] `RECOVERY_INVARIANTS.md`
@@ -64,6 +67,60 @@ Attach PASS/FAIL evidence for each applicable document:
 - [ ] No executable source changed after the certified compile without a new compile/hash.
 - [ ] Demo soak used the same EX5/SET candidate being proposed for release.
 - [ ] `InpReleaseArtifactIdentityArchived=true` will be set only after this section is complete.
+
+## R5 adaptive execution evidence
+
+Complete `ADAPTIVE_EXECUTION_TEST_MATRIX.md` and archive evidence for all applicable cases.
+
+### Portfolio/risk supervisor
+
+- [ ] rolling-correlation same-theme risk tested;
+- [ ] opposite-direction/hedge behavior tested;
+- [ ] USD/risk-on macro concentration tested;
+- [ ] per-strategy daily and weekly budgets tested;
+- [ ] base-risk ceiling never exceeded by adaptive sizing;
+- [ ] market-condition kill switch tested;
+- [ ] broker-health blocking tested;
+- [ ] drawdown-acceleration block tested;
+- [ ] independent supervisor shown to outrank GPT approval;
+- [ ] `InpReleaseAdaptivePortfolioPassed=true` will be set only after this section is complete.
+
+### Execution learning / adaptation
+
+- [ ] expected/request/fill price capture verified;
+- [ ] spread/slippage/latency/commission capture verified;
+- [ ] confidence calibration developing and mature samples tested;
+- [ ] strategy degradation states ACTIVE/REDUCED_RISK/SHADOW/DISABLED tested;
+- [ ] MAE/MFE capture/finalization tested;
+- [ ] CPI/PPI/NFP/FOMC/ECB/BoE/GDP/PMI/retail/speech event classes tested where available;
+- [ ] negative event/strategy evidence block tested;
+- [ ] learned slippage forecast and R:R rejection tested;
+- [ ] learned time-to-TP1 expiry tested;
+- [ ] regime-transition final sizing reduction tested;
+- [ ] `InpReleaseExecutionLearningPassed=true` will be set only after this section is complete.
+
+### Champion/challenger / counterfactuals
+
+- [ ] champion, pullback challenger and breakout-retest challenger shadow paths tested;
+- [ ] rejected/WAIT counterfactuals tracked without broker orders;
+- [ ] same-bar SL/target ambiguity uses conservative outcome;
+- [ ] minimum sample requirement enforced;
+- [ ] average-R, PF, DD and stability promotion requirements enforced;
+- [ ] `InpAutoPromoteChallenger=false` cannot silently promote;
+- [ ] explicit promotion still passes every downstream risk/news/release/broker gate;
+- [ ] `InpReleaseChampionChallengerPassed=true` will be set only after this section is complete.
+
+### Lifecycle / GPT integrity / replay
+
+- [ ] normal lifecycle transitions tested;
+- [ ] invalid transition rejection tested;
+- [ ] denial/timeout/restart reconstruction tested;
+- [ ] GPT strong disagreement downgrades/blocks rather than reverses deterministic direction;
+- [ ] malformed/short/parser-fallback/credential-like model output tested;
+- [ ] stale GPT review requires reanalysis;
+- [ ] contradictory price geometry blocks before order;
+- [ ] `GPT_EA_DecisionSnapshots.csv` matches archived decisions;
+- [ ] `InpReleaseLifecycleIntegrityPassed=true` will be set only after this section is complete.
 
 ## Deployment profile / drift evidence
 
@@ -104,11 +161,17 @@ Archive:
 
 - `GPT_EA_Execution.csv`
 - `GPT_EA_StopFailures.csv`
+- `GPT_EA_Intelligence.csv`
+- `GPT_EA_ExecutionLearning.csv`
+- `GPT_EA_ShadowValidation.csv`
+- `GPT_EA_Lifecycle.csv`
+- `GPT_EA_DecisionSnapshots.csv`
+- `GPT_EA_StrategyHealth.csv`
 - `GPT_EA_ReleaseEvidence.csv`
 - Experts log
 - Journal log
 - broker order/deal history
-- screenshots for HIGH-priority stop cases
+- screenshots for HIGH-priority stop/adaptive cases
 - recovery checkpoint and `.bak` where relevant
 - intelligence/news observations where relevant
 
@@ -117,6 +180,9 @@ Verify:
 - [ ] stop CSV schema = `stop_failure_observability_v2`.
 - [ ] stable class/action codes are present.
 - [ ] stop lifecycles join by `POSITION_IDENTIFIER`.
+- [ ] adaptive execution-learning rows join fills/closed results correctly.
+- [ ] lifecycle rows do not contain illegal accepted transitions.
+- [ ] shadow rows never correspond to broker orders merely because they are shadow candidates.
 - [ ] current SL in evidence agrees with broker state.
 - [ ] no duplicate TP1/TP2 partials.
 - [ ] no accepted stop regression.
@@ -133,6 +199,7 @@ Verify:
 - [ ] realistic R:R cost model verified.
 - [ ] continuous/scheduled scanning verified.
 - [ ] 25-point thesis/adversarial validation reviewed.
+- [ ] GPT disagreement cannot override deterministic risk or reverse the underlying setup.
 
 ## Recovery evidence
 
@@ -141,6 +208,8 @@ Verify:
 - [ ] TP1 partial before BE restart.
 - [ ] profit-lock/trailing restart.
 - [ ] stop-failure restart.
+- [ ] lifecycle reconstruction restart.
+- [ ] active shadow/counterfactual restart.
 - [ ] completed backup fallback.
 - [ ] netting reversal safety where applicable.
 
@@ -164,6 +233,7 @@ Follow `DEMO_SOAK_ACCEPTANCE.md`.
 - Duplicate orders/partials: **must be none**
 - Unresolved critical stop/recovery states at end: **must be none**
 - Release/dashboard mismatch observed: **must be none**
+- Adaptive strategy status/execution mismatch observed: **must be none**
 - Secrets exposed in logs: **must be none**
 - Demo-soak report evidence location:
 
@@ -173,7 +243,7 @@ The live inputs in `GPT_EA_Part28_ReleaseCertification.mqh` may be set to PASS o
 
 Current required validation ID is defined in source by `GPT_EA_REQUIRED_RELEASE_VALIDATION_ID`; do not guess or reuse an old release ID after the contract changes.
 
-Required R4 evidence includes compile, artifact identity, Strategy Tester, intelligence matrix, broker matrix, deployment profile/drift, recovery, stop matrix, broker stop policy, partial protection, stop observability, live-news/intermarket, WebRequest failure injection, demo soak and final operator review.
+Required R5 evidence includes compile, artifact identity, Strategy Tester, intelligence matrix, adaptive portfolio, execution learning, champion/challenger, lifecycle/integrity/replay, broker matrix, deployment profile/drift, recovery, stop matrix, broker stop policy, partial protection, stop observability, live-news/intermarket, WebRequest failure injection, demo soak and final operator review.
 
 ## Final release decision
 
@@ -182,6 +252,7 @@ Complete `RELEASE_GO_NO_GO.md`.
 - [ ] All applicable HIGH/release-blocking tests passed.
 - [ ] Exact artifact identity archived.
 - [ ] Deployment profile validated.
+- [ ] All four R5 adaptive attestation groups passed.
 - [ ] Human approval remains enabled for initial live deployment.
 - [ ] Conservative initial risk selected.
 - [ ] Live arm phrase will be entered locally only after final review.

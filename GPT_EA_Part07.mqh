@@ -426,6 +426,11 @@ void OnTimer()
    if(ScheduledScanDue(why)) ScanAll(why);
 }
 
+void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
+{
+   HandleReliabilityTradeTransaction(trans,request,result);
+}
+
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
 {
    if(id!=CHARTEVENT_OBJECT_CLICK) return;

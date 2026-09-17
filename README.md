@@ -356,6 +356,18 @@ Only a fully aligned candidate reaches **HIGH-CONFIDENCE TRADE SETUP**. Otherwis
 - `ADVANCED_INTELLIGENCE_CONTRACT.md`
 - `INTELLIGENCE_TEST_MATRIX.md`
 
+## Installation and onboarding
+
+New users should start with:
+
+- `INSTALLATION.md` — quick installation path.
+- `USER_INSTALLATION_GUIDE.md` — complete new-user setup guide.
+- `FIRST_RUN_CHECKLIST.md` — first-run PASS/FAIL checklist.
+- `API_KEY_TROUBLESHOOTING.md` — safe OpenAI API/WebRequest troubleshooting.
+- `OPENAI_ACCOUNT_RECOMMENDATION.md` — ChatGPT Pro 20X companion recommendation and API model guidance.
+
+Current API model ladder includes `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-5.6-sol`, and `gpt-6-astra`. OpenAI currently positions GPT-6 Astra as its flagship maximum-intelligence API model for the hardest end-to-end work. Users should choose it only when the additional API cost/latency is acceptable.
+
 ## OpenAI configuration
 
 Enter the API key locally in MT5 inputs and never commit it. Add under **Tools → Options → Expert Advisors → Allow WebRequest for listed URL**:

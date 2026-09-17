@@ -21,6 +21,14 @@
     "validated": false,
     "validation_path": "artifacts/runner-recovery-evidence-validation.txt"
   },
+  "runner_recovery_acceptance": {
+    "schema_version": "runner_recovery_acceptance_v1",
+    "acceptance_id": "",
+    "acceptance_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "acceptance_path": "artifacts/runner-recovery-acceptance.json",
+    "validated": false,
+    "validation_path": "artifacts/runner-recovery-acceptance-validation.txt"
+  },
   "ci_static": {
     "schema_version": "github_actions_static_evidence_v1",
     "run_id": 0,
@@ -46,6 +54,14 @@
     "bundle_digest": "0000000000000000000000000000000000000000000000000000000000000000",
     "bundle_validated": false,
     "bundle_validation_path": "artifacts/ci-bundle-validation.txt"
+  },
+  "mt5_validation": {
+    "schema_version": "mt5_validation_evidence_v1",
+    "evidence_id": "",
+    "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "evidence_path": "artifacts/mt5-validation-evidence.json",
+    "validated": false,
+    "validation_path": "artifacts/mt5-validation-evidence-validation.txt"
   },
   "deployment": {
     "broker_company": "",
@@ -112,7 +128,9 @@
     "metaeditor_compile": false,
     "artifact_identity": false,
     "runner_recovery": false,
+    "runner_recovery_acceptance": false,
     "ci_static": false,
+    "mt5_validation": false,
     "strategy_tester": false,
     "intelligence_matrix": false,
     "adaptive_portfolio": false,

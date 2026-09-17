@@ -23,8 +23,10 @@
   "review": {
     "compile_contract_pass": false,
     "runner_recovery_pass": false,
+    "runner_recovery_acceptance_pass": false,
     "ci_bundle_pass": false,
     "ci_attestation_verified": false,
+    "mt5_validation_pass": false,
     "api_transport_pass": false,
     "five_day_acceptance_pass": false,
     "soak_day_reconciliation_pass": false,

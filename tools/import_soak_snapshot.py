@@ -102,7 +102,8 @@ def main() -> int:
         print("No release-evidence file was modified.")
         return 1
 
-    soak["acceptance_record_schema_version"] = str(record.get("schema_version", ""))\n    soak["acceptance_record_id"] = str(record.get("record_id", ""))
+    soak["acceptance_record_schema_version"] = str(record.get("schema_version", ""))
+    soak["acceptance_record_id"] = str(record.get("record_id", ""))
     soak["acceptance_record_digest"] = record_digest
     try:
         soak["acceptance_record_path"] = str(record_path.relative_to(ROOT)).replace("\\", "/")

@@ -1,3 +1,19 @@
+<!-- GPT_EA_DOC_HEADER -->
+<div align="center">
+
+# 🧠⚡ GPT_EA
+### 🛡️ Execution Safety & Recovery
+
+**AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
+
+[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+
+</div>
+
+> 🛡️ **Document:** `STOP_FAILURE_OBSERVABILITY_CONTRACT.md`
+
+---
+
 # GPT_EA Stop-Failure Observability Contract
 
 This document defines the machine-readable contract for protective-stop health, broker failures, partial-protection transitions and emergency stop-recovery actions.

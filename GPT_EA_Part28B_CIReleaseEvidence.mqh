@@ -1,36 +1,70 @@
 // ============================================================================
-// GPT_EA Part 28B - R6 GitHub Actions + five-day soak evidence binding
+// GPT_EA Part 28B - R6 GitHub Actions + runner recovery + five-day soak binding
 // ============================================================================
 // Supplemental fail-closed release evidence layered on top of Part28/Part29.
-// This keeps the existing R6 contract intact while making executed CI provenance
-// and the detailed five-day acceptance record mandatory before REAL arming.
+// REAL arming requires recovered-runner proof, executed CI provenance and the
+// detailed five-day acceptance record in addition to the base R6 gates.
 
-input bool   InpReleaseCIStaticEvidencePassed          = false;
-input string InpReleaseCISchemaVersion                 = "";
-input long   InpReleaseCIRunId                         = 0;
-input int    InpReleaseCIRunAttempt                    = 0;
-input long   InpReleaseCIJobId                         = 0;
-input long   InpReleaseCIRunnerId                      = 0;
-input int    InpReleaseCIStepsExecuted                 = 0;
-input string InpReleaseCIHeadSha                       = "";
-input string InpReleaseCIEvidenceDigest                = "";
-input string InpReleaseCIConclusion                    = "";
-input string InpReleaseCIArtifactName                  = "";
-input bool   InpReleaseCIArtifactArchived              = false;
-input bool   InpReleaseCIAttestationVerified           = false;
-input string InpReleaseCIBundleSchemaVersion           = "";
-input string InpReleaseCIBundleDigest                  = "";
-input bool   InpReleaseCIBundleValidated               = false;
+input bool   InpReleaseRunnerRecoveryPassed             = false;
+input string InpReleaseRunnerRecoverySchemaVersion      = "";
+input string InpReleaseRunnerRecoveryEvidenceId         = "";
+input string InpReleaseRunnerRecoveryDigest             = "";
 
-input string InpReleaseSoakAcceptanceRecordId          = "";
-input string InpReleaseSoakAcceptanceRecordDigest      = "";
+input bool   InpReleaseCIStaticEvidencePassed           = false;
+input string InpReleaseCISchemaVersion                  = "";
+input long   InpReleaseCIRunId                          = 0;
+input int    InpReleaseCIRunAttempt                     = 0;
+input long   InpReleaseCIJobId                          = 0;
+input long   InpReleaseCIRunnerId                       = 0;
+input int    InpReleaseCIStepsExecuted                  = 0;
+input string InpReleaseCIHeadSha                        = "";
+input string InpReleaseCIEvidenceDigest                 = "";
+input string InpReleaseCIConclusion                     = "";
+input string InpReleaseCIArtifactName                   = "";
+input bool   InpReleaseCIArtifactArchived               = false;
+input bool   InpReleaseCIAttestationVerified            = false;
+input string InpReleaseCIBundleSchemaVersion            = "";
+input string InpReleaseCIBundleDigest                   = "";
+input bool   InpReleaseCIBundleValidated                = false;
 
-input bool   InpWriteR6SupplementalEvidenceSnapshot    = true;
-input string InpR6SupplementalEvidenceSnapshotFile     = "GPT_EA_R6SupplementalEvidence.csv";
+input string InpReleaseSoakAcceptanceSchemaVersion      = "";
+input string InpReleaseSoakAcceptanceRecordId           = "";
+input string InpReleaseSoakAcceptanceRecordDigest       = "";
 
-const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION     = "github_actions_static_evidence_v1";
-const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA      = "ci_evidence_bundle_v1";
-const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA    = "five_day_soak_acceptance_v1";
+input bool   InpWriteR6SupplementalEvidenceSnapshot     = true;
+input string InpR6SupplementalEvidenceSnapshotFile      = "GPT_EA_R6SupplementalEvidence.csv";
+
+const string GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA = "runner_recovery_evidence_v1";
+const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION      = "github_actions_static_evidence_v1";
+const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA       = "ci_evidence_bundle_v1";
+const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA     = "five_day_soak_acceptance_v2";
+
+bool ReleaseRunnerRecoveryEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseRunnerRecoveryPassed)
+   {
+      why="GitHub hosted-runner recovery evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseRunnerRecoverySchemaVersion!=GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA)
+   {
+      why="Runner-recovery evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseRunnerRecoveryEvidenceId)<8)
+   {
+      why="Runner-recovery evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseRunnerRecoveryDigest,64))
+   {
+      why="Runner-recovery evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="Hosted-runner recovery evidence PASS.";
+   return true;
+}
 
 bool ReleaseCIStaticEvidenceAllows(string &why)
 {
@@ -97,6 +131,11 @@ bool ReleaseCIStaticEvidenceAllows(string &why)
 bool ReleaseFiveDaySoakRecordAllows(string &why)
 {
    why="";
+   if(InpReleaseSoakAcceptanceSchemaVersion!=GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA)
+   {
+      why="Five-day soak acceptance schema is missing or stale.";
+      return false;
+   }
    if(StringLen(InpReleaseSoakAcceptanceRecordId)<8)
    {
       why="Five-day soak acceptance record ID is missing.";
@@ -107,7 +146,7 @@ bool ReleaseFiveDaySoakRecordAllows(string &why)
       why="Five-day soak acceptance record digest must be a 64-character SHA-256 value.";
       return false;
    }
-   why="Five-day soak acceptance record identity/digest structurally PASS.";
+   why="Five-day soak acceptance v2 identity/digest structurally PASS.";
    return true;
 }
 
@@ -126,6 +165,12 @@ bool ReleaseSupplementalR6EvidenceAllows(string &why)
       return true;
    }
 
+   string runner="";
+   if(!ReleaseRunnerRecoveryEvidenceAllows(runner))
+   {
+      why="REAL account blocked: "+runner;
+      return false;
+   }
    string ci="";
    if(!ReleaseCIStaticEvidenceAllows(ci))
    {
@@ -138,7 +183,7 @@ bool ReleaseSupplementalR6EvidenceAllows(string &why)
       why="REAL account blocked: "+soak;
       return false;
    }
-   why=ci+" | "+soak;
+   why=runner+" | "+ci+" | "+soak;
    return true;
 }
 
@@ -186,18 +231,21 @@ void WriteR6SupplementalEvidenceSnapshot()
    int h=FileOpen(InpR6SupplementalEvidenceSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
    if(FileSize(h)==0)
-      FileWrite(h,"time","required_release_id","source_commit","ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id",
-         "ci_steps","ci_head_sha","ci_digest","ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified",
-         "ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
-         "soak_record_id","soak_record_digest","gate_result","reason");
+      FileWrite(h,"time","required_release_id","source_commit",
+         "runner_recovery_passed","runner_recovery_schema","runner_recovery_id","runner_recovery_digest",
+         "ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id","ci_steps","ci_head_sha","ci_digest",
+         "ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified","ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
+         "soak_acceptance_schema","soak_record_id","soak_record_digest","gate_result","reason");
    FileSeek(h,0,SEEK_END);
    string why=""; bool ok=ReleaseSafetyAllowsR6Evidence("",why);
    FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseSourceCommitSha,
+      InpReleaseRunnerRecoveryPassed?"1":"0",InpReleaseRunnerRecoverySchemaVersion,InpReleaseRunnerRecoveryEvidenceId,InpReleaseRunnerRecoveryDigest,
       InpReleaseCIStaticEvidencePassed?"1":"0",InpReleaseCISchemaVersion,(string)InpReleaseCIRunId,(string)InpReleaseCIRunAttempt,
-      (string)InpReleaseCIJobId,(string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,InpReleaseCIConclusion,
-      InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
+      (string)InpReleaseCIJobId,(string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,
+      InpReleaseCIConclusion,InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
       InpReleaseCIBundleSchemaVersion,InpReleaseCIBundleDigest,InpReleaseCIBundleValidated?"1":"0",
-      InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,ok?"PASS":"BLOCK",why);
+      InpReleaseSoakAcceptanceSchemaVersion,InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,
+      ok?"PASS":"BLOCK",why);
    FileFlush(h); FileClose(h);
 }
 

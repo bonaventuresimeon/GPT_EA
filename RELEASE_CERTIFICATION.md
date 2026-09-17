@@ -1,157 +1,176 @@
-# GPT_EA Live Release Certification — R6
+# GPT_EA Live Release Certification — R6 Base + Current Supplemental Guards
 
-`GPT_EA_Part28_ReleaseCertification.mqh` and `GPT_EA_Part29_DeploymentDriftGuard.mqh` form the real-account release-evidence and deployment-stability gates.
-
-Current required release validation ID:
+The base release validation identity remains:
 
 `GPT_EA_FULL_INTELLIGENCE_R6_20260917`
 
-R6 retains the R5 adaptive trading stack but strengthens release evidence with a versioned demo-soak schema, concrete evidence digests and a machine-validated final GO/NO-GO review. Any R5 or earlier release attestation is stale for R6.
+The active runtime safety chain is layered:
 
-## Default behavior
+`Part28 base R6 certification → Part29 deployment drift → Part28B executed-CI/five-day evidence → Part37 API transport guard`.
 
-All release-attestation booleans default to `false`, identity/digest fields default blank and the final decision defaults blank. A REAL account remains blocked even if the ordinary live-arm phrase is entered.
+The later wrappers do not weaken or replace R6. Every layer must pass simultaneously before REAL-account arming.
 
-Strategy Tester bypasses real-account evidence attestation so testing remains possible. Demo/contest accounts treat release evidence as informational while validation is performed.
+## Default fail-closed behavior
 
-## Compile and artifact identity
+All production-release attestations default to `false` and evidence identities/digests default blank. A REAL account remains blocked even when the ordinary live-arm phrase is present until the complete matching evidence is supplied.
 
-Real arming requires:
+Strategy Tester remains usable without real-account certification. Demo/contest accounts remain available for evidence generation.
 
-- exact 40-hex source Git SHA;
+## 1. Compile and artifact identity
+
+Required:
+
+- exact 40-hex Git SHA;
 - exact 64-hex EX5 SHA-256;
-- exact 64-hex SET SHA-256 or literal `NONE`;
+- exact SET SHA-256 or `NONE`;
+- 0 compile errors and 0 production warnings;
 - compile evidence ID;
-- MetaEditor build;
-- MT5 build;
-- `InpReleaseMetaEditorCompilePassed=true`;
-- `InpReleaseArtifactIdentityArchived=true`.
+- MetaEditor and MT5 build identity;
+- artifact identity archived.
 
-Use `METAEDITOR_COMPILE_GATE.md` and `tools/validate_release_evidence.py`.
+Follow `METAEDITOR_COMPILE_GATE.md`.
 
-## Versioned demo-soak evidence
+## 2. Executed GitHub Actions evidence
 
-Required schema:
+Part28B requires executed CI provenance; a created/failed pre-runner workflow is not evidence.
 
-`demo_soak_evidence_v1`
+Follow `CI_EVIDENCE_CONTRACT.md`. A valid CI record requires:
 
-`SOAK_EVIDENCE_SCHEMA.json` and `DEMO_SOAK_ACCEPTANCE.md` define the contract.
+- run ID/attempt/job ID > 0;
+- `runner_id > 0` and runner name present;
+- at least 7 executed static-job steps;
+- static job conclusion `success`;
+- exact source SHA match;
+- repository aggregate static result PASS;
+- validated `ci-evidence.json`;
+- verified GitHub provenance attestation;
+- archived/validated `ci_evidence_bundle_v1` bundle.
 
-R6 requires:
+Part28B additionally requires `InpReleaseCIBundleValidated=true` and the matching bundle SHA-256.
 
-- soak evidence ID and SHA-256 digest;
-- at least 5 consecutive trading days;
-- at least 3 London sessions;
-- at least 3 New York/U.S.-cash sessions;
-- overlap, high-impact-news day, rollover, restart and reconnect coverage;
-- scheduled and continuous scans observed;
-- primary and backup checkpoint updates observed;
-- execution, stop and release evidence logs present;
-- zero zero-tolerance failures;
-- zero unresolved critical states;
-- zero duplicate orders/partials;
-- zero stop regressions;
-- zero unprotected new authorizations;
-- zero release-gate bypasses;
-- zero duplicate analytics finalization;
-- zero stop-observability join failures;
-- zero dashboard/gate mismatch;
-- zero runtime critical errors;
-- zero secret exposure.
+`runner_id=0`, blank runner name or `steps=[]` is HOLD and cannot be converted manually into PASS.
+
+## 3. Adaptive/intelligence/broker validation
+
+Before real arming archive PASS evidence for all applicable:
+
+- Strategy Tester;
+- intelligence/hardening matrices;
+- adaptive portfolio/risk supervisor;
+- execution learning/calibration/MAE-MFE/event behavior;
+- champion/challenger/counterfactual validation;
+- lifecycle/GPT-integrity/replay;
+- broker/account/symbol matrix;
+- deployment profile/drift;
+- recovery/restart tests;
+- HIGH stop-management matrix;
+- broker-specific stop failure policy;
+- partial-protection tests;
+- stop observability;
+- live news/intermarket validation;
+- WebRequest/OpenAI failure injection.
+
+## 4. API/WebRequest transport certification
+
+The active source routes GPT/news traffic through Part37. Complete `API_TRANSPORT_TEST_MATRIX.md` for the exact selected mode and endpoint.
+
+Required evidence includes HTTPS/allow-list configuration, deep-review path, live web-search path, failure/recovery, request tracing, and zero secret leaks.
 
 Run:
 
 ```text
+python tools/validate_api_transport_evidence.py release_evidence.json
+```
+
+REAL arming remains blocked until `InpReleaseAPITransportPassed=true` is backed by matching evidence.
+
+## 5. Five-day soak and operator acceptance
+
+Part36 produces `demo_soak_evidence_v1` machine observations. R6 additionally requires the detailed five-day acceptance record and human/operator reconciliation.
+
+Use:
+
+- `FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json`;
+- `FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md`;
+- `DEMO_SOAK_REPORT_TEMPLATE.md`.
+
+The exact candidate must cover five accepted trading days, >=3 London sessions, >=3 New York/U.S.-cash sessions, overlap, relevant high-impact news, rollover spread expansion, restart, reconnect, scheduled/continuous/manual scans, primary/backup checkpoints, required logs and zero hard-failure counters.
+
+All five lifecycle assertions must pass, including stale human-approval WAIT closure and preservation of genuine market-confirmation WAIT.
+
+Finalize/validate:
+
+```text
+python tools/validate_five_day_soak_record.py artifacts/five-day-soak-acceptance.json --finalize
+python tools/validate_five_day_soak_record.py artifacts/five-day-soak-acceptance.json
 python tools/validate_soak_evidence.py release_evidence.json
 ```
 
-Archive `soak-evidence-validation.txt` and its `SOAK_EVIDENCE_SHA256`.
+Part28B requires the resulting acceptance record ID and digest.
 
-## Full R6 evidence
+## 6. Deployment drift guard
 
-The following must also pass before real arming:
+Part29 captures structural symbol/deployment properties and blocks new entries if the live environment materially differs from the validated profile. Dynamic spread/stops/freeze changes remain execution conditions rather than structural identity fields.
 
-- Strategy Tester;
-- full intelligence matrix;
-- adaptive portfolio/risk supervisor;
-- execution learning/calibration/event/MAE-MFE;
-- champion/challenger and counterfactual validation;
-- lifecycle/GPT-integrity/replay;
-- broker/account/symbol matrix;
-- deployment profile/drift tests;
-- restart/recovery tests;
-- HIGH-priority stop-management matrix;
-- broker-specific stop-failure policy;
-- partial-protection release test;
-- stop-observability matrix;
-- live-news/intermarket validation;
-- OpenAI/WebRequest failure injection.
+Existing positions continue management when new entries are blocked.
 
-## Release evidence validator
+## 7. Final GO/NO-GO review
 
-Complete `RELEASE_EVIDENCE_TEMPLATE.json` for the exact candidate and run:
+Complete `FINAL_RELEASE_REVIEW_TEMPLATE.json` against the stable evidence basis containing the exact build, CI bundle, deployment, API transport and demo-soak/five-day identities.
 
-```text
-python tools/validate_release_evidence.py release_evidence.json
-```
-
-The validator checks release ID, artifact/hash identity, compile evidence, deployment identity, soak schema, quantitative soak thresholds, all mandatory gates and final-review fields. Archive `release-evidence-validation.txt` and its reported evidence digest.
-
-## Final GO/NO-GO review
-
-Use `FINAL_RELEASE_REVIEW_TEMPLATE.json` and follow `FINAL_GO_NO_GO_REVIEW.md`.
-
-The final review must bind to the exact Git SHA, EX5/SET hashes, deployment identity and stable pre-review release-evidence digest.
-
-Only literal decision `GO` is eligible for real arming. `HOLD` and `NO-GO` remain blocked.
-
-Run:
+Only literal `GO` can pass:
 
 ```text
 python tools/validate_final_release_review.py release_evidence.json final_release_review.json
 ```
 
-Archive `final-release-review-validation.txt` and its `FINAL_REVIEW_SHA256`, then enter the matching review evidence ID/digest/decision/reviewer/timestamp into MT5.
+Then copy the matching review identity/digest/reviewer/timestamp into `release_evidence.json` and Part28 inputs.
 
-## Deployment drift guard
+## 8. Final aggregate validation
 
-`GPT_EA_Part29_DeploymentDriftGuard.mqh` captures structural symbol properties and blocks new entries when the running environment materially differs from the validated deployment.
+Run:
 
-Structural checks include symbol availability, digits, point, tick size, contract size, volume step, calculation mode, execution mode and filling mode. Optional expected identity fields can bind the release to broker company, server, account currency, margin mode and leverage.
+```text
+python tools/validate_release_evidence.py release_evidence.json
+python tools/validate_release_evidence_r7.py release_evidence.json
+```
 
-Dynamic spread/stops/freeze changes remain live execution conditions, not structural-drift failures.
+The aggregate validation verifies candidate hashes, compile evidence, executed CI bundle/provenance, deployment, API transport, five-day operator/machine acceptance, soak digest, all mandatory gates and final GO review.
 
-## Runtime audit
+## 9. Runtime audit artifacts
 
-`GPT_EA_ReleaseEvidence.csv` records release ID, artifact identity, compile identity, soak schema/digest and quantitative counters, final review identity/digest/decision and the final PASS/BLOCK reason.
+Runtime evidence includes:
 
-The runtime evidence does not replace the archived files; it makes the running terminal auditable against them.
+- `GPT_EA_ReleaseEvidence.csv` from Part28;
+- `GPT_EA_R6SupplementalEvidence.csv` from Part28B;
+- `GPT_EA_APIHealth.csv` from Part37;
+- Part36 soak artifacts and the normal execution/lifecycle/stop/intelligence journals.
 
-## R6 release sequence
+These make the running terminal auditable but do not replace archived release files.
 
-1. Compile the exact candidate and pass `METAEDITOR_COMPILE_GATE.md`.
-2. Record Git SHA, EX5 SHA-256 and SET SHA-256/`NONE`.
-3. Run Strategy Tester and all required intelligence/adaptive/broker/recovery/stop/news tests.
-4. Run the exact candidate through the required demo soak.
-5. Complete `release_evidence.json` from `RELEASE_EVIDENCE_TEMPLATE.json`.
-6. Run `tools/validate_soak_evidence.py` and archive PASS/digest.
-7. Complete all non-review gates in `release_evidence.json`.
-8. Run the release evidence validator as part of the review package.
-9. Complete `final_release_review.json` from `FINAL_RELEASE_REVIEW_TEMPLATE.json`.
-10. Run `tools/validate_final_release_review.py`; result must PASS.
-11. Set `gates.operator_review=true` and copy final-review identity/digest into the release evidence bundle.
-12. Run `tools/validate_release_evidence.py` again; result must PASS.
-13. Complete `RELEASE_EVIDENCE_MANIFEST.md` and `RELEASE_GO_NO_GO.md`.
-14. Only then enter the matching R6 inputs and live-arm phrase locally.
+## Current release sequence
+
+1. Freeze candidate source/preset identity.
+2. Compile exact candidate; archive EX5/SET hashes and compile log.
+3. Obtain a green executed GitHub Actions CI evidence bundle for the exact candidate.
+4. Run Strategy Tester and all intelligence/adaptive/broker/recovery/stop matrices.
+5. Validate selected API transport/WebRequest mode on demo.
+6. Run the exact candidate through the five-day demo soak.
+7. Complete the machine five-day record, operator worksheet and soak report.
+8. Finalize the five-day record digest and validate soak evidence.
+9. Complete `release_evidence.json` and all non-review gates.
+10. Complete and validate final GO/NO-GO review.
+11. Run both aggregate release validators; all must PASS.
+12. Complete `RELEASE_EVIDENCE_MANIFEST.md` and `RELEASE_GO_NO_GO.md`.
+13. Enter the exact validated Part28/Part28B/Part37 inputs locally.
+14. Only then enter the live-arm phrase.
 
 ## Certification invalidation
 
-A GO becomes stale after executable-source changes, materially changed presets/risk controls, a changed EX5, materially different broker/server/account/symbol contract, or discovery of evidence invalidating a hard-gate assumption.
-
-Documentation-only changes may retain artifact evidence only when explicitly recorded as non-executable.
+Executable-source changes, different EX5/SET or material risk preset, release-contract changes, selected API transport/endpoint changes, or material broker/server/account/symbol-deployment changes invalidate the affected evidence. A new candidate must not inherit stale CI, soak or release digests.
 
 ## Live rule
 
-A REAL-account R6 build is eligible only when ordinary safety, stop health, complete R6 evidence, final GO review, deployment stability and all current risk/news/broker/execution gates pass simultaneously.
+REAL trading is eligible only when ordinary safety, stop health, base R6 certification, deployment stability, executed CI/five-day supplemental evidence, API transport certification, final GO review and all live broker/risk/news/execution gates pass simultaneously.
 
-This certification never guarantees profitability. It certifies the engineering, protection, evidence and operational release process for the exact candidate.
+This certification is an engineering/release assurance process; it does not guarantee profitability.

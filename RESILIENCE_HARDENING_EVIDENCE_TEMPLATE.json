@@ -1,0 +1,26 @@
+{
+  "schema_version":"resilience_hardening_evidence_v1",
+  "release_validation_id":"GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+  "evidence_id":"",
+  "evidence_digest":"",
+  "candidate_git_sha":"0000000000000000000000000000000000000000",
+  "config_fingerprint":"00000000",
+  "matrix_path":"artifacts/r6-resilience-matrix.md",
+  "matrix_sha256":"0000000000000000000000000000000000000000000000000000000000000000",
+  "checks":{
+    "direct_breakout":false,
+    "broker_reconciliation":false,
+    "atomic_intent_exactly_once":false,
+    "news_provenance_timestamp":false,
+    "clock_model_degradation":false,
+    "data_versioning_quarantine":false,
+    "promotion_significance_rollback":false,
+    "strategy_registry":false,
+    "portfolio_gap_margin_latency":false,
+    "chaos_fault_injection":false,
+    "storage_config_manual_integrity":false,
+    "causal_attribution":false,
+    "rollback_package":false
+  },
+  "operator_review":{"decision":"HOLD","reviewer":"","timestamp":"","notes":""}
+}

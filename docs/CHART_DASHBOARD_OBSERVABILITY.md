@@ -88,6 +88,28 @@ Tick handling remains execution-free. `OnTick()` only refreshes visual observabi
 
 All scanning, risk authorization, approvals and position management remain on their existing execution paths.
 
+## Transparent responsive layout
+
+Premium mode no longer paints an opaque diagnostic block over live candles. The renderer measures the current chart width/height, constrains the dashboard width, and dynamically reserves a right-side chart gutter with `CHART_SHIFT_SIZE`. Price action is therefore shifted left of the information rail instead of being hidden beneath it.
+
+Dashboard and section rectangles use transparent fill when `InpDashboardTransparent=true`. Borders, typography and state accents remain visible, while the underlying chart background stays visible. Candidate entry zones plus live risk/reward regions are outline-only rather than filled rectangles.
+
+The renderer responds to `CHARTEVENT_CHART_CHANGE`, so resizing the terminal or chart triggers a fresh layout. Narrow/short charts switch to compact typography and tighter cards rather than stacking fixed-size panels on top of each other.
+
+The legacy left-side Risk & Performance block, giant strategy-health label and raw `Comment(card)` diagnostic dump are suppressed while the premium dashboard is active. Their underlying analytics remain available to the trading engine, journals and fallback non-premium view.
+
+## Dashboard lifecycle state machine
+
+The visible state is deterministic and follows:
+
+`SCANNING → SETUP FOUND → WAITING CONFIRMATION → ENTRY ARMED → TRADE ACTIVE → TP1 → BREAK EVEN → TRAILING → CLOSED`
+
+The candidate dashboard also renders a clear `NO TRADE — score/100` condition. In that state no executable level ladder is presented as authorized; the dashboard instead displays the strategy rationale, current confirmation requirement, pullback-versus-breakout-retest scores, news/spread context and invalidation information.
+
+After a managed position closes, `CLOSED` is held briefly using `InpDashboardClosedHoldSeconds`, then the interface returns automatically to `SCANNING`.
+
+Approval controls are integrated into the same reserved dashboard rail in premium mode. This prevents the separate approval hero from covering candles while preserving APPROVE / DENY functionality, including pending setups discovered on other scanned symbols.
+
 ## Inputs
 
 The visual controls include:
@@ -100,6 +122,11 @@ The visual controls include:
 - `InpTrailMovementSegments`;
 - `InpDashboardRefreshMs`;
 - `InpDashboardWidth` / `InpDashboardHeight`;
+- `InpDashboardTransparent`;
+- `InpDashboardReserveChartSpace`;
+- `InpDashboardMinWidth` / `InpDashboardMaxWidth`;
+- `InpDashboardChartGap`;
+- `InpDashboardClosedHoldSeconds`;
 - `InpDashboardTitleFont`;
 - `InpDashboardBodyFont`.
 

@@ -911,6 +911,12 @@ input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
 input bool   InpPremiumDashboard             = true;
 input bool   InpPremiumUIAnimations          = true;
+input bool   InpDashboardTransparent          = true;   // transparent cards/panel over a reserved chart gutter
+input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so dashboard never covers price action
+input int    InpDashboardMinWidth             = 340;
+input int    InpDashboardMaxWidth             = 560;
+input int    InpDashboardChartGap             = 14;
+input int    InpDashboardClosedHoldSeconds    = 12;
 input int    InpApprovalHeroX                = 20;
 input int    InpApprovalHeroY                = 20;
 input int    InpApprovalHeroWidth            = 510;
@@ -1008,6 +1014,40 @@ datetime g_visualTrailLastTime=0;
 ulong g_visualTrailPid=0;
 int g_visualTrailSeq=0;
 ulong g_visualLastRefreshMS=0;
+
+enum VisualDashboardState
+{
+   UI_STATE_SCANNING=0,
+   UI_STATE_SETUP_FOUND=1,
+   UI_STATE_WAITING_CONFIRMATION=2,
+   UI_STATE_ENTRY_ARMED=3,
+   UI_STATE_TRADE_ACTIVE=4,
+   UI_STATE_TP1=5,
+   UI_STATE_BREAK_EVEN=6,
+   UI_STATE_TRAILING=7,
+   UI_STATE_CLOSED=8
+};
+
+VisualDashboardState g_dashboardState=UI_STATE_SCANNING;
+datetime g_dashboardStateSince=0;
+string g_dashboardStateReason="";
+datetime g_dashboardClosedUntil=0;
+string g_dashboardClosedSymbol="";
+double g_dashboardClosedR=0.0;
+
+string g_visualTrendDetail="";
+string g_visualMarketState="";
+string g_visualRegime="";
+string g_visualSession="";
+string g_visualDecisionRationale="";
+string g_visualDecisionConfirmation="";
+string g_visualNewsSummary="";
+string g_visualNewsRisk="LOW";
+string g_visualSpreadSummary="";
+int    g_visualDecisionScore=0;
+int    g_visualPullbackScore=0;
+int    g_visualBreakoutScore=0;
+bool   g_visualNoTrade=false;
 
 bool ADXSnapshot(const string sym,ENUM_TIMEFRAMES tf,int period,double &adx,double &pdi,double &mdi)
 {
@@ -1287,6 +1327,8 @@ void DeleteTradeMap()
    ObjectDelete(0,LEVEL_TRAIL_START);
    ObjectDelete(0,LEVEL_TP1); ObjectDelete(0,LEVEL_TP2); ObjectDelete(0,LEVEL_TP3);
    ObjectDelete(0,ZONE_BOX);
+   ObjectDelete(0,TAG_ENTRY); ObjectDelete(0,TAG_SL); ObjectDelete(0,TAG_BE);
+   ObjectDelete(0,TAG_TP1); ObjectDelete(0,TAG_TP2); ObjectDelete(0,TAG_TP3); ObjectDelete(0,TAG_TRAIL);
 }
 
 void SetHLine(const string name,double price,color c,ENUM_LINE_STYLE style,int width)
@@ -1298,6 +1340,24 @@ void SetHLine(const string name,double price,color c,ENUM_LINE_STYLE style,int w
    ObjectSetInteger(0,name,OBJPROP_WIDTH,width);
    ObjectSetInteger(0,name,OBJPROP_BACK,false);
    ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+}
+
+void SetPlanPriceTag(const string name,double price,const string label,color c)
+{
+   if(price<=0){ ObjectDelete(0,name); return; }
+   int sec=PeriodSeconds(_Period);
+   if(sec<=0) sec=60;
+   datetime t=TimeCurrent()+sec*3;
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_TEXT,0,t,price);
+   else ObjectMove(0,name,0,t,price);
+   ObjectSetString(0,name,OBJPROP_TEXT,label);
+   ObjectSetString(0,name,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetInteger(0,name,OBJPROP_FONTSIZE,8);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,c);
+   ObjectSetInteger(0,name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+   ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,name,OBJPROP_BACK,false);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
 }
 
 void DrawTradeMap(const TradeSetup &s)
@@ -1323,23 +1383,25 @@ void DrawTradeMap(const TradeSetup &s)
    SetHLine(LEVEL_TP2,s.tp2,C'67,197,132',STYLE_DASH,1);
    SetHLine(LEVEL_TP3,s.tp3,C'48,174,113',STYLE_DOT,2);
 
-   ObjectSetString(0,LEVEL_ENTRY,OBJPROP_TEXT,StringFormat("ENTRY  %.*f  |  0.00R",d,s.preferred));
-   ObjectSetString(0,LEVEL_SL,OBJPROP_TEXT,StringFormat("STOP LOSS  %.*f  |  -1.00R",d,s.sl));
-   ObjectSetString(0,LEVEL_BE,OBJPROP_TEXT,StringFormat("B.E. PROJECTION  %.*f  |  activates after TP1/protection rules",d,be));
-   ObjectSetString(0,LEVEL_TRAIL_START,OBJPROP_TEXT,StringFormat("TRAIL START  %.*f  |  %.2fR",d,trailStart,InpTrailStartR));
-   ObjectSetString(0,LEVEL_TP1,OBJPROP_TEXT,StringFormat("TP1  %.*f  |  +1.00R",d,s.tp1));
-   ObjectSetString(0,LEVEL_TP2,OBJPROP_TEXT,StringFormat("TP2  %.*f  |  +2.00R",d,s.tp2));
-   ObjectSetString(0,LEVEL_TP3,OBJPROP_TEXT,StringFormat("TP3 / RUNNER  %.*f  |  +3.00R",d,s.tp3));
+   // Compact labels at the chart's right edge replace noisy HLINE descriptions.
+   SetPlanPriceTag(TAG_ENTRY,s.preferred,StringFormat("ENTRY  %.*f",d,s.preferred),C'75,165,255');
+   SetPlanPriceTag(TAG_SL,s.sl,StringFormat("SL  %.*f",d,s.sl),C'235,84,94');
+   SetPlanPriceTag(TAG_BE,be,StringFormat("B.E.  %.*f",d,be),C'229,194,96');
+   SetPlanPriceTag(TAG_TP1,s.tp1,StringFormat("TP1  %.*f",d,s.tp1),C'91,218,151');
+   SetPlanPriceTag(TAG_TP2,s.tp2,StringFormat("TP2  %.*f",d,s.tp2),C'67,197,132');
+   SetPlanPriceTag(TAG_TP3,s.tp3,StringFormat("TP3  %.*f",d,s.tp3),C'48,174,113');
+   SetPlanPriceTag(TAG_TRAIL,trailStart,StringFormat("TRAIL  %.*f  ↑",d,trailStart),C'189,119,255');
 
    datetime left=TimeCurrent()-6*3600;
    datetime right=TimeCurrent()+6*3600;
    if(ObjectFind(0,ZONE_BOX)<0) ObjectCreate(0,ZONE_BOX,OBJ_RECTANGLE,0,left,s.zoneHigh,right,s.zoneLow);
    ObjectMove(0,ZONE_BOX,0,left,s.zoneHigh);
    ObjectMove(0,ZONE_BOX,1,right,s.zoneLow);
-   ObjectSetInteger(0,ZONE_BOX,OBJPROP_COLOR,s.bullish?C'18,70,52':C'78,31,41');
-   ObjectSetInteger(0,ZONE_BOX,OBJPROP_FILL,true);
+   ObjectSetInteger(0,ZONE_BOX,OBJPROP_COLOR,s.bullish?C'45,160,112':C'196,75,88');
+   ObjectSetInteger(0,ZONE_BOX,OBJPROP_FILL,false);
    ObjectSetInteger(0,ZONE_BOX,OBJPROP_BACK,true);
    ObjectSetInteger(0,ZONE_BOX,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,ZONE_BOX,OBJPROP_HIDDEN,true);
 }
 
 void ApplyChartPolish()
@@ -1348,8 +1410,8 @@ void ApplyChartPolish()
    ChartSetInteger(0,CHART_MODE,CHART_CANDLES);
    ChartSetInteger(0,CHART_SHOW_GRID,false);
    ChartSetInteger(0,CHART_SHIFT,true);
-   ChartSetDouble(0,CHART_SHIFT_SIZE,18.0);
-   ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,true);
+   ChartSetDouble(0,CHART_SHIFT_SIZE,InpDashboardReserveChartSpace?32.0:18.0);
+   ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,false);
    ChartSetInteger(0,CHART_COLOR_BACKGROUND,C'11,15,22');
    ChartSetInteger(0,CHART_COLOR_FOREGROUND,clrSilver);
    ChartSetInteger(0,CHART_COLOR_CHART_UP,C'35,196,131');
@@ -1371,12 +1433,14 @@ void SetPremiumRect(const string name,const ENUM_BASE_CORNER corner,const int x,
                     const color bg,const color border,const long z=0)
 {
    if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE_LABEL,0,0,0);
+   bool dashboardObject=(name==DASH_PANEL || StringFind(name,"GPT_EA_DASH_")==0);
+   color effectiveBG=(InpDashboardTransparent && dashboardObject ? clrNONE : bg);
    ObjectSetInteger(0,name,OBJPROP_CORNER,corner);
    ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
    ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
    ObjectSetInteger(0,name,OBJPROP_XSIZE,w);
    ObjectSetInteger(0,name,OBJPROP_YSIZE,h);
-   ObjectSetInteger(0,name,OBJPROP_BGCOLOR,bg);
+   ObjectSetInteger(0,name,OBJPROP_BGCOLOR,effectiveBG);
    ObjectSetInteger(0,name,OBJPROP_BORDER_COLOR,border);
    ObjectSetInteger(0,name,OBJPROP_BORDER_TYPE,BORDER_FLAT);
    ObjectSetInteger(0,name,OBJPROP_BACK,false);
@@ -1398,6 +1462,7 @@ void SetPremiumLabel(const string name,const ENUM_BASE_CORNER corner,const int x
    ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
    ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
    ObjectSetInteger(0,name,OBJPROP_ZORDER,z);
+   ObjectSetInteger(0,name,OBJPROP_ANCHOR,(corner==CORNER_RIGHT_UPPER||corner==CORNER_RIGHT_LOWER)?ANCHOR_RIGHT_UPPER:ANCHOR_LEFT_UPPER);
    ObjectSetString(0,name,OBJPROP_FONT,font);
    ObjectSetString(0,name,OBJPROP_TEXT,text);
 }
@@ -1426,8 +1491,127 @@ void SetDashboardSection(const string card,const string label,const int x,const 
                          const string title,const string body,const color accent)
 {
    SetPremiumRect(card,CORNER_RIGHT_UPPER,x,y,w,h,C'13,21,33',accent,2);
-   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+8,title+"\n"+body,clrWhiteSmoke,8,InpDashboardBodyFont,4);
+   int fs=(w<430?7:8);
+   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+8,title+"\n"+body,clrWhiteSmoke,fs,InpDashboardBodyFont,4);
 }
+
+string VisualOneLine(string text,const int maxChars)
+{
+   StringReplace(text,"\r"," ");
+   StringReplace(text,"\n"," ");
+   while(StringFind(text,"  ")>=0) StringReplace(text,"  "," ");
+   if(StringLen(text)<=maxChars) return text;
+   int keep=(int)MathMax(8,maxChars-3);
+   return StringSubstr(text,0,keep)+"...";
+}
+
+string DashboardStateName(const VisualDashboardState state)
+{
+   switch(state)
+   {
+      case UI_STATE_SETUP_FOUND:          return "SETUP FOUND";
+      case UI_STATE_WAITING_CONFIRMATION: return "WAITING CONFIRMATION";
+      case UI_STATE_ENTRY_ARMED:          return "ENTRY ARMED";
+      case UI_STATE_TRADE_ACTIVE:         return "TRADE ACTIVE";
+      case UI_STATE_TP1:                  return "TP1";
+      case UI_STATE_BREAK_EVEN:           return "BREAK EVEN";
+      case UI_STATE_TRAILING:             return "TRAILING";
+      case UI_STATE_CLOSED:               return "CLOSED";
+      default:                            return "SCANNING";
+   }
+}
+
+color DashboardStateColor(const VisualDashboardState state)
+{
+   switch(state)
+   {
+      case UI_STATE_ENTRY_ARMED:  return C'91,220,156';
+      case UI_STATE_TRADE_ACTIVE: return C'91,220,156';
+      case UI_STATE_TP1:          return C'82,210,179';
+      case UI_STATE_BREAK_EVEN:   return C'80,211,211';
+      case UI_STATE_TRAILING:     return C'205,139,255';
+      case UI_STATE_CLOSED:       return C'150,170,196';
+      case UI_STATE_SETUP_FOUND:  return C'107,173,221';
+      default:                    return C'245,184,86';
+   }
+}
+
+void SetVisualDashboardState(const VisualDashboardState state,const string reason)
+{
+   if(g_dashboardState!=state)
+   {
+      g_dashboardState=state;
+      g_dashboardStateSince=TimeTradeServer();
+   }
+   g_dashboardStateReason=reason;
+}
+
+void ApplyDashboardChartReserve(const int panelW)
+{
+   if(!InpDashboardReserveChartSpace) return;
+   int chartW=(int)ChartGetInteger(0,CHART_WIDTH_IN_PIXELS,0);
+   if(chartW<=0) return;
+   double reserve=100.0*((double)panelW+(double)InpDashboardX+(double)InpDashboardChartGap)/(double)chartW+2.0;
+   reserve=MathMax(20.0,MathMin(50.0,reserve));
+   ChartSetInteger(0,CHART_SHIFT,true);
+   ChartSetDouble(0,CHART_SHIFT_SIZE,reserve);
+}
+
+void DashboardLayout(const bool live,int &panelW,int &panelH,bool &compact)
+{
+   int chartW=(int)ChartGetInteger(0,CHART_WIDTH_IN_PIXELS,0);
+   int chartH=(int)ChartGetInteger(0,CHART_HEIGHT_IN_PIXELS,0);
+   if(chartW<=0) chartW=1200;
+   if(chartH<=0) chartH=650;
+
+   int minW=(int)MathMax(320,InpDashboardMinWidth);
+   int maxW=(int)MathMax(minW,InpDashboardMaxWidth);
+   int preferred=(int)MathMax(minW,MathMin(maxW,InpDashboardWidth));
+   int byChart=(int)MathMax(320.0,MathFloor((double)chartW*0.46)-(double)(InpDashboardX*2+InpDashboardChartGap));
+   panelW=(int)MathMin(preferred,byChart);
+   if(panelW<320) panelW=320;
+
+   compact=(chartW<1120 || chartH<650 || panelW<465);
+   int desiredH=(live?(compact?475:620):(compact?455:575));
+   int usableH=chartH-InpDashboardY-6;
+   if(usableH<420) usableH=420;
+   panelH=(int)MathMin(desiredH,usableH);
+   ApplyDashboardChartReserve(panelW);
+}
+
+string VisualTFBias(const string detail,const string tf)
+{
+   int p=StringFind(detail,tf+":");
+   if(p<0) return tf+"  • --";
+   int s=p+StringLen(tf)+1;
+   int e=StringFind(detail," ",s);
+   if(e<0) e=StringLen(detail);
+   string bias=StringSubstr(detail,s,e-s);
+   string icon=(bias=="BULL"?"▲":(bias=="BEAR"?"▼":"•"));
+   return tf+" "+icon+" "+bias;
+}
+
+string VisualMTFMatrix(const string detail)
+{
+   return VisualTFBias(detail,"D1")+"   "+VisualTFBias(detail,"H4")+"   "+VisualTFBias(detail,"H1")+"\n"+
+          VisualTFBias(detail,"M30")+"   "+VisualTFBias(detail,"M15")+"   "+VisualTFBias(detail,"M5");
+}
+
+string VisualConfidenceBar(const int score)
+{
+   int filled=(int)MathRound(MathMax(0,MathMin(100,score))/10.0);
+   string out="";
+   for(int i=0;i<10;i++) out+=(i<filled?"■":"□");
+   return out;
+}
+
+string VisualVolatilityLabel(const ConfluenceReport &r)
+{
+   if(r.openingRangeRatio>=1.55) return "ELEVATED";
+   if(r.openingRangeRatio>0 && r.openingRangeRatio<0.70) return "COMPRESSED";
+   return "NORMAL";
+}
+
 
 void ClearDashboardSections()
 {
@@ -1446,6 +1630,12 @@ bool ApprovalMouseInside(const long mx,const double my,const int x,const int y,c
 
 void UpdateApprovalHover(const long mx,const double my)
 {
+   if(InpElegantChartDashboard && InpPremiumDashboard)
+   {
+      g_approvalHoverApprove=false;
+      g_approvalHoverDeny=false;
+      return;
+   }
    if(!InpEnableApprovalHover)
    {
       g_approvalHoverApprove=false;
@@ -1463,6 +1653,7 @@ void UpdateApprovalHover(const long mx,const double my)
 
 void StyleApprovalUI()
 {
+   if(InpElegantChartDashboard && InpPremiumDashboard) return;
    bool pulse=(((GetTickCount64()/450)%2)==0);
    int x=InpApprovalHeroX;
    int y=InpApprovalHeroY;
@@ -1528,6 +1719,14 @@ void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const
    g_visualLastFilter=filterState;
    g_visualLastReady=readyNow;
    g_visualHasSetup=(s.symbol!="");
+
+   // In premium mode this function is intentionally cache-only. The responsive
+   // renderer below owns every visible card, preventing duplicate/legacy layers.
+   if(InpElegantChartDashboard && InpPremiumDashboard)
+   {
+      ObjectDelete(0,DASH_TEXT);
+      return;
+   }
 
    int panelW=(int)MathMax(460,InpDashboardWidth);
    int panelH=(int)MathMax(330,InpDashboardHeight);
@@ -2345,6 +2544,17 @@ void HandleExitDeal(ulong deal)
    MarkSignalCooldown(sym);
    GVWrite(PosKey(pid,"FINAL"),1);
    AppendJournal("CLOSED",sym,kind,deal,pid,GVRead(PosKey(pid,"REQUESTED"),0),HistoryDealGetDouble(deal,DEAL_PRICE),slip,R,mae,mfe,"position finalized");
+
+   if(sym==_Symbol && InpElegantChartDashboard && InpPremiumDashboard)
+   {
+      g_dashboardClosedSymbol=sym;
+      g_dashboardClosedR=R;
+      g_dashboardClosedUntil=TimeTradeServer()+(int)MathMax(3,InpDashboardClosedHoldSeconds);
+      g_dashboardState=UI_STATE_CLOSED;
+      g_dashboardStateSince=TimeTradeServer();
+      g_dashboardStateReason="position finalized";
+      g_visualHasSetup=false;
+   }
 }
 
 void HandleRiskAnalyticsTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
@@ -2365,7 +2575,21 @@ void DeleteRiskAnalyticsPanel()
 
 void UpdateRiskAnalyticsPanel()
 {
-   if(!InpDrawDashboard) return;
+   if(!InpDrawDashboard)
+   {
+      ObjectDelete(0,RISK_PANEL); ObjectDelete(0,RISK_TEXT); ObjectDelete(0,BTN_PAUSE);
+      return;
+   }
+
+   // Premium dashboard owns risk/status/control rendering. The old left-side panel
+   // was the source of the overlapping debug-style block visible on live charts.
+   if(InpElegantChartDashboard && InpPremiumDashboard)
+   {
+      ObjectDelete(0,RISK_PANEL);
+      ObjectDelete(0,RISK_TEXT);
+      return;
+   }
+
    RefreshRiskSession();
    string kill=""; bool blocked=RiskKillSwitchActive(kill);
    string txt=StringFormat("RISK & PERFORMANCE\nPortfolio risk: %.2f%% / %.2f%%\nDaily loss: %.2f%% / %.2f%%\nDrawdown: %.2f%% / %.2f%%\nConsecutive losses: %d / %d\nState: %s\n\nPullback: %s\nBreakout: %s",
@@ -13971,7 +14195,11 @@ string BuildStrategyHealthDashboardText()
 
 void RenderStrategyHealthDashboard()
 {
-   if(!InpShowStrategyHealthDashboard){ ObjectDelete(0,STRATEGY_HEALTH_PANEL); return; }
+   if(!InpShowStrategyHealthDashboard || (InpElegantChartDashboard && InpPremiumDashboard))
+   {
+      ObjectDelete(0,STRATEGY_HEALTH_PANEL);
+      return;
+   }
    string txt=BuildStrategyHealthDashboardText();
    if(ObjectFind(0,STRATEGY_HEALTH_PANEL)<0) ObjectCreate(0,STRATEGY_HEALTH_PANEL,OBJ_LABEL,0,0,0);
    ObjectSetInteger(0,STRATEGY_HEALTH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
@@ -14947,7 +15175,8 @@ void NotifyCard(const string card)
 {
    Print("\n",card);
    g_lastCard=card;
-   Comment(card);
+   if(InpDrawDashboard && InpElegantChartDashboard && InpPremiumDashboard) Comment("");
+   else Comment(card);
    if(InpEnableAlerts) Alert(StringSubstr(card,0,(int)MathMin(240,StringLen(card))));
    if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(StringSubstr(card,0,(int)MathMin(250,StringLen(card))));
 }
@@ -15421,6 +15650,26 @@ void RenderApprovalPrompt()
    g_displayPending=idx;
 
    bool feedback=ApprovalFeedbackActive();
+
+   if(InpElegantChartDashboard && InpPremiumDashboard)
+   {
+      ObjectDelete(0,APP_PANEL); ObjectDelete(0,APP_ACCENT); ObjectDelete(0,APP_TITLE);
+      ObjectDelete(0,APP_STATUS); ObjectDelete(0,APP_META); ObjectDelete(0,APP_LADDER);
+      ObjectDelete(0,APP_TIMER); ObjectDelete(0,APP_PROGRESS_BG); ObjectDelete(0,APP_PROGRESS_FG);
+      ObjectDelete(0,APP_HINT); ObjectDelete(0,LBL_PROMPT);
+      if(idx<0)
+      {
+         ObjectDelete(0,BTN_APPROVE);
+         ObjectDelete(0,BTN_DENY);
+         if(g_approvalFeedbackText!="" && TimeTradeServer()>g_approvalFeedbackUntil)
+         {
+            g_approvalFeedbackText="";
+            g_approvalFeedbackKind=0;
+         }
+      }
+      return;
+   }
+
    if(idx<0 && !feedback)
    {
       if(g_approvalFeedbackText!="" && TimeTradeServer()>g_approvalFeedbackUntil)
@@ -16139,9 +16388,10 @@ void SetVisualBand(const string name,double p1,double p2,color c)
       ObjectMove(0,name,1,right,lo);
    }
    ObjectSetInteger(0,name,OBJPROP_COLOR,c);
-   ObjectSetInteger(0,name,OBJPROP_FILL,true);
+   ObjectSetInteger(0,name,OBJPROP_FILL,false);
    ObjectSetInteger(0,name,OBJPROP_BACK,true);
    ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
 }
 
 double VisualBreakEvenLevel(const string sym,bool bull,double entry,double R)
@@ -16297,6 +16547,52 @@ string VisualTimelineNode(const string label,datetime when,bool done,bool active
    return "○ "+label;
 }
 
+void SetDashboardButton(const string name,const int x,const int y,const int w,const int h,
+                        const string text,const color bg,const color border)
+{
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_BUTTON,0,0,0);
+   ObjectSetInteger(0,name,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
+   ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
+   ObjectSetInteger(0,name,OBJPROP_XSIZE,w);
+   ObjectSetInteger(0,name,OBJPROP_YSIZE,h);
+   ObjectSetInteger(0,name,OBJPROP_BGCOLOR,bg);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,clrWhite);
+   ObjectSetInteger(0,name,OBJPROP_BORDER_COLOR,border);
+   ObjectSetInteger(0,name,OBJPROP_FONTSIZE,8);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
+   ObjectSetInteger(0,name,OBJPROP_ZORDER,20);
+   ObjectSetString(0,name,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,name,OBJPROP_TEXT,text);
+}
+
+void RenderDashboardControls(const int panelW,const int panelH,const int pendingIndex)
+{
+   int y=InpDashboardY+panelH-30;
+   int bw=(panelW<430?98:118);
+   int bh=24;
+   int gap=6;
+   int x0=InpDashboardX+14;
+
+   if(pendingIndex>=0)
+   {
+      g_displayPending=pendingIndex;
+      ObjectDelete(0,BTN_SCAN_NOW);
+      ObjectDelete(0,BTN_PAUSE);
+      SetDashboardButton(BTN_DENY,x0,y,bw,bh,"×  DENY",C'151,48,61',C'225,93,106');
+      SetDashboardButton(BTN_APPROVE,x0+bw+gap,y,bw,bh,"✓  APPROVE",C'17,130,91',C'75,211,153');
+   }
+   else
+   {
+      ObjectDelete(0,BTN_APPROVE);
+      ObjectDelete(0,BTN_DENY);
+      SetDashboardButton(BTN_SCAN_NOW,x0,y,bw,bh,"↻  SCAN NOW",C'34,87,139',C'107,173,221');
+      SetDashboardButton(BTN_PAUSE,x0+bw+gap,y,bw,bh,g_manualPaused?"▶  RESUME":"Ⅱ  PAUSE",
+                         g_manualPaused?C'35,120,70':C'112,58,67',
+                         g_manualPaused?C'78,190,128':C'205,100,111');
+   }
+}
+
 string VisualTradeTimeline(const ulong pid,const ulong ticket)
 {
    datetime analyze=(datetime)GVRead(PosKey(pid,"EXEC_ANALYSIS_TIME"),0);
@@ -16378,113 +16674,125 @@ void RenderLiveManagementDashboard(ulong ticket)
    int life=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_FILLED);
    string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
    string brokerDetail=""; double brokerHealth=BrokerHealthScore(sym,brokerDetail);
-   string modelBrief=VisualShortText(modelDetail,76);
-   string brokerBrief=VisualShortText(brokerDetail,76);
    double riskMoney=GVRead(PosKey(pid,"RISK"),0);
    string action=LiveManagementAction(tp1done,tp2partial,stage,rNow,expiry,elapsedM15);
    string releaseState=g_releaseBlocked?"BLOCK":"PASS";
-   string releaseWhy=VisualShortText(g_releaseBlockReason,80);
    int d=DigitsFor(sym);
 
-   string lifecycleBadge="ACTIVE";
-   if(stage>=4) lifecycleBadge="TRAILING";
-   else if(tp2reached) lifecycleBadge="TP2 HIT / RUNNER";
-   else if(stage>=1 && tp1done) lifecycleBadge="B.E. ACTIVE";
-   else if(tp1reached) lifecycleBadge="TP1 HIT";
+   VisualDashboardState uiState=UI_STATE_TRADE_ACTIVE;
+   if(stage>=4) uiState=UI_STATE_TRAILING;
+   else if(stage>=1 && tp1done) uiState=UI_STATE_BREAK_EVEN;
+   else if(tp1reached) uiState=UI_STATE_TP1;
+   SetVisualDashboardState(uiState,action);
 
-   int panelW=(int)MathMax(590,InpDashboardWidth);
-   int panelH=(int)MathMax(700,InpDashboardHeight);
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,C'7,12,21',C'122,96,170',1);
-   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+20,InpDashboardY+13,
-      "GPT EA  •  Live Trade Atelier",C'232,201,115',15,InpDashboardTitleFont,5);
-   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+22,InpDashboardY+46,
-      StringFormat("%s  •  %s  •  %s  •  lifecycle %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
-      C'162,187,214',9,InpDashboardBodyFont,5);
-
-   color stateColor=C'91,220,156';
-   if(rNow<0) stateColor=C'244,110,110';
-   else if(stage>=4) stateColor=PremiumPulseColor(C'190,120,255',C'226,162,255');
-   else if(tp1done) stateColor=PremiumPulseColor(C'82,210,179',C'118,241,207');
-   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+22,InpDashboardY+70,
-      StringFormat("● %s   •   %.2fR   •   floating %.2f   •   locked %.2fR",lifecycleBadge,rNow,floating,lockedR),
-      stateColor,10,"Segoe UI Semibold",6);
+   int panelW=0,panelH=0; bool compact=false;
+   DashboardLayout(true,panelW,panelH,compact);
+   color liveAccent=DashboardStateColor(uiState);
+   if(rNow<0 && uiState==UI_STATE_TRADE_ACTIVE) liveAccent=C'244,110,110';
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,liveAccent,1);
+   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
+      "GPT EA  •  Live Trade Atelier",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
+      StringFormat("%s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
+   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
+      StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
+      liveAccent,compact?8:9,"Segoe UI Semibold",6);
    if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
 
-   int sx=InpDashboardX+18, sw=panelW-36;
-   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,InpDashboardY+94,sw,82,
+   int header=compact?80:86;
+   int controls=36;
+   int gap=compact?4:6;
+   int sx=InpDashboardX+12, sw=panelW-24;
+   int top=InpDashboardY+header;
+   int bottom=InpDashboardY+panelH-controls-3;
+   int avail=bottom-top-gap*4;
+   int h1=(int)MathMax(62.0,avail*0.22);
+   int h2=(int)MathMax(66.0,avail*0.23);
+   int h3=(int)MathMax(62.0,avail*0.19);
+   int h4=(int)MathMax(58.0,avail*0.18);
+   int h5=avail-h1-h2-h3-h4;
+   if(h5<50) h5=50;
+   int y=top;
+
+   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,h1,
       "MARKET / POSITION INTELLIGENCE",
-      StringFormat("Ticket #%I64u  •  %s  •  Volume %.2f  •  Open %s\nMarket %.*f  •  Entry %.*f  •  Current %.2fR  •  Floating %.2f",
-                   ticket,StrategyClassName(strategy),volume,TimeToString(opened,TIME_DATE|TIME_MINUTES),
-                   d,px,d,entry,rNow,floating),
+      StringFormat("Ticket #%I64u  •  Volume %.2f  •  Open %s\nMarket %.*f  •  Entry %.*f  •  Current %.2fR\nStrategy %s  •  State %s",
+         ticket,volume,TimeToString(opened,TIME_DATE|TIME_MINUTES),d,px,d,entry,rNow,StrategyClassName(strategy),DashboardStateName(uiState)),
       C'64,137,204');
+   y+=h1+gap;
 
-   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,InpDashboardY+184,sw,110,
-      "TRADE LADDER / PROFIT PROTECTION",
-      StringFormat("SL %.*f  •  Live SL %.*f  •  B.E. %.*f  •  Stage %s  •  Locked %.2fR\n"
-                   "TP1 %.*f [%s]  •  TP2 %.*f [%s]  •  TP3 %.*f [%s]\n"
-                   "Trail start %.2fR  •  Time window %d/%d M15 candles",
-                   d,initSL,d,currentSL,d,be,StopStageName(stage),lockedR,
-                   d,tp1,VisualTPState(tp1reached,tp1partial),d,tp2,VisualTPState(tp2reached,tp2partial),
-                   d,tp3,tp3reached?"HIT":"RUNNER",InpTrailStartR,elapsedM15,expiry),
+   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,y,sw,h2,
+      "ENTRY / SL / B.E. / TAKE-PROFIT LADDER",
+      StringFormat("ENTRY %.*f  •  INITIAL SL %.*f  •  LIVE SL %.*f  •  B.E. %.*f\nTP1 %.*f [%s]  •  TP2 %.*f [%s]  •  TP3 %.*f [%s]\nTrail %.2fR  •  Locked %.2fR  •  Window %d/%d M15",
+         d,entry,d,initSL,d,currentSL,d,be,d,tp1,VisualTPState(tp1reached,tp1partial),
+         d,tp2,VisualTPState(tp2reached,tp2partial),d,tp3,tp3reached?"HIT":"RUNNER",
+         InpTrailStartR,lockedR,elapsedM15,expiry),
       C'71,184,132');
+   y+=h2+gap;
 
+   string rulesBody="";
    if(InpShowStopMovementRules)
-      SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+302,sw,90,
-         "EXACT STOP-MOVEMENT RULES",
-         VisualStopRulesText(bull),
-         C'182,137,68');
-   else
    {
-      DeleteVisualObject(DASH_RULES_CARD);
-      DeleteVisualObject(DASH_RULES_LABEL);
+      if(compact)
+         rulesBody=StringFormat(
+            "B.E. %.2fR → cost-protected entry  •  Lock %.2fR→%.2fR  •  Strong %.2fR→%.2fR\n"
+            "Trail %.2fR  •  ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR\n"
+            "Broker stop/freeze safe  •  SL never regresses  •  Stage %s",
+            InpBETriggerR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
+            InpTrailStartR,InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR,
+            StopStageName(stage));
+      else
+         rulesBody=VisualStopRulesText(bull);
    }
 
    if(InpShowCompactTradeTimeline)
-      SetDashboardSection(DASH_TIMELINE_CARD,DASH_TIMELINE_LABEL,sx,InpDashboardY+400,sw,80,
-         "COMPACT TRADE TIMELINE",
-         VisualTradeTimeline(pid,ticket),
-         C'106,128,201');
-   else
    {
-      DeleteVisualObject(DASH_TIMELINE_CARD);
-      DeleteVisualObject(DASH_TIMELINE_LABEL);
+      string timeline=VisualTradeTimeline(pid,ticket);
+      if(compact)
+      {
+         StringReplace(timeline,"\n","  |  ");
+         rulesBody+=(rulesBody!=""?"\n":"")+VisualOneLine(timeline,118);
+      }
+      else
+         rulesBody+=(rulesBody!=""?"\n":"")+timeline;
    }
+   if(rulesBody=="") rulesBody="Stop-rule and compact-timeline display are disabled by inputs.";
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+488,sw,96,
-      "RISK & SAFETY",
-      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%\n"
-                   "Broker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s\nBroker: %s",
-                   riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
-                   brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,brokerBrief),
+   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,y,sw,h3,
+      "EXACT STOP-MOVEMENT RULES / COMPACT TRADE TIMELINE",
+      rulesBody,C'182,137,68');
+   y+=h3+gap;
+
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / SAFETY",
+      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s",
+         riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
+         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
+   y+=h4+gap;
 
-   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+592,sw,64,
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,h5,
       "EA MANAGEMENT NOW",
-      VisualShortText(action,126)+"\nSafety: "+VisualShortText(releaseWhy+" | "+modelBrief,126),
-      stage>=4?C'187,119,250':C'116,101,181');
+      VisualOneLine(action,compact?82:118)+"\n"+VisualOneLine("Broker "+brokerDetail+" | Model "+modelDetail,compact?82:118),
+      DashboardStateColor(uiState));
 
-   if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+panelH-38);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,142);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,27);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'54,65,105');
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_COLOR,clrWhite);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'122,105,175');
-   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_FONT,"Segoe UI Semibold");
-   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"↻  REANALYZE");
-
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA MANAGEMENT NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\n"+VisualOneLine(action,compact?74:106));
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
    DrawLiveManagementMap(ticket);
-   StyleApprovalUI();
    ChartRedraw();
 }
 
 void RenderCandidateOperationalDashboard()
 {
    if(!InpDrawDashboard || !g_visualHasSetup || g_visualLastSetup.symbol!=_Symbol) return;
-   DeleteVisualObject(DASH_RULES);
-   DeleteVisualObject(DASH_TIMELINE);
    TradeSetup s=g_visualLastSetup;
    ConfluenceReport r=g_visualLastReport;
 
@@ -16493,120 +16801,245 @@ void RenderCandidateOperationalDashboard()
    if(GetTickSafe(s.symbol,tick)) market=(tick.bid+tick.ask)*0.5;
    double atr=0; ATRValue(s.symbol,PERIOD_M15,InpATRPeriod,1,atr);
    double distATR=(atr>0?MathAbs(market-s.preferred)/atr:0);
-   bool inZone=PriceInsideZone(s);
+   bool inZone=(s.valid && PriceInsideZone(s));
    StrategyClass strategy=CandidateStrategyForSymbol(s.symbol);
    string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
    string brokerDetail=""; double brokerHealth=BrokerHealthScore(s.symbol,brokerDetail);
-   string modelBrief=VisualShortText(modelDetail,76);
-   string brokerBrief=VisualShortText(brokerDetail,76);
    int pending=ActivePendingForSymbol(s.symbol);
    string releaseState=g_releaseBlocked?"BLOCK":"PASS";
-   string releaseWhy=VisualShortText(g_releaseBlockReason,80);
-   string action="";
-   if(pending>=0) action="High-confidence setup passed scan gates; waiting for your timed APPROVE / DENY decision.";
-   else if(g_visualLastReady && inZone) action="Price/trigger is ready; EA is running final fresh intelligence, risk, broker and release validation.";
-   else if(inZone) action="Price is in the entry zone, but at least one strategy/confirmation gate is still waiting.";
-   else action="Monitoring price toward preferred entry while continuously rechecking structure, news, costs and risk.";
-
-   int remain=0;
-   if(pending>=0) remain=(int)MathMax(0,(long)(g_pending[pending].expiresAt-TimeTradeServer()));
    int d=DigitsFor(s.symbol);
    double R=MathAbs(s.preferred-s.sl);
-   double beBuffer=MathMax(InpBELockMinR*R,PointFor(s.symbol)*2.0);
-   double be=NormalizePriceToTick(s.symbol,s.bullish?s.preferred+beBuffer:s.preferred-beBuffer);
-   double trailStart=NormalizePriceToTick(s.symbol,s.bullish?s.preferred+InpTrailStartR*R:s.preferred-InpTrailStartR*R);
+   double be=(R>0?NormalizePriceToTick(s.symbol,s.bullish?s.preferred+MathMax(InpBELockMinR*R,PointFor(s.symbol)*2.0):
+                                              s.preferred-MathMax(InpBELockMinR*R,PointFor(s.symbol)*2.0)):0);
+   double trailStart=(R>0?NormalizePriceToTick(s.symbol,s.bullish?s.preferred+InpTrailStartR*R:s.preferred-InpTrailStartR*R):0);
 
-   int panelW=(int)MathMax(590,InpDashboardWidth);
-   int panelH=(int)MathMax(610,InpDashboardHeight);
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,C'8,14,23',C'73,126,169',1);
-   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+20,InpDashboardY+13,
-      "GPT EA  •  Market Intelligence Atelier",C'232,201,115',15,InpDashboardTitleFont,5);
-   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+22,InpDashboardY+46,
-      StringFormat("%s  •  %s  •  %s  •  D1 H4 H1 M30 M15 M5",
-                   s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",StrategyClassName(strategy)),
-      C'162,187,214',9,InpDashboardBodyFont,5);
-
-   bool operationalReady=(g_visualLastReady && inZone && !g_releaseBlocked);
-   string statusText=pending>=0?StringFormat("● APPROVAL PENDING  •  AUTO-DENY IN %ds",remain):
-                     operationalReady?"● FINAL EXECUTION CHECKS ACTIVE":"● ANALYZING / WAITING";
-   color statusColor=pending>=0 && remain<=MathMax(5,InpApprovalDangerSeconds)?
-                     PremiumPulseColor(C'225,83,91',C'255,129,136'):
-                     (operationalReady?C'91,220,156':C'245,184,86');
-   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+22,InpDashboardY+70,
-      statusText,statusColor,10,"Segoe UI Semibold",6);
-   if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
-
-   int sx=InpDashboardX+18, sw=panelW-36;
-   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,InpDashboardY+94,sw,92,
-      "MARKET INTELLIGENCE",
-      StringFormat("Market %.*f  •  Preferred %.*f  •  Distance %.2f ATR  •  In zone %s\n"
-                   "Confidence %d%%  •  Confluence %d/100  •  ADX %.1f  •  Volume %.2fx\n"
-                   "Structure %s  •  Sweep %s  •  FVG %s  •  Rejection %s",
-                   d,market,d,s.preferred,distATR,inZone?"YES":"NO",
-                   s.confidence,r.score,r.adx,r.volumeRatio,
-                   r.structureAligned?"YES":"NO",r.liquiditySweep?"YES":"NO",r.fairValueGap?"YES":"NO",r.rejectionCandle?"YES":"NO"),
-      C'64,137,204');
-
-   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,InpDashboardY+194,sw,112,
-      "TRADE APPROVAL / LEVEL LADDER",
-      StringFormat("%s  •  Entry %.*f – %.*f  •  Preferred %.*f  •  Eff R:R %.2f\n"
-                   "SL %.*f [-1R]  •  B.E. %.*f  •  Trail start %.*f [%.2fR]\n"
-                   "TP1 %.*f [+1R]  •  TP2 %.*f [+2R]  •  TP3 %.*f [+3R]",
-                   StrategyClassName(strategy),d,s.zoneLow,d,s.zoneHigh,d,s.preferred,s.effectiveRR1,
-                   d,s.sl,d,be,d,trailStart,InpTrailStartR,
-                   d,s.tp1,d,s.tp2,d,s.tp3),
-      pending>=0?PremiumPulseColor(C'76,147,215',C'106,190,248'):C'84,156,213');
-
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
-
-   if(InpShowStopMovementRules)
-      SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+314,sw,90,
-         "PROTECTION RULES IF FILLED",
-         VisualStopRulesText(s.bullish),
-         C'182,137,68');
+   VisualDashboardState uiState=UI_STATE_SCANNING;
+   string action="";
+   if(g_visualNoTrade || !s.valid)
+   {
+      uiState=UI_STATE_SCANNING;
+      action="No trade authorized. The EA remains in scan/reassessment mode.";
+   }
+   else if(pending>=0 || (g_visualLastReady && inZone))
+   {
+      uiState=UI_STATE_ENTRY_ARMED;
+      action=(pending>=0?"Setup validated; waiting for APPROVE / DENY.":"Entry conditions are armed; final fresh validation is active.");
+   }
+   else if(inZone)
+   {
+      uiState=UI_STATE_WAITING_CONFIRMATION;
+      action="Price is in the entry zone; confirmation gates are not fully aligned yet.";
+   }
    else
    {
-      DeleteVisualObject(DASH_RULES_CARD);
-      DeleteVisualObject(DASH_RULES_LABEL);
+      uiState=UI_STATE_SETUP_FOUND;
+      action="Setup found; monitoring price toward entry while structure, news, costs and risk are rechecked.";
    }
+   SetVisualDashboardState(uiState,action);
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+412,sw,96,
-      "RISK & SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%  •  Broker %.0f/100\n"
-                   "Model %s  •  OpenAI %s  •  Release %s\nFilters: %s",
-                   CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
-                   ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,VisualShortText(g_visualLastFilter,104)),
+   int panelW=0,panelH=0; bool compact=false;
+   DashboardLayout(false,panelW,panelH,compact);
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(uiState),1);
+   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
+      "GPT EA  •  Market Intelligence",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
+      StringFormat("%s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+                   g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
+      C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
+
+   string statusText=(g_visualNoTrade?StringFormat("● NO TRADE — %d/100  •  SCANNING",g_visualDecisionScore):
+                      StringFormat("● %s  •  confidence %d/100  %s",DashboardStateName(uiState),s.confidence,VisualConfidenceBar(s.confidence)));
+   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
+      statusText,DashboardStateColor(uiState),compact?8:9,"Segoe UI Semibold",6);
+   if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
+
+   int header=compact?80:86;
+   int controls=36;
+   int gap=compact?4:6;
+   int sx=InpDashboardX+12, sw=panelW-24;
+   int top=InpDashboardY+header;
+   int bottom=InpDashboardY+panelH-controls-3;
+   int avail=bottom-top-gap*4;
+   int h1=(int)MathMax(66.0,avail*0.23);
+   int h2=(int)MathMax(66.0,avail*0.23);
+   int h3=(int)MathMax(60.0,avail*0.19);
+   int h4=(int)MathMax(56.0,avail*0.17);
+   int h5=avail-h1-h2-h3-h4;
+   if(h5<50) h5=50;
+   int y=top;
+
+   string structure=(r.structureAligned?"ALIGNED":"MIXED");
+   string liquidity=(r.liquiditySweep?"SWEEP ALIGNED":"NO SWEEP");
+   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,h1,
+      "MARKET STATE / MULTI-TIMEFRAME",
+      StringFormat("Trend %s  •  Regime %s  •  State %s\nVolatility %s  •  ATR %.2f  •  ADX %.1f  •  Structure %s  •  Liquidity %s\n%s",
+         s.bullish?"BULLISH":"BEARISH",g_visualRegime!=""?g_visualRegime:"--",g_visualMarketState!=""?g_visualMarketState:"--",
+         VisualVolatilityLabel(r),r.atr,r.adx,structure,liquidity,VisualMTFMatrix(g_visualTrendDetail)),
+      C'64,137,204');
+   y+=h1+gap;
+
+   string tradeBody="";
+   if(g_visualNoTrade || !s.valid)
+      tradeBody=StringFormat("NO EXECUTABLE ENTRY ARMED  •  reference candidate %s\nPullback %d/100  ↔  Breakout-Retest %d/100  •  current R:R %.2f\nThe EA will not draw/authorize entry levels until the selected setup becomes valid.",
+         StrategyClassName(strategy),g_visualPullbackScore,g_visualBreakoutScore,s.effectiveRR1);
+   else
+      tradeBody=StringFormat("%s  •  Entry %.*f–%.*f  •  Preferred %.*f  •  Eff R:R 1:%.2f\nSL %.*f  •  B.E. %.*f  •  TP1 %.*f  •  TP2 %.*f  •  TP3 %.*f  •  Trail %.*f\nPullback %d/100  ↔  Breakout-Retest %d/100",
+         StrategyClassName(strategy),d,s.zoneLow,d,s.zoneHigh,d,s.preferred,s.effectiveRR1,
+         d,s.sl,d,be,d,s.tp1,d,s.tp2,d,s.tp3,d,trailStart,g_visualPullbackScore,g_visualBreakoutScore);
+
+   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,y,sw,h2,
+      "GPT TRADE INTELLIGENCE / LEVEL LADDER",tradeBody,C'84,156,213');
+   y+=h2+gap;
+
+   string confirm=StringFormat("Structure %s  •  M5 rejection %s  •  Sweep %s  •  FVG %s",
+      r.structureAligned?"✓":"○",r.rejectionCandle?"✓":"○",r.liquiditySweep?"✓":"○",r.fairValueGap?"✓":"○");
+   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,y,sw,h3,
+      "CONFIRMATIONS / INVALIDATION",
+      confirm+"\nNews risk "+g_visualNewsRisk+"  •  "+VisualOneLine(g_visualSpreadSummary,compact?52:76)+"\nInvalidation: "+VisualOneLine(s.invalidation,compact?66:96),
+      C'182,137,68');
+   y+=h3+gap;
+
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / NEWS / SAFETY",
+      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nModel %s  •  OpenAI %s  •  Release %s  •  News %s\n%s",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
+         ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,g_visualNewsRisk,
+         VisualOneLine(g_visualNewsSummary,compact?76:108)),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
+   y+=h4+gap;
 
-   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+516,sw,54,
+   string decisionLine=(g_visualNoTrade?StringFormat("NO TRADE — %d/100",g_visualDecisionScore):DashboardStateName(uiState));
+   string reason=VisualOneLine(g_visualDecisionRationale,compact?74:110);
+   string next=VisualOneLine(g_visualDecisionConfirmation,compact?70:106);
+   if(ApprovalFeedbackActive()) decisionLine=g_approvalFeedbackText;
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,h5,
       "EA ACTION NOW",
-      VisualShortText(action,132)+"\n"+VisualShortText("Broker "+brokerBrief+" | Model "+modelBrief+" | Release "+releaseWhy,132),
-      pending>=0?C'92,174,229':C'116,101,181');
+      decisionLine+"  •  "+VisualOneLine(action,compact?58:82)+"\nWhy: "+reason+"\nNext: "+next,
+      DashboardStateColor(uiState));
 
-   if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+panelH-38);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,142);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,27);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'34,87,139');
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_COLOR,clrWhite);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'107,173,221');
-   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_FONT,"Segoe UI Semibold");
-   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"↻  SCAN NOW");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   int pendingAny=FirstActivePending();
+   int controlsPending=(pending>=0?pending:pendingAny);
+   if(controlsPending>=0 && controlsPending!=pending)
+   {
+      string pendingSym=g_pending[controlsPending].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nCurrent chart: "+decisionLine+"  •  "+VisualOneLine(action,compact?58:82));
+   }
+   RenderDashboardControls(panelW,panelH,controlsPending);
 
-   DrawTradeMap(s);
-   StyleApprovalUI();
+   if(s.valid && !g_visualNoTrade) DrawTradeMap(s);
+   else DeleteTradeMap();
+
+   ChartRedraw();
+}
+
+void RenderScanningDashboard()
+{
+   int panelW=0,panelH=0; bool compact=false;
+   DashboardLayout(false,panelW,panelH,compact);
+   SetVisualDashboardState(UI_STATE_SCANNING,"no active chart setup; scanning and reassessing");
+   ClearDashboardSections();
+   DeleteTradeMap();
+
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(UI_STATE_SCANNING),1);
+   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
+      "GPT EA  •  Market Intelligence",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
+      _Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
+   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
+      "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
+
+   int sx=InpDashboardX+12, sw=panelW-24;
+   int y=InpDashboardY+(compact?84:92);
+   int cardH=compact?78:92;
+   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
+      "SCANNER STATUS",
+      "Attached market "+_Symbol+"\nUniverse: broker symbols are scanned dynamically\nRequired TF: D1 • H4 • H1 • M30 • M15 • M5",
+      C'64,137,204');
+   y+=cardH+6;
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,cardH,
+      "RISK / SAFETY",
+      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nOpenAI %s  •  Release %s\nNo order is opened without the configured authorization gates.",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),APITransportVisualState(),g_releaseBlocked?"BLOCK":"PASS"),
+      g_releaseBlocked?C'214,76,82':C'215,173,82');
+   y+=cardH+6;
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,cardH,
+      "EA ACTION NOW",
+      "SCANNING → SETUP FOUND → WAITING CONFIRMATION → ENTRY ARMED\nTRADE ACTIVE → TP1 → BREAK EVEN → TRAILING → CLOSED\nCurrent: searching for sufficient independent confirmation.",
+      C'116,101,181');
+
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nScanner remains active while the decision window is open.");
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
+   ChartRedraw();
+}
+
+void RenderClosedDashboard()
+{
+   int panelW=0,panelH=0; bool compact=false;
+   DashboardLayout(false,panelW,panelH,compact);
+   SetVisualDashboardState(UI_STATE_CLOSED,"managed trade finalized");
+   ClearDashboardSections();
+   DeleteTradeMap();
+   DeleteLiveManagementVisuals();
+
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(UI_STATE_CLOSED),1);
+   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
+      "GPT EA  •  Trade Lifecycle",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
+      (g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
+   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
+      StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
+      DashboardStateColor(UI_STATE_CLOSED),compact?8:9,"Segoe UI Semibold",6);
+
+   int sx=InpDashboardX+12, sw=panelW-24;
+   int y=InpDashboardY+(compact?88:96);
+   int cardH=compact?86:104;
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,cardH,
+      "TRADE COMPLETE",
+      StringFormat("Finalized result %.2fR\nPosition metadata and analytics have been recorded.\nThe EA will resume SCANNING automatically.",g_dashboardClosedR),
+      DashboardStateColor(UI_STATE_CLOSED));
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "TRADE COMPLETE\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nClosed trade analytics are recorded; scanner continues.");
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
    ChartRedraw();
 }
 
 void RefreshElegantChartDashboard(bool force=false)
 {
-   if(!InpElegantChartDashboard) return;
+   if(!InpElegantChartDashboard || !InpPremiumDashboard || !InpDrawDashboard) return;
    ulong nowMS=GetTickCount64();
    int refreshMs=(int)MathMax(100,InpDashboardRefreshMs);
    if(!force && g_visualLastRefreshMS>0 && nowMS-g_visualLastRefreshMS<(ulong)refreshMs) return;
    g_visualLastRefreshMS=nowMS;
+
+   if(g_dashboardClosedUntil>TimeTradeServer())
+   {
+      RenderClosedDashboard();
+      return;
+   }
+   if(g_dashboardClosedUntil>0 && TimeTradeServer()>=g_dashboardClosedUntil)
+   {
+      g_dashboardClosedUntil=0;
+      g_dashboardClosedSymbol="";
+      g_dashboardClosedR=0;
+   }
 
    ulong ticket=0;
    if(FindChartManagedPosition(ticket))
@@ -16628,7 +17061,7 @@ void RefreshElegantChartDashboard(bool force=false)
    if(g_visualHasSetup && g_visualLastSetup.symbol==_Symbol)
       RenderCandidateOperationalDashboard();
    else
-      ChartRedraw();
+      RenderScanningDashboard();
 }
 
 // ----------------------------- Scanner ----------------------------
@@ -16775,6 +17208,23 @@ void ScanSymbol(const string sym,const string scanReason)
    card+=StringFormat("FINAL DECISION: %s\n",approvalReady?"✅ HIGH-CONFIDENCE TRADE SETUP — APPROVE / DENY ACTIVE":
                      decision.action==STRATEGY_ACTION_NO_TRADE?"❌ NO TRADE":"⏳ WAIT FOR CONFIRMATION / REANALYZE");
 
+   if(sym==_Symbol)
+   {
+      g_visualTrendDetail=trend;
+      g_visualMarketState=decision.stateText;
+      g_visualRegime=decision.regime;
+      g_visualSession=decision.session;
+      g_visualDecisionRationale=decision.rationale;
+      g_visualDecisionConfirmation=decision.confirmation;
+      g_visualDecisionScore=decision.score;
+      g_visualPullbackScore=pbReport.score;
+      g_visualBreakoutScore=brReport.score;
+      g_visualNoTrade=(decision.action==STRATEGY_ACTION_NO_TRADE);
+      g_visualSpreadSummary=spreadText;
+      g_visualNewsRisk=(newsBlock?"HIGH":(upcoming==""?"LOW":"WATCH"));
+      g_visualNewsSummary=(newsBlock?"BLOCK • ":"CLEAR • ")+newsText+(upcoming!=""?" | "+upcoming:"");
+   }
+
    NotifyCard(card);
    RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
    UpdateRiskAnalyticsPanel();
@@ -16915,6 +17365,12 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
 
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
 {
+   if(id==CHARTEVENT_CHART_CHANGE)
+   {
+      RefreshElegantChartDashboard(true);
+      return;
+   }
+
    if(id==CHARTEVENT_MOUSE_MOVE)
    {
       bool oldA=g_approvalHoverApprove,oldD=g_approvalHoverDeny;
@@ -16939,7 +17395,7 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    if(sparam==BTN_PAUSE)
    {
       ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
-      ToggleTradingPause(); SafeUniversalCheckpointNow(); UpdateRiskAnalyticsPanel();
+      ToggleTradingPause(); SafeUniversalCheckpointNow(); UpdateRiskAnalyticsPanel(); RefreshElegantChartDashboard(true);
       if(g_manualPaused) for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
       return;
    }

@@ -20,6 +20,12 @@ required=[
     "InpElegantChartDashboard","InpDrawLiveManagementLevels","InpDrawTrailingMovement",
     "InpShowStopMovementRules","InpShowCompactTradeTimeline",
     "InpTrailMovementSegments","InpDashboardRefreshMs","InpDashboardTitleFont","Segoe Script",
+    "InpDashboardTransparent","InpDashboardReserveChartSpace","InpDashboardMinWidth","InpDashboardMaxWidth",
+    "InpDashboardChartGap","InpDashboardClosedHoldSeconds","VisualDashboardState",
+    "UI_STATE_SCANNING","UI_STATE_SETUP_FOUND","UI_STATE_WAITING_CONFIRMATION","UI_STATE_ENTRY_ARMED",
+    "UI_STATE_TRADE_ACTIVE","UI_STATE_TP1","UI_STATE_BREAK_EVEN","UI_STATE_TRAILING","UI_STATE_CLOSED",
+    "ApplyDashboardChartReserve","DashboardLayout","VisualMTFMatrix","VisualConfidenceBar",
+    "RenderScanningDashboard","RenderClosedDashboard","RenderDashboardControls",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
     "LEVEL_BE","LEVEL_LIVE_SL","TAG_ENTRY","TAG_BE","TAG_TRAIL",
     "RenderCandidateOperationalDashboard","RenderLiveManagementDashboard","DrawLiveManagementMap",
@@ -90,9 +96,10 @@ def function_body(name:str)->str:
     return ""
 
 visual_functions=[
-    "SetVisualPriceTag","SetVisualBand","RecordTrailingMovement","DrawLiveManagementMap",
+    "SetVisualPriceTag","SetVisualBand","RecordTrailingMovement","DrawLiveManagementMap","SetPlanPriceTag",
     "VisualStopRulesText","VisualTradeTimeline",
-    "RenderLiveManagementDashboard","RenderCandidateOperationalDashboard","RefreshElegantChartDashboard",
+    "RenderLiveManagementDashboard","RenderCandidateOperationalDashboard",
+    "RenderScanningDashboard","RenderClosedDashboard","RefreshElegantChartDashboard",
 ]
 for name in visual_functions:
     body=function_body(name)
@@ -102,6 +109,36 @@ for name in visual_functions:
     for forbidden in ("trade.","OrderSend(","PositionModify(","PositionClose(","PositionClosePartial("):
         if forbidden in body:
             errors.append(f"{name} must remain read-only; found {forbidden}")
+
+# Premium rendering contract: transparent cards, reserved chart gutter, no legacy debug layers.
+risk_panel=function_body("UpdateRiskAnalyticsPanel")
+if "InpElegantChartDashboard && InpPremiumDashboard" not in risk_panel or "ObjectDelete(0,RISK_PANEL)" not in risk_panel:
+    errors.append("premium dashboard must suppress the legacy risk/performance overlay")
+
+health_panel=function_body("RenderStrategyHealthDashboard")
+if "InpElegantChartDashboard && InpPremiumDashboard" not in health_panel:
+    errors.append("premium dashboard must suppress the strategy-health text overlay")
+
+notify=function_body("NotifyCard")
+if 'Comment("")' not in notify or "else Comment(card);" not in notify:
+    errors.append("premium dashboard must suppress raw signal-card Comment() text while retaining legacy fallback")
+
+rect=function_body("SetPremiumRect")
+if "InpDashboardTransparent" not in rect or "clrNONE" not in rect:
+    errors.append("premium dashboard rectangles must support transparent fill")
+
+trade_map=function_body("DrawTradeMap")
+live_band=function_body("SetVisualBand")
+if "OBJPROP_FILL,false" not in trade_map or "OBJPROP_FILL,false" not in live_band:
+    errors.append("premium trade/risk/reward regions must be outline-only")
+
+chart_event=function_body("OnChartEvent")
+if "CHARTEVENT_CHART_CHANGE" not in chart_event or "RefreshElegantChartDashboard(true);" not in chart_event:
+    errors.append("dashboard must rerender after chart geometry changes")
+
+approval=function_body("RenderApprovalPrompt")
+if "InpElegantChartDashboard && InpPremiumDashboard" not in approval:
+    errors.append("premium dashboard must integrate approval controls instead of drawing an overlapping hero")
 
 on_tick=function_body("OnTick")
 if "RefreshElegantChartDashboard(false);" not in on_tick:

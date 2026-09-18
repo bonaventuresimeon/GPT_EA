@@ -1202,7 +1202,14 @@ void StyleApprovalUI()
 
 void DeleteAdvancedDashboard()
 {
-   ObjectDelete(0,DASH_PANEL); ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_TEXT); ObjectDelete(0,BTN_SCAN_NOW);
+   ObjectDelete(0,DASH_PANEL); ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_SUBTITLE);
+   ObjectDelete(0,DASH_TEXT); ObjectDelete(0,DASH_STATUS); ObjectDelete(0,BTN_SCAN_NOW);
+   ObjectDelete(0,LEVEL_BE); ObjectDelete(0,LEVEL_LIVE_SL);
+   ObjectDelete(0,TAG_ENTRY); ObjectDelete(0,TAG_SL); ObjectDelete(0,TAG_BE);
+   ObjectDelete(0,TAG_TP1); ObjectDelete(0,TAG_TP2); ObjectDelete(0,TAG_TP3); ObjectDelete(0,TAG_TRAIL);
+   ObjectDelete(0,"GPT_EA_RISK_ZONE"); ObjectDelete(0,"GPT_EA_REWARD_ZONE");
+   int maxSeg=(int)MathMax(3,InpTrailMovementSegments);
+   for(int i=0;i<maxSeg;i++) ObjectDelete(0,StringFormat("GPT_EA_TRAIL_SEG_%02d",i));
    DeleteTradeMap();
 }
 
@@ -1215,8 +1222,8 @@ void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const
    g_visualLastReady=readyNow;
    g_visualHasSetup=(s.symbol!="");
 
-   int panelW=MathMax(460,InpDashboardWidth);
-   int panelH=MathMax(330,InpDashboardHeight);
+   int panelW=(int)MathMax(460,InpDashboardWidth);
+   int panelH=(int)MathMax(330,InpDashboardHeight);
    if(ObjectFind(0,DASH_PANEL)<0) ObjectCreate(0,DASH_PANEL,OBJ_RECTANGLE_LABEL,0,0,0);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_XDISTANCE,InpDashboardX);
@@ -15355,8 +15362,8 @@ void RenderLiveManagementDashboard(ulong ticket)
    string modelState=ModelTrustModeName(modelMode);
    int d=DigitsFor(sym);
 
-   int panelW=MathMax(500,InpDashboardWidth);
-   int panelH=MathMax(370,InpDashboardHeight);
+   int panelW=(int)MathMax(500,InpDashboardWidth);
+   int panelH=(int)MathMax(370,InpDashboardHeight);
    if(ObjectFind(0,DASH_PANEL)<0) ObjectCreate(0,DASH_PANEL,OBJ_RECTANGLE_LABEL,0,0,0);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_XDISTANCE,InpDashboardX);
@@ -15447,7 +15454,7 @@ void RefreshElegantChartDashboard(bool force=false)
 {
    if(!InpElegantChartDashboard) return;
    ulong nowMS=GetTickCount64();
-   int refreshMs=MathMax(100,InpDashboardRefreshMs);
+   int refreshMs=(int)MathMax(100,InpDashboardRefreshMs);
    if(!force && g_visualLastRefreshMS>0 && nowMS-g_visualLastRefreshMS<(ulong)refreshMs) return;
    g_visualLastRefreshMS=nowMS;
 
@@ -15672,6 +15679,7 @@ int OnInit()
       Print("MT5 WebRequest allow-list must include: https://api.openai.com");
 
    ScanAll("EA startup / restart recovery full-intelligence scan");
+   RefreshElegantChartDashboard(true);
    RenderApprovalPrompt(); StyleApprovalUI(); UpdateRiskAnalyticsPanel(); SafeUniversalCheckpointNow();
    return INIT_SUCCEEDED;
 }
@@ -15691,6 +15699,7 @@ void OnTimer()
 {
    // Existing positions remain managed even if new-entry intelligence or release gates are blocked.
    ManagePositionsAdvanced();
+   RefreshElegantChartDashboard(true);
    ProcessApprovalTimeouts();
    RiskRecoveryTimer();
    SafeUniversalRecoveryTimer();
@@ -15702,13 +15711,18 @@ void OnTimer()
    StyleApprovalUI();
 
    string why="";
-   if(ScheduledScanDue(why)) ScanAll(why);
+   if(ScheduledScanDue(why))
+   {
+      ScanAll(why);
+      RefreshElegantChartDashboard(true);
+   }
 }
 
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
 {
    HandleReliabilityTradeTransaction(trans,request,result);
    HandleRiskAnalyticsTradeTransaction(trans,request,result);
+   RefreshElegantChartDashboard(true);
 }
 
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
@@ -15717,7 +15731,9 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    if(sparam==BTN_SCAN_NOW)
    {
       ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
-      ScanAll("Manual SCAN NOW"); return;
+      ScanAll("Manual SCAN NOW");
+      RefreshElegantChartDashboard(true);
+      return;
    }
    if(sparam==BTN_PAUSE)
    {
@@ -15733,7 +15749,8 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
 
 void OnTick()
 {
-   // Multi-symbol intelligence scans, approval expiry, recovery and position management are timer-driven.
+   // Execution remains timer-driven. Tick handling only refreshes chart observability.
+   RefreshElegantChartDashboard(false);
 }
 #undef DeleteAdvancedDashboard
 #undef NewsIntermarketTimer

@@ -16,7 +16,7 @@
 
 # GPT_EA R6 MT5 Validation Acceptance Matrix
 
-This matrix defines the minimum MT5/MetaEditor evidence needed for `mt5_validation_evidence_v1`.
+This matrix defines the minimum MT5/MetaEditor evidence needed for `mt5_validation_evidence_v2`.
 
 | ID | Area | Mandatory evidence / PASS condition | Status | Evidence/reference |
 |---|---|---|---|---|
@@ -54,10 +54,29 @@ This matrix defines the minimum MT5/MetaEditor evidence needed for `mt5_validati
 | M5-032 | Broker history | Broker history/reconciliation artifact archived and hashed | HOLD | |
 | M5-033 | Matrix bundle | MT5 matrix/report bundle archived and hashed | HOLD | |
 | M5-034 | Operator review | Literal `ACCEPT`, reviewer and timestamp | HOLD | |
+| M5-035 | Direct breakout | Direct breakout executes only as `SETUP_BREAKOUT`; breakout-retest refuses it | HOLD | |
+| M5-036 | Atomic intent | PREPARED and SENT intent records are durably written before broker submission | HOLD | |
+| M5-037 | Exactly once | Restart/duplicate timer/callback cannot resubmit unresolved SENT/UNCERTAIN nonce | HOLD | |
+| M5-038 | Ambiguous submit | Simulated broker ambiguity reconciles against orders/deals/positions without duplicate | HOLD | |
+| M5-039 | Broker reconciliation | Orphan/missing-lifecycle/unexpected pending/manual exposure is detected | HOLD | |
+| M5-040 | Manual intervention | Client/mobile/web modification is recorded and learning is quarantined | HOLD | |
+| M5-041 | Storage failure | Intent/reconciliation/storage heartbeat failure blocks new exposure | HOLD | |
+| M5-042 | Config drift | Certified configuration fingerprint mismatch blocks REAL new entries | HOLD | |
+| M5-043 | Clock drift | Material server/GMT clock drift blocks time/news-sensitive authorization | HOLD | |
+| M5-044 | Chaos safety | Chaos mode refuses REAL accounts and all configured fault scenarios are demo/test-only | HOLD | |
+| M5-045 | Checkpoint chaos | Corrupt-checkpoint injection skips disk restore and safely reconciles broker/GV state | HOLD | |
+| M5-046 | Macro stress | USD +1%, yields +20 bp, equity risk-off, gold ±2%, oil ±4%, volatility and correlated-gap scenarios PASS | HOLD | |
+| M5-047 | Gap risk | Worst proposed gap/scenario loss multiple is bounded by policy | HOLD | |
+| M5-048 | Margin stress | Worst-scenario stressed margin level remains above configured floor | HOLD | |
+| M5-049 | Decision lifetime | Strategy-specific half-life and learned latency budget invalidate stale execution | HOLD | |
+| M5-050 | Model degradation | NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY and emergency strategy policy PASS | HOLD | |
+| M5-051 | Provenance freshness | Raw URL annotations, authoritative-source rule and `as_of_utc` freshness fail closed | HOLD | |
+| M5-052 | Learning quarantine | Corrupted/manual/chaos/config-mismatch samples cannot alter adaptive evidence | HOLD | |
+| M5-053 | Champion rollback | Statistical promotion significance and probation rollback/requalification PASS | HOLD | |
 
 All rows are mandatory for production R6 acceptance. A row may be satisfied by a controlled demo matrix rather than a naturally occurring soak trade; unsafe market exposure must never be manufactured merely to complete a row.
 
 
 ## Working-copy rule
 
-Copy this matrix to `artifacts/mt5-validation-matrix.md`. Every M5 row must be PASS with a concrete artifact, test ID, log reference, broker-history reference, screenshot/export reference, or controlled-test report. The JSON evidence validator verifies the machine-bindable identity and hashes; the completed matrix records how each engineering claim was established.
+Copy this matrix to `artifacts/mt5-validation-matrix.md`. Every M5-001 through M5-053 row must be PASS with a concrete artifact, test ID, log reference, broker-history reference, screenshot/export reference, or controlled-test report. The JSON evidence validator verifies the machine-bindable identity and hashes; the completed matrix records how each engineering claim was established.

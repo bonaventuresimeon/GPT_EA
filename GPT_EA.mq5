@@ -1498,7 +1498,7 @@ void SetDashboardSection(const string card,const string label,const int x,const 
    int titleFs=(w<430?8:9);
    string titleLabel=label+"_TITLE";
    SetPremiumLabel(titleLabel,CORNER_RIGHT_UPPER,x+12,y+7,title,accent,titleFs,"Segoe UI Semibold",5);
-   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+25,body,clrWhiteSmoke,bodyFs,InpDashboardBodyFont,4);
+   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+23,body,clrWhiteSmoke,bodyFs,InpDashboardBodyFont,4);
 }
 
 string VisualOneLine(string text,const int maxChars)
@@ -10332,7 +10332,7 @@ string BuildMandatory25PointThesis(const string sym,TradeSetup &primary,TradeSet
    s+=StringFormat("18. Time-Based Invalidation: base setup expiry %d M15 candles; AdaptiveExpiry() shortens fast/high-ATR or oversized-opening-range setups and extends slow regimes within safety bounds. Breakouts demand faster follow-through than swing retracements.\n",primary.expiryM15);
    s+="19. Price-Based Invalidation: "+PriceInvalidationText(primary)+"\n";
    s+="20. Counterargument Analysis: "+d.counterargument+" Ask explicitly: could liquidity run the opposite side first, is this a retracement mistaken for reversal, is this breakout actually a sweep, is price overextended, and does effective R:R still survive costs?\n";
-   s+="21. Setup Quality Filtering: strategy action is "+(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"HIGH-CONFIDENCE TRADE SETUP":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE")+". Contradictory/marginal evidence is not forced into a signal.\n";
+   s+="21. Setup Quality Filtering: strategy action is "+(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"QUALIFIED CANDIDATE — FINAL GATES PENDING":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE")+". Contradictory/marginal evidence is not forced into a signal.\n";
    s+=StringFormat("22. Confidence Validation: strategy %d/100 | advanced confluence %d/100 | HTF votes %d/3 | ADX %.1f | volume %.2fx | spread %s. Confidence is multi-factor, not a single-indicator label.\n",
       d.score,c.score,c.htfVotes,c.adx,c.volumeRatio,c.spreadOK?"OK":"BLOCK");
    s+="23. Historical Strategy Validation: "+d.evidence+" Contextual strategy stats are accumulated by strategy/state/direction/volatility. Historical/forward evidence is treated as evidence, never as a guarantee.\n";
@@ -15347,7 +15347,7 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
    s+="• News/intermarket, execution learning, correlation/macro concentration, strategy budget/health, broker health, market kill switch, release-safety, stop observability, cooldown, OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
 
    bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
-   s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
+   s+="Preferred Trade: "+(tradable?"✅ TECHNICAL CANDIDATE VALID — FINAL GATES PENDING":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
    s+="Execution rule: "+primary.executionRule+"\n";
    s+="Risk note: execution costs, gaps and fast markets can make realized loss larger than modelled stop risk.\n";
    return s;
@@ -17409,7 +17409,7 @@ void ScanSymbol(const string sym,const string scanReason)
    filterState+=" | Release "+(releaseAllows?"OK":"BLOCK");
    filterState+=" | StopRisk "+(stopObsAllows?"OK":"BLOCK");
    card+="\n"+filterState+"\n";
-   card+="Strategy decision: "+(strategyActionOK?"HIGH-CONFIDENCE":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
+   card+="Strategy decision: "+(strategyActionOK?"QUALIFIED-CANDIDATE / FINAL GATES PENDING":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
    card+="Historical strategy evidence gate: "+evidenceText+"\n";
    card+="GPT execution gate: "+aiGateWhy+"\n";
    card+="Release safety gate: "+(releaseAllows?"PASS":"BLOCK - "+releaseWhy)+"\n";
@@ -17479,7 +17479,8 @@ void ScanAll(const string reason)
 
    // Always refresh the attached chart first so the dashboard cannot remain stale
    // while a large broker universe is being rotated in bounded batches.
-   if(!IsStopped() && BrokerSymbolEligibleForUniverse(_Symbol))
+   bool attachedInUniverse=ArrayContainsString(g_symbols,_Symbol);
+   if(!IsStopped() && attachedInUniverse && BrokerSymbolEligibleForUniverse(_Symbol))
    {
       ScanSymbol(_Symbol,reason+" / attached-chart priority");
       scanned++;

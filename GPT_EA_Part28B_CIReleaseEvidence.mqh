@@ -54,7 +54,7 @@ const string GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA       = "runner_recovery_evi
 const string GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA     = "runner_recovery_acceptance_v1";
 const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION            = "github_actions_static_evidence_v1";
 const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA             = "ci_evidence_bundle_v1";
-const string GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA        = "mt5_validation_evidence_v1";
+const string GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA        = "mt5_validation_evidence_v2";
 const string GPT_EA_REQUIRED_RESILIENCE_SCHEMA             = "resilience_hardening_evidence_v1";
 const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA           = "five_day_soak_acceptance_v2";
 
@@ -197,7 +197,7 @@ bool ReleaseMT5ValidationEvidenceAllows(string &why)
       why="MT5 validation evidence digest must be a 64-character SHA-256 value.";
       return false;
    }
-   why="MT5/MetaEditor compile, tester, broker-runtime, protection and live API evidence PASS.";
+   why="MT5/MetaEditor v2 compile, tester, execution-resilience, broker-runtime, protection and live API evidence PASS.";
    return true;
 }
 

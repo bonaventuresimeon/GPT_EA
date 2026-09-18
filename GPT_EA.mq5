@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.21"
+#property version   "1.22"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -67,6 +67,21 @@ CTrade trade;
 
 // ----------------------------- Inputs -----------------------------
 input string InpSymbols                 = "ALL";        // ALL = every tradeable broker symbol; AUTO = curated major universe; or comma-separated manual list
+
+// ---------------------- OpenAI — primary user inputs ----------------------
+// Kept directly below InpSymbols so Key / Model / Endpoint are always visible at the top of MT5 Inputs.
+input bool   InpUseOpenAI               = true;
+input string InpOpenAIAPIKey            = "";         // Direct mode only. Keep blank in source/Git; enter locally or use the key file.
+input string InpOpenAIModel             = "gpt-5.6-sol";
+input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
+input int    InpOpenAITimeoutMs         = 15000;
+input bool   InpOpenAIKeyPreferFile     = true;       // Prefer a local key file over the EA input field.
+input bool   InpOpenAIKeyUseCommonFile  = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
+input string InpOpenAIKeyFile           = "GPT_EA_OpenAI.key"; // One-line local secret file; never add it to Git.
+input bool   InpAIReviewHighConfidenceOnly = true;
+input int    InpAIMaxOutputChars        = 1800;
+
+// -------------------------- Trading / risk inputs --------------------------
 input double InpRiskPercent             = 1.00;       // % of equity/balance risked per trade
 input bool   InpUseEquity               = true;
 input bool   InpRequireApproval         = true;       // signal must be approved before execution
@@ -118,18 +133,6 @@ input int    InpLondonHourlyEnd         = 17;
 input int    InpPreUSOpenMinute         = 25;         // 09:25 America/New_York
 input int    InpUSOpenHourNY            = 9;
 input int    InpUSOpenMinuteNY          = 30;
-
-// -------------------------- OpenAI API ---------------------------
-input bool   InpUseOpenAI               = true;
-input string InpOpenAIAPIKey            = "";         // Optional direct-mode fallback. Never commit a real key to GitHub.
-input bool   InpOpenAIKeyPreferFile      = true;       // Prefer a local key file over the EA input field.
-input bool   InpOpenAIKeyUseCommonFile   = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
-input string InpOpenAIKeyFile            = "GPT_EA_OpenAI.key"; // One-line local secret file; never add it to Git.
-input string InpOpenAIModel             = "gpt-5.6-luna";
-input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
-input int    InpOpenAITimeoutMs         = 15000;
-input bool   InpAIReviewHighConfidenceOnly = true;
-input int    InpAIMaxOutputChars         = 1800;
 
 // ----------------------------- Types ------------------------------
 enum SetupKind { SETUP_NONE=0, SETUP_PULLBACK=1, SETUP_BREAKOUT_RETEST=2, SETUP_BREAKOUT=3 };
@@ -896,26 +899,26 @@ input bool   InpBlockIfAIUnavailable        = false;
 input bool   InpDrawDashboard               = true;
 input bool   InpDrawTradeLevels             = true;
 input bool   InpPolishChart                 = true;
-input int    InpDashboardX                  = 18;
-input int    InpDashboardY                  = 20;
+input int    InpDashboardX                  = 12;
+input int    InpDashboardY                  = 12;
 input bool   InpElegantChartDashboard       = true;
 input bool   InpDrawLiveManagementLevels    = true;
 input bool   InpDrawTrailingMovement        = true;
 input bool   InpShowStopMovementRules        = true;
 input bool   InpShowCompactTradeTimeline     = true;
 input int    InpTrailMovementSegments       = 12;
-input int    InpDashboardWidth              = 620;
-input int    InpDashboardHeight             = 520;
-input int    InpDashboardRefreshMs           = 750;
+input int    InpDashboardWidth              = 540;
+input int    InpDashboardHeight             = 560;
+input int    InpDashboardRefreshMs           = 500;
 input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
 input bool   InpPremiumDashboard             = true;
 input bool   InpPremiumUIAnimations          = true;
-input bool   InpDashboardTransparent          = true;   // transparent cards/panel over a reserved chart gutter
-input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so dashboard never covers price action
-input int    InpDashboardMinWidth             = 340;
-input int    InpDashboardMaxWidth             = 560;
-input int    InpDashboardChartGap             = 14;
+input bool   InpDashboardTransparent          = true;   // glass inner cards only; outer HUD frame always remains boxed/opaque
+input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so the HUD never covers price action
+input int    InpDashboardMinWidth             = 400;
+input int    InpDashboardMaxWidth             = 600;
+input int    InpDashboardChartGap             = 16;
 input int    InpDashboardClosedHoldSeconds    = 12;
 input int    InpApprovalHeroX                = 20;
 input int    InpApprovalHeroY                = 20;

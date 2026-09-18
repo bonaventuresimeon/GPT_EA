@@ -10,10 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from validate_runner_recovery_evidence import validate_runner_recovery
+from release_contract import load_release_contract
 
 ROOT=Path(__file__).resolve().parents[1]
-RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
-SCHEMA_VERSION="runner_recovery_acceptance_v1"
+CONTRACT=load_release_contract()
+RELEASE_ID=CONTRACT["release_validation_id"]
+SCHEMA_VERSION=CONTRACT["runner_acceptance_schema"]
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")
 

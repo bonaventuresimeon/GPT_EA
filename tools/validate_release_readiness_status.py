@@ -5,10 +5,12 @@ import argparse
 import json
 import re
 from pathlib import Path
+from release_contract import load_release_contract
 
 ROOT=Path(__file__).resolve().parents[1]
-SCHEMA="release_readiness_status_v1"
-RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+CONTRACT=load_release_contract()
+SCHEMA=CONTRACT["release_readiness_schema"]
+RELEASE_ID=CONTRACT["release_validation_id"]
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 
 def resolve(value:str)->Path:

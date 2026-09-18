@@ -10,10 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from validate_ci_evidence import validate_ci_value, validate_job_metadata
+from release_contract import load_release_contract
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = "ci_evidence_bundle_v1"
-RELEASE_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+CONTRACT=load_release_contract()
+SCHEMA_VERSION = CONTRACT["ci_bundle_schema"]
+RELEASE_ID = CONTRACT["release_validation_id"]
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 REQUIRED_FILES = [

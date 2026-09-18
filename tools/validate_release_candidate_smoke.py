@@ -2,8 +2,11 @@
 from __future__ import annotations
 import hashlib, json, re, sys
 from pathlib import Path
+from release_contract import load_release_contract
 
-EXPECTED_SCHEMA="gpt_ea_release_candidate_smoke_v1"
+CONTRACT=load_release_contract()
+
+EXPECTED_SCHEMA=CONTRACT["release_candidate_smoke_schema"]
 EXPECTED_IDS=[f"RCS-{i:03d}" for i in range(1,16)]
 SHA40=re.compile(r"^[0-9a-fA-F]{40}$")
 SHA64=re.compile(r"^[0-9a-f]{64}$")

@@ -7,6 +7,9 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from release_contract import load_release_contract
+
+CONTRACT=load_release_contract()
 
 
 def fail(msg: str) -> None:
@@ -49,7 +52,7 @@ def main() -> int:
         if key not in rec:
             fail(f"missing field: {key}")
 
-    if rec["schema_version"] != "gpt_ea_signed_entitlement_v1":
+    if rec["schema_version"] != CONTRACT["signed_entitlement_schema"]:
         fail("schema_version mismatch")
     if rec["product"] != "GPT_EA":
         fail("product must be GPT_EA")

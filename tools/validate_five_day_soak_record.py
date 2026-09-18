@@ -9,10 +9,12 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from release_contract import load_release_contract
 
 ROOT=Path(__file__).resolve().parents[1]
-RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
-SCHEMA_VERSION="five_day_soak_acceptance_v2"
+CONTRACT=load_release_contract()
+RELEASE_ID=CONTRACT["release_validation_id"]
+SCHEMA_VERSION=CONTRACT["soak_acceptance_schema"]
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")
 ZERO_FIELDS=[

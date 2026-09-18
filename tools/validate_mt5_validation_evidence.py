@@ -9,10 +9,12 @@ import re
 from datetime import date
 from pathlib import Path
 from typing import Any
+from release_contract import load_release_contract
 
 ROOT=Path(__file__).resolve().parents[1]
-RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
-SCHEMA_VERSION="mt5_validation_evidence_v2"
+CONTRACT=load_release_contract()
+RELEASE_ID=CONTRACT["release_validation_id"]
+SCHEMA_VERSION=CONTRACT["mt5_validation_schema"]
 MATRIX_LAST_ID=53  # acceptance contract ends at M5-053
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")

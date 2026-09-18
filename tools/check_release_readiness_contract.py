@@ -59,7 +59,7 @@ if readiness.exists():
         "CODE_STATIC_HOLD","CODE_STATIC_READY","EVIDENCE_HOLD",
         "EVIDENCE_READY_FOR_FINAL_REVIEW","PRODUCTION_GO",
         "validate_release_evidence_r10.py","validate_final_release_review_r10.py",
-        "SOURCE_GIT_SHA","CI_BUNDLE",
+        "validate_ci_release_record","SOURCE_GIT_SHA","CI_BUNDLE",
     ):
         if token not in text: errors.append(f"readiness builder missing token: {token}")
 

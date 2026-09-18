@@ -7,13 +7,14 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
 errors=[]
 
 paths={
     "main": ROOT/"GPT_EA.mq5",
-    "part28": ROOT/"GPT_EA_Part28_ReleaseCertification.mqh",
-    "part35": ROOT/"GPT_EA_Part35_AdaptiveIntegration.mqh",
-    "part36": ROOT/"GPT_EA_Part36_DemoSoakEvidence.mqh",
+    "part28": MQH/"GPT_EA_Part28_ReleaseCertification.mqh",
+    "part35": MQH/"GPT_EA_Part35_AdaptiveIntegration.mqh",
+    "part36": MQH/"GPT_EA_Part36_DemoSoakEvidence.mqh",
     "schema": ROOT/"SOAK_EVIDENCE_SCHEMA.json",
     "five_schema": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
     "five_template": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json",

@@ -138,3 +138,34 @@ and
 The execution timestamps are persisted on the position even when execution-quality learning is disabled. B.E., profit-lock, strong-lock and trail timestamps are written only after the broker accepts the corresponding stop modification. TP1 and TP2 timestamps come from the actual partial/protection lifecycle.
 
 A missing milestone is shown as `--`; the dashboard does not invent completion times.
+
+
+## Exact stop-movement ladder
+
+The live dashboard exposes the same stop rules used by the manager:
+
+- **B.E. trigger:** at `InpBETriggerR` (default 1.00R), move toward entry plus/minus a cost buffer. The buffer is the larger of `InpBELockMinR × R` and the cost estimate `max(InpBECostATRFrac × M5 ATR, spread + learned slippage)`.
+- **Profit lock:** at `InpProfitLockTriggerR` (default 1.50R), protect `InpProfitLockR` (default +0.50R).
+- **Strong lock:** at `InpStrongLockTriggerR` (default 2.00R), protect `InpStrongLockR` (default +1.00R).
+- **Trail:** from `InpTrailStartR` (default 2.00R), combine the ATR stop and M5 structure stop while respecting the strong-lock floor.
+- **Trail inputs:** default 1.25× M5 ATR, 8-bar M5 structure and 0.15 ATR structure buffer.
+- **Ratchet:** trailing protection must improve by at least `InpTrailMinStepR` (default 0.15R, subject to at least one symbol point).
+- **Broker geometry:** every update must pass stop/freeze-distance validation.
+- **Non-regression:** the stop is never deliberately loosened.
+
+For LONG positions the trail uses the stronger broker-valid protective level from the strong-lock floor and the ATR/structure combination; SELL logic mirrors it.
+
+## Compact trade timeline
+
+The live timeline uses persistent event timestamps and renders:
+
+`ANALYZE → APPROVE → SENT → FILL → TP1 → B.E. → +0.5R LOCK → +1R LOCK → TP2 → TRAIL`
+
+Milestones display:
+
+- `✓` when completed, with the actual event time;
+- `● ... NEXT` for the current expected milestone;
+- `○` for future milestones;
+- the most recent trailing-stop ratchet time once trailing is active.
+
+The timeline is reconstructed from durable execution/lifecycle keys such as `EXEC_ANALYSIS_TIME`, `EXEC_APPROVAL_TIME`, `EXEC_SENT_TIME`, `EXEC_FILL_TIME`, `TP1_TIME`, `BE_TIME`, `PROFIT_LOCK_TIME`, `STRONG_LOCK_TIME`, `TP2_TIME`, `TRAIL_TIME` and `TRAIL_LAST_TIME`.

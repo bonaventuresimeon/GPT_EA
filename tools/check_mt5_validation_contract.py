@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
+def repo_path(name:str)->Path:
+    return MQH/name if name.lower().endswith(".mqh") and "/" not in name and "\\" not in name else ROOT/name
 errors:list[str]=[]
 
 required=[
@@ -21,7 +24,7 @@ required=[
     "FINAL_RELEASE_REVIEW_TEMPLATE.json",
 ]
 for name in required:
-    if not (ROOT/name).exists(): errors.append(f"missing MT5 validation artifact: {name}")
+    if not repo_path(name).exists(): errors.append(f"missing MT5 validation artifact: {name}")
 
 if not errors:
     schema=json.loads((ROOT/"MT5_VALIDATION_EVIDENCE_SCHEMA.json").read_text(encoding="utf-8"))
@@ -57,7 +60,7 @@ if not errors:
     for token in ["M5-001","M5-007","M5-016","M5-023","M5-029","M5-034","M5-035","M5-044","M5-046","M5-050","M5-053"]:
         if token not in matrix: errors.append(f"MT5 acceptance matrix missing {token}")
 
-    part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+    part=(MQH/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for token in ["GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA","ReleaseMT5ValidationEvidenceAllows",
                   "InpReleaseMT5ValidationPassed","InpReleaseMT5ValidationSchemaVersion",
                   "InpReleaseMT5ValidationEvidenceId","InpReleaseMT5ValidationDigest"]:

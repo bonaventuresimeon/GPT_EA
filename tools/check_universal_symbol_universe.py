@@ -33,6 +33,11 @@ require(bool(re.search(r'int\s+batch\s*=\s*\(InpUniversalScanBatchSize<=0\?total
         "ScanAll must bound full-universe work by InpUniversalScanBatchSize")
 require("InpUniverseClockProbeSymbols" in text,
         "continuous M5 scheduling must use bounded universe probes")
+require("g_fullBrokerUniverseMode" in text and
+        "Full broker universe uses live per-symbol execution validation." in text,
+        "release/deployment safety must be dynamic-universe aware")
+require("ReleaseSafetyAllows(s.symbol" in text,
+        "per-symbol release safety must remain enforced before execution")
 require('return "GEN:"+c;' in text,
         "unknown but tradeable broker symbols must remain generically analyzable")
 

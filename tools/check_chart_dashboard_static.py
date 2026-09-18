@@ -25,6 +25,7 @@ required=[
     "UI_STATE_SCANNING","UI_STATE_SETUP_FOUND","UI_STATE_WAITING_CONFIRMATION","UI_STATE_ENTRY_ARMED",
     "UI_STATE_TRADE_ACTIVE","UI_STATE_TP1","UI_STATE_BREAK_EVEN","UI_STATE_TRAILING","UI_STATE_CLOSED",
     "ApplyDashboardChartReserve","DashboardLayout","VisualMTFMatrix","VisualConfidenceBar",
+    "PurgeLegacyVisualObjects","g_visualDataState","DATA LOADING / INSUFFICIENT HISTORY",
     "RenderScanningDashboard","RenderClosedDashboard","RenderDashboardControls",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
     "LEVEL_BE","LEVEL_LIVE_SL","TAG_ENTRY","TAG_BE","TAG_TRAIL",
@@ -125,7 +126,18 @@ if 'Comment("")' not in notify or "else Comment(card);" not in notify:
 
 rect=function_body("SetPremiumRect")
 if "InpDashboardTransparent" not in rect or "clrNONE" not in rect:
-    errors.append("premium dashboard rectangles must support transparent fill")
+    errors.append("premium dashboard outer shell must support transparent fill")
+if "bool transparentShell=(name==DASH_PANEL);" not in rect:
+    errors.append("only the outer dashboard shell may become transparent; information cards must stay opaque")
+if 'RenderAdvancedDashboard(primary,primaryReport,filterState,approvalReady);' not in text:
+    errors.append("ENTRY ARMED dashboard state must be driven by final approvalReady, not the pre-gate trigger")
+for premature in (
+    '?"HIGH-CONFIDENCE TRADE SETUP":d.action==STRATEGY_ACTION_WAIT',
+    'tradable?"✅ HIGH-CONFIDENCE SETUP VALID"',
+    'strategyActionOK?"HIGH-CONFIDENCE":"WAIT/NO TRADE"',
+):
+    if premature in text:
+        errors.append("premature HIGH-CONFIDENCE wording remains before all authorization gates: "+premature)
 
 trade_map=function_body("DrawTradeMap")
 live_band=function_body("SetVisualBand")

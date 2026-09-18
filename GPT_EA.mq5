@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.20"
+#property version   "1.21"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -1043,6 +1043,7 @@ string g_visualDecisionRationale="";
 string g_visualDecisionConfirmation="";
 string g_visualNewsSummary="";
 string g_visualNewsRisk="LOW";
+string g_visualDataState="WAITING FOR ATTACHED-SYMBOL DATA CHECK";
 string g_visualSpreadSummary="";
 int    g_visualDecisionScore=0;
 int    g_visualPullbackScore=0;
@@ -1433,8 +1434,10 @@ void SetPremiumRect(const string name,const ENUM_BASE_CORNER corner,const int x,
                     const color bg,const color border,const long z=0)
 {
    if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE_LABEL,0,0,0);
-   bool dashboardObject=(name==DASH_PANEL || StringFind(name,"GPT_EA_DASH_")==0);
-   color effectiveBG=(InpDashboardTransparent && dashboardObject ? clrNONE : bg);
+   // Only the outer shell may be transparent. Information cards must remain opaque
+   // so text never collapses into price candles or other chart objects.
+   bool transparentShell=(name==DASH_PANEL);
+   color effectiveBG=(InpDashboardTransparent && transparentShell ? clrNONE : bg);
    ObjectSetInteger(0,name,OBJPROP_CORNER,corner);
    ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
    ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
@@ -1491,8 +1494,11 @@ void SetDashboardSection(const string card,const string label,const int x,const 
                          const string title,const string body,const color accent)
 {
    SetPremiumRect(card,CORNER_RIGHT_UPPER,x,y,w,h,C'13,21,33',accent,2);
-   int fs=(w<430?7:8);
-   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+8,title+"\n"+body,clrWhiteSmoke,fs,InpDashboardBodyFont,4);
+   int bodyFs=(w<430?7:8);
+   int titleFs=(w<430?8:9);
+   string titleLabel=label+"_TITLE";
+   SetPremiumLabel(titleLabel,CORNER_RIGHT_UPPER,x+12,y+7,title,accent,titleFs,"Segoe UI Semibold",5);
+   SetPremiumLabel(label,CORNER_RIGHT_UPPER,x+12,y+23,body,clrWhiteSmoke,bodyFs,InpDashboardBodyFont,4);
 }
 
 string VisualOneLine(string text,const int maxChars)
@@ -1615,12 +1621,12 @@ string VisualVolatilityLabel(const ConfluenceReport &r)
 
 void ClearDashboardSections()
 {
-   ObjectDelete(0,DASH_MARKET_CARD); ObjectDelete(0,DASH_MARKET_LABEL);
-   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
-   ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL);
-   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
-   ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL);
+   ObjectDelete(0,DASH_MARKET_CARD); ObjectDelete(0,DASH_MARKET_LABEL); ObjectDelete(0,DASH_MARKET_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL); ObjectDelete(0,DASH_RISK_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL); ObjectDelete(0,DASH_ACTION_LABEL+"_TITLE");
 }
 
 bool ApprovalMouseInside(const long mx,const double my,const int x,const int y,const int w,const int h)
@@ -1868,6 +1874,26 @@ bool   g_domSubscribed[];
 string RISK_PANEL="GPT_EA_RISK_PANEL";
 string RISK_TEXT="GPT_EA_RISK_TEXT";
 string BTN_PAUSE="GPT_EA_PAUSE_BTN";
+
+void PurgeLegacyVisualObjects()
+{
+   // A recompiled EA can be attached to a chart that still contains objects created
+   // by an older EX5. Remove only GPT_EA-owned objects and rebuild the current UI.
+   int total=ObjectsTotal(0);
+   for(int i=total-1;i>=0;i--)
+   {
+      string name=ObjectName(0,i);
+      if(StringFind(name,"GPT_EA_")==0) ObjectDelete(0,name);
+   }
+   ObjectDelete(0,RISK_PANEL);
+   ObjectDelete(0,RISK_TEXT);
+   ObjectDelete(0,BTN_PAUSE);
+   ObjectDelete(0,BTN_APPROVE);
+   ObjectDelete(0,BTN_DENY);
+   ObjectDelete(0,BTN_SCAN_NOW);
+   Comment("");
+   ChartRedraw();
+}
 
 // -------------------------- Persistent keys --------------------------
 string SafeSymbolKey(string s)
@@ -2751,7 +2777,14 @@ input bool   InpIncludeCustomSymbols          = false;   // false = broker/serve
 input bool   InpRefreshBrokerUniverse         = true;    // discover symbols added/removed by the broker after EA startup
 input int    InpBrokerUniverseRefreshSeconds  = 300;     // minimum 30 sec; only applies to ALL/full-broker mode
 input int    InpMaxBrokerUniverseSymbols      = 0;       // 0 = unlimited; applies to ALL/full-broker discovery
-input int    InpUniversalScanBatchSize        = 40;      // <=0 = scan the whole resolved universe in one cycle
+input int    InpUniversalScanBatchSize        = 20;      // <=0 = scan the whole resolved universe in one cycle; bounded default reduces terminal/API pressure
+input bool   InpRequireSynchronizedMarketData = true;    // fail closed until required chart history is synchronized and usable
+input int    InpMinBarsD1                     = 80;
+input int    InpMinBarsH4                     = 80;
+input int    InpMinBarsH1                     = 80;
+input int    InpMinBarsM30                    = 80;
+input int    InpMinBarsM15                    = 180;     // Asian/opening-range logic reads up to ~160 M15 bars
+input int    InpMinBarsM5                     = 120;
 input int    InpUniverseClockProbeSymbols     = 12;      // bounded M5-bar probes for continuous-scan scheduling
 input string InpAutoMajorUniverse             = "XAUUSD,XAGUSD,XPTUSD,XPDUSD,US100,USTEC,NAS100,US30,US500,SPX500,GER40,DE40,DE30,UK100,JP225,HK50,AUS200,FRA40,EU50,STOXX50,DXY,EURUSD,GBPUSD,GBPCAD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,USOIL,UKOIL,NATGAS,XNGUSD,BTCUSD,ETHUSD,SOLUSD,XRPUSD,LTCUSD,UNIUSD,BNBUSD,ADAUSD,DOGEUSD,AVAXUSD,LINKUSD";
 input bool   InpPrintBrokerSymbolProfiles     = false;
@@ -3240,6 +3273,130 @@ bool ResolveConfiguredSymbolsUniversal()
    g_lastBrokerCatalogSize=g_universalUniverseTotal;
    g_lastBrokerUniverseRefresh=TimeTradeServer();
    PrintFormat("GPT_EA resolved symbol universe ready: %d scannable broker symbols.",ArraySize(g_symbols));
+   return true;
+}
+
+bool FinitePositiveMarketValue(const double v)
+{
+   return (MathIsValidNumber(v) && v>0.0 && MathAbs(v)<1.0e50);
+}
+
+int RequiredAnalysisBars(const ENUM_TIMEFRAMES tf)
+{
+   if(tf==PERIOD_D1)  return (int)MathMax(20,InpMinBarsD1);
+   if(tf==PERIOD_H4)  return (int)MathMax(20,InpMinBarsH4);
+   if(tf==PERIOD_H1)  return (int)MathMax(20,InpMinBarsH1);
+   if(tf==PERIOD_M30) return (int)MathMax(20,InpMinBarsM30);
+   if(tf==PERIOD_M15) return (int)MathMax(170,InpMinBarsM15);
+   if(tf==PERIOD_M5)  return (int)MathMax(60,InpMinBarsM5);
+   return 60;
+}
+
+bool TimeframeAnalysisDataReady(const string sym,const ENUM_TIMEFRAMES tf,string &why)
+{
+   int need=RequiredAnalysisBars(tf);
+   MqlRates warm[];
+   ArraySetAsSeries(warm,true);
+   // CopyRates also asks MT5 to download/build missing history asynchronously.
+   int got=CopyRates(sym,tf,0,need,warm);
+   int bars=Bars(sym,tf);
+   long syncFlag=0;
+   bool syncQuery=SeriesInfoInteger(sym,tf,SERIES_SYNCHRONIZED,syncFlag);
+   bool synchronized=(syncQuery && syncFlag!=0);
+
+   if(InpRequireSynchronizedMarketData && (!synchronized || got<need || bars<need))
+   {
+      why=StringFormat("%s history loading: synchronized=%s, copied=%d/%d, bars=%d",
+                       TFName(tf),synchronized?"YES":"NO",got,need,bars);
+      return false;
+   }
+   if(got<3)
+   {
+      why=StringFormat("%s has insufficient usable OHLC history (%d bars copied).",TFName(tf),got);
+      return false;
+   }
+
+   int k=(got>1?1:0);
+   if(!FinitePositiveMarketValue(warm[k].open) || !FinitePositiveMarketValue(warm[k].high) ||
+      !FinitePositiveMarketValue(warm[k].low) || !FinitePositiveMarketValue(warm[k].close) ||
+      warm[k].high<warm[k].low)
+   {
+      why=TFName(tf)+" contains invalid/zero OHLC data.";
+      return false;
+   }
+   why="READY";
+   return true;
+}
+
+bool SymbolAnalysisDataReady(const string sym,string &why)
+{
+   why="";
+   if(!EnsureSymbol(sym)){ why="symbol unavailable/select failed"; return false; }
+
+   MqlTick tick={};
+   if(!SymbolInfoTick(sym,tick) || !FinitePositiveMarketValue(tick.bid) || !FinitePositiveMarketValue(tick.ask) || tick.ask<tick.bid)
+   {
+      why="live bid/ask is missing, zero or invalid";
+      return false;
+   }
+
+   ENUM_TIMEFRAMES tfs[6]={PERIOD_D1,PERIOD_H4,PERIOD_H1,PERIOD_M30,PERIOD_M15,PERIOD_M5};
+   for(int i=0;i<6;i++)
+   {
+      string tfWhy="";
+      if(!TimeframeAnalysisDataReady(sym,tfs[i],tfWhy))
+      {
+         why=tfWhy;
+         return false;
+      }
+   }
+
+   double atr=0,emaFast=0,emaSlow=0;
+   if(!ATRValue(sym,PERIOD_M15,InpATRPeriod,1,atr) || !FinitePositiveMarketValue(atr))
+   { why="M15 ATR is not ready/valid after history synchronization."; return false; }
+   if(!EMAValue(sym,PERIOD_M15,InpFastEMA,1,emaFast) || !FinitePositiveMarketValue(emaFast) ||
+      !EMAValue(sym,PERIOD_M15,InpSlowEMA,1,emaSlow) || !FinitePositiveMarketValue(emaSlow))
+   { why="M15 EMA state is not ready/valid after history synchronization."; return false; }
+
+   double pdh=iHigh(sym,PERIOD_D1,1),pdl=iLow(sym,PERIOD_D1,1);
+   if(!FinitePositiveMarketValue(pdh) || !FinitePositiveMarketValue(pdl) || pdh<=pdl)
+   { why="previous-day high/low is not ready/valid."; return false; }
+
+   why=StringFormat("READY • tick OK • D1/H4/H1/M30/M15/M5 synchronized • ATR %.5f",atr);
+   return true;
+}
+
+bool TradeSetupGeometrySafe(const TradeSetup &s,string &why)
+{
+   why="";
+   if(s.symbol==""){ why="setup symbol is blank"; return false; }
+   if(!FinitePositiveMarketValue(s.zoneLow) || !FinitePositiveMarketValue(s.zoneHigh) ||
+      !FinitePositiveMarketValue(s.preferred) || !FinitePositiveMarketValue(s.sl) ||
+      !FinitePositiveMarketValue(s.tp1) || !FinitePositiveMarketValue(s.tp2) || !FinitePositiveMarketValue(s.tp3))
+   { why="one or more setup prices are zero, invalid or non-finite"; return false; }
+
+   double tick=MathMax(PointFor(s.symbol),SymbolInfoDouble(s.symbol,SYMBOL_TRADE_TICK_SIZE));
+   if(tick<=0) tick=1.0e-8;
+   if(s.zoneLow>s.zoneHigh+tick){ why="entry zone low is above zone high"; return false; }
+   if(s.preferred<s.zoneLow-2.0*tick || s.preferred>s.zoneHigh+2.0*tick)
+   { why="preferred entry is outside the declared entry zone"; return false; }
+
+   double R=MathAbs(s.preferred-s.sl);
+   if(!MathIsValidNumber(R) || R<tick){ why="stop distance is zero/too small"; return false; }
+
+   if(s.bullish)
+   {
+      if(s.sl>=s.preferred-tick){ why="bullish SL is not below entry"; return false; }
+      if(s.tp1<=s.preferred+tick || s.tp2<=s.tp1 || s.tp3<=s.tp2)
+      { why="bullish TP ladder is not strictly above entry/in order"; return false; }
+   }
+   else
+   {
+      if(s.sl<=s.preferred+tick){ why="bearish SL is not above entry"; return false; }
+      if(s.tp1>=s.preferred-tick || s.tp2>=s.tp1 || s.tp3>=s.tp2)
+      { why="bearish TP ladder is not strictly below entry/in order"; return false; }
+   }
+   why="geometry valid";
    return true;
 }
 
@@ -7658,7 +7815,8 @@ bool PreviousDayHighLow(const string sym,double &hi,double &lo)
 
 bool AsianRange(const string sym,double &hi,double &lo)
 {
-   hi=-1.0e100; lo=1.0e100;
+   hi=0; lo=0;
+   double localHi=-1.0e100,localLo=1.0e100;
    MqlRates r[]; ArraySetAsSeries(r,true);
    int n=CopyRates(sym,PERIOD_M15,0,160,r);
    if(n<=0) return false;
@@ -7668,14 +7826,19 @@ bool AsianRange(const string sym,double &hi,double &lo)
       datetime utc=ServerToUTC(r[i].time);
       MqlDateTime t={}; TimeToStruct(utc,t);
       int d=t.year*10000+t.mon*100+t.day;
-      if(t.hour>=0 && t.hour<6)
+      if(t.hour>=0 && t.hour<6 && FinitePositiveMarketValue(r[i].high) && FinitePositiveMarketValue(r[i].low))
       {
          if(chosenDate<0) chosenDate=d;
          if(d!=chosenDate) continue;
-         hi=MathMax(hi,r[i].high); lo=MathMin(lo,r[i].low); found++;
+         localHi=MathMax(localHi,r[i].high); localLo=MathMin(localLo,r[i].low); found++;
       }
    }
-   return (found>=8 && hi>lo);
+   if(found>=8 && FinitePositiveMarketValue(localHi) && FinitePositiveMarketValue(localLo) && localHi>localLo)
+   {
+      hi=localHi; lo=localLo;
+      return true;
+   }
+   return false;
 }
 
 bool RSIDivergenceSignal(const string sym,bool bullish)
@@ -7751,9 +7914,12 @@ void BuildStrategySnapshot(const string sym,StrategySnapshot &x)
    EMAValue(sym,PERIOD_M15,InpFastEMA,1,x.ema20);
    EMAValue(sym,PERIOD_M15,InpSlowEMA,1,x.ema50);
    MqlTick t={}; GetTickSafe(sym,t); x.mid=(t.ask+t.bid)*0.5;
-   RecentHighLow(sym,PERIOD_M15,2,InpSwingBars,x.priorHigh,x.priorLow);
-   PreviousDayHighLow(sym,x.previousDayHigh,x.previousDayLow);
-   AsianRange(sym,x.asianHigh,x.asianLow);
+   if(!RecentHighLow(sym,PERIOD_M15,2,InpSwingBars,x.priorHigh,x.priorLow))
+   { x.priorHigh=0; x.priorLow=0; }
+   if(!PreviousDayHighLow(sym,x.previousDayHigh,x.previousDayLow))
+   { x.previousDayHigh=0; x.previousDayLow=0; }
+   if(!AsianRange(sym,x.asianHigh,x.asianLow))
+   { x.asianHigh=0; x.asianLow=0; }
    double width=x.priorHigh-x.priorLow;
    x.rangePosition=(width>0?(x.mid-x.priorLow)/width:0.5);
    x.overextensionATR=(x.atr>0?(x.mid-x.ema20)/x.atr:0);
@@ -8228,7 +8394,7 @@ void SelectDynamicStrategy(const string sym,TradeSetup &pb,TradeSetup &br,Strate
 
 string StrategyDecisionHeader(const StrategyDecision &d)
 {
-   string action=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"HIGH-CONFIDENCE TRADE SETUP":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE");
+   string action=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"QUALIFIED CANDIDATE — FINAL GATES PENDING":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE");
    string ct=d.counterTrend?"\n⚠️ COUNTER-TREND TRADE — stricter confirmation and conservative targets apply.":"";
    return "━━━━━━━━━━━━━━━━━━━━\n🧠 STRATEGY INTELLIGENCE\n━━━━━━━━━━━━━━━━━━━━\n"
           "Classification: "+d.strategyName+"\n"
@@ -8274,8 +8440,8 @@ string SelectedStrategyFramework(const StrategySnapshot &x,StrategyClass c)
 {
    bool nearPDH=(x.previousDayHigh>0 && x.atr>0 && MathAbs(x.mid-x.previousDayHigh)<=0.35*x.atr);
    bool nearPDL=(x.previousDayLow>0 && x.atr>0 && MathAbs(x.mid-x.previousDayLow)<=0.35*x.atr);
-   bool nearAsianH=(x.asianHigh>-1.0e90 && x.atr>0 && MathAbs(x.mid-x.asianHigh)<=0.35*x.atr);
-   bool nearAsianL=(x.asianLow<1.0e90 && x.atr>0 && MathAbs(x.mid-x.asianLow)<=0.35*x.atr);
+   bool nearAsianH=(FinitePositiveMarketValue(x.asianHigh) && x.atr>0 && MathAbs(x.mid-x.asianHigh)<=0.35*x.atr);
+   bool nearAsianL=(FinitePositiveMarketValue(x.asianLow) && x.atr>0 && MathAbs(x.mid-x.asianLow)<=0.35*x.atr);
    bool london=(x.session=="LONDON" || x.session=="LONDON_PREOPEN" || x.session=="LONDON_NY_OVERLAP");
    bool ny=(x.session=="NEW_YORK_OPEN" || x.session=="NEW_YORK_PREOPEN" || x.session=="LONDON_NY_OVERLAP");
 
@@ -10108,18 +10274,27 @@ string PriceInvalidationText(const TradeSetup &s)
       DigitsFor(s.symbol),s.sl,s.invalidation);
 }
 
+string OptionalPriceText(const string sym,const double v)
+{
+   if(!FinitePositiveMarketValue(v)) return "N/A";
+   return DoubleToString(v,DigitsFor(sym));
+}
+
 string TargetLogicText(const TradeSetup &s,const StrategySnapshot &x)
 {
-   return StringFormat("TP1 %.*f, TP2 %.*f, TP3 %.*f. Objectives are checked against prior/session liquidity %.5f/%.5f, prior-day %.5f/%.5f and current range %.5f/%.5f rather than arbitrary pip distances.",
+   return StringFormat("TP1 %.*f, TP2 %.*f, TP3 %.*f. Objectives are checked against Asian/session liquidity %s/%s, prior-day %s/%s and current range %s/%s rather than arbitrary pip distances.",
       DigitsFor(s.symbol),s.tp1,DigitsFor(s.symbol),s.tp2,DigitsFor(s.symbol),s.tp3,
-      x.asianHigh,x.asianLow,x.previousDayHigh,x.previousDayLow,x.priorHigh,x.priorLow);
+      OptionalPriceText(s.symbol,x.asianHigh),OptionalPriceText(s.symbol,x.asianLow),
+      OptionalPriceText(s.symbol,x.previousDayHigh),OptionalPriceText(s.symbol,x.previousDayLow),
+      OptionalPriceText(s.symbol,x.priorHigh),OptionalPriceText(s.symbol,x.priorLow));
 }
 
 string LiquidityFakeoutText(const StrategySnapshot &x)
 {
-   return StringFormat("Bull sweep %s | Bear sweep %s | False break up/down %s/%s | Asian H/L %.5f/%.5f | Previous-day H/L %.5f/%.5f. Thin/opening volatility risk rises when OR is %.2fx ATR.",
+   return StringFormat("Bull sweep %s | Bear sweep %s | False break up/down %s/%s | Asian H/L %s/%s | Previous-day H/L %s/%s. Thin/opening volatility risk rises when OR is %.2fx ATR.",
       x.bullishSweep?"YES":"NO",x.bearishSweep?"YES":"NO",x.falseBreakUp?"YES":"NO",x.falseBreakDown?"YES":"NO",
-      x.asianHigh,x.asianLow,x.previousDayHigh,x.previousDayLow,x.openingRangeRatio);
+      OptionalPriceText(x.symbol,x.asianHigh),OptionalPriceText(x.symbol,x.asianLow),
+      OptionalPriceText(x.symbol,x.previousDayHigh),OptionalPriceText(x.symbol,x.previousDayLow),x.openingRangeRatio);
 }
 
 string VolatilityThesisText(const StrategySnapshot &x)
@@ -10157,7 +10332,7 @@ string BuildMandatory25PointThesis(const string sym,TradeSetup &primary,TradeSet
    s+=StringFormat("18. Time-Based Invalidation: base setup expiry %d M15 candles; AdaptiveExpiry() shortens fast/high-ATR or oversized-opening-range setups and extends slow regimes within safety bounds. Breakouts demand faster follow-through than swing retracements.\n",primary.expiryM15);
    s+="19. Price-Based Invalidation: "+PriceInvalidationText(primary)+"\n";
    s+="20. Counterargument Analysis: "+d.counterargument+" Ask explicitly: could liquidity run the opposite side first, is this a retracement mistaken for reversal, is this breakout actually a sweep, is price overextended, and does effective R:R still survive costs?\n";
-   s+="21. Setup Quality Filtering: strategy action is "+(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"HIGH-CONFIDENCE TRADE SETUP":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE")+". Contradictory/marginal evidence is not forced into a signal.\n";
+   s+="21. Setup Quality Filtering: strategy action is "+(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"QUALIFIED CANDIDATE — FINAL GATES PENDING":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE")+". Contradictory/marginal evidence is not forced into a signal.\n";
    s+=StringFormat("22. Confidence Validation: strategy %d/100 | advanced confluence %d/100 | HTF votes %d/3 | ADX %.1f | volume %.2fx | spread %s. Confidence is multi-factor, not a single-indicator label.\n",
       d.score,c.score,c.htfVotes,c.adx,c.volumeRatio,c.spreadOK?"OK":"BLOCK");
    s+="23. Historical Strategy Validation: "+d.evidence+" Contextual strategy stats are accumulated by strategy/state/direction/volatility. Historical/forward evidence is treated as evidence, never as a guarantee.\n";
@@ -11008,7 +11183,11 @@ double StrategyRealizedLossMoneySince(StrategyClass c,datetime from)
 double StrategyBudgetAvailableMoney(StrategyClass c,bool weekly,string &detail)
 {
    detail="";
-   if(!InpUsePerStrategyRiskBudgets || c==STRATEGY_NO_TRADE) return 1.0e100;
+   if(!InpUsePerStrategyRiskBudgets || c==STRATEGY_NO_TRADE)
+   {
+      detail=(!InpUsePerStrategyRiskBudgets?"strategy budget disabled":"no executable strategy budget");
+      return 1.0e100; // internal unlimited sentinel; never render directly to users/logs
+   }
    double capital=(InpUseEquity?AccountInfoDouble(ACCOUNT_EQUITY):AccountInfoDouble(ACCOUNT_BALANCE));
    if(capital<=0) return 0;
    double dailyCap=0,weeklyCap=0; StrategyRiskBudgetCaps(c,dailyCap,weeklyCap);
@@ -11358,10 +11537,13 @@ string AdaptiveRiskSummary(const TradeSetup &s)
    double h=BrokerHealthScore(s.symbol,bh);
    int a=AbnormalMarketConditionScore(s.symbol,ab);
    bool ddb=DrawdownAccelerationBlocked(dd);
-   double daily=0,weekly=0; string d="",w="";
-   daily=StrategyBudgetAvailableMoney(c,false,d); weekly=StrategyBudgetAvailableMoney(c,true,w);
-   return StringFormat("Adaptive risk: %s | mode %s | risk multiplier %.2f | broker health %.1f | abnormal score %d | DD acceleration %s | daily/weekly available %.2f/%.2f",
-      StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),f,h,a,ddb?"BLOCK":"OK",daily,weekly);
+   string d="",w="";
+   double daily=StrategyBudgetAvailableMoney(c,false,d);
+   double weekly=StrategyBudgetAvailableMoney(c,true,w);
+   string dailyText=(daily>=1.0e90?"N/A":DoubleToString(daily,2));
+   string weeklyText=(weekly>=1.0e90?"N/A":DoubleToString(weekly,2));
+   return StringFormat("Adaptive risk: %s | mode %s | risk multiplier %.2f | broker health %.1f | abnormal score %d | DD acceleration %s | daily/weekly available %s/%s",
+      StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),f,h,a,ddb?"BLOCK":"OK",dailyText,weeklyText);
 }
 
 void AdaptiveRiskSupervisorInit()
@@ -15165,7 +15347,7 @@ string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,c
    s+="• News/intermarket, execution learning, correlation/macro concentration, strategy budget/health, broker health, market kill switch, release-safety, stop observability, cooldown, OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
 
    bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
-   s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
+   s+="Preferred Trade: "+(tradable?"✅ TECHNICAL CANDIDATE VALID — FINAL GATES PENDING":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
    s+="Execution rule: "+primary.executionRule+"\n";
    s+="Risk note: execution costs, gaps and fast markets can make realized loss larger than modelled stop risk.\n";
    return s;
@@ -16777,13 +16959,13 @@ void RenderLiveManagementDashboard(ulong ticket)
       VisualOneLine(action,compact?82:118)+"\n"+VisualOneLine("Broker "+brokerDetail+" | Model "+modelDetail,compact?82:118),
       DashboardStateColor(uiState));
 
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    if(pendingAny>=0)
    {
       string pendingSym=g_pending[pendingAny].setup.symbol;
       ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
-         "EA MANAGEMENT NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\n"+VisualOneLine(action,compact?74:106));
+         "PENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\n"+VisualOneLine(action,compact?74:106));
    }
    RenderDashboardControls(panelW,panelH,pendingAny);
    DrawLiveManagementMap(ticket);
@@ -16917,14 +17099,14 @@ void RenderCandidateOperationalDashboard()
       decisionLine+"  •  "+VisualOneLine(action,compact?58:82)+"\nWhy: "+reason+"\nNext: "+next,
       DashboardStateColor(uiState));
 
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    int controlsPending=(pending>=0?pending:pendingAny);
    if(controlsPending>=0 && controlsPending!=pending)
    {
       string pendingSym=g_pending[controlsPending].setup.symbol;
       ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
-         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nCurrent chart: "+decisionLine+"  •  "+VisualOneLine(action,compact?58:82));
+         "PENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nCurrent chart: "+decisionLine+"  •  "+VisualOneLine(action,compact?58:82));
    }
    RenderDashboardControls(panelW,panelH,controlsPending);
 
@@ -16953,10 +17135,10 @@ void RenderScanningDashboard()
 
    int sx=InpDashboardX+12, sw=panelW-24;
    int y=InpDashboardY+(compact?84:92);
-   int cardH=compact?78:92;
+   int cardH=compact?90:105;
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
       "SCANNER STATUS",
-      "Attached market "+_Symbol+"\nUniverse: broker symbols are scanned dynamically\nRequired TF: D1 • H4 • H1 • M30 • M15 • M5",
+      "Attached market "+_Symbol+"\nUniverse: broker symbols are scanned dynamically\nRequired TF: D1 • H4 • H1 • M30 • M15 • M5\nData: "+VisualOneLine(g_visualDataState,compact?58:88),
       C'64,137,204');
    y+=cardH+6;
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,cardH,
@@ -16970,15 +17152,15 @@ void RenderScanningDashboard()
       "SCANNING → SETUP FOUND → WAITING CONFIRMATION → ENTRY ARMED\nTRADE ACTIVE → TP1 → BREAK EVEN → TRAILING → CLOSED\nCurrent: searching for sufficient independent confirmation.",
       C'116,101,181');
 
-   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
-   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    if(pendingAny>=0)
    {
       string pendingSym=g_pending[pendingAny].setup.symbol;
       ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
-         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nScanner remains active while the decision window is open.");
+         "PENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nScanner remains active while the decision window is open.");
    }
    RenderDashboardControls(panelW,panelH,pendingAny);
    ChartRedraw();
@@ -17015,7 +17197,7 @@ void RenderClosedDashboard()
    {
       string pendingSym=g_pending[pendingAny].setup.symbol;
       ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
-         "TRADE COMPLETE\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nClosed trade analytics are recorded; scanner continues.");
+         "PENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nClosed trade analytics are recorded; scanner continues.");
    }
    RenderDashboardControls(panelW,panelH,pendingAny);
    ChartRedraw();
@@ -17074,6 +17256,23 @@ void ScanSymbol(const string sym,const string scanReason)
       return;
    }
 
+   string dataWhy="";
+   if(!SymbolAnalysisDataReady(sym,dataWhy))
+   {
+      if(sym==_Symbol)
+      {
+         g_visualHasSetup=false;
+         g_visualLastReady=false;
+         g_visualNoTrade=true;
+         g_visualDecisionScore=0;
+         g_visualDataState="DATA LOADING / INSUFFICIENT HISTORY • "+dataWhy;
+      }
+      if(sym==_Symbol || InpPrintBrokerSymbolProfiles)
+         Print(sym,": analysis deferred — ",dataWhy);
+      return;
+   }
+   if(sym==_Symbol) g_visualDataState=dataWhy;
+
    string symbolTradeWhy="";
    bool symbolTradeableNow=BrokerSymbolTradeableNow(sym,symbolTradeWhy);
 
@@ -17092,6 +17291,22 @@ void ScanSymbol(const string sym,const string scanReason)
    SelectDynamicStrategy(sym,pb,br,decision);
    TradeSetup primary=decision.setup;
    if(primary.symbol=="") primary=(pb.confidence>=br.confidence?pb:br);
+
+   string geometryWhy="";
+   if(!TradeSetupGeometrySafe(primary,geometryWhy))
+   {
+      if(sym==_Symbol)
+      {
+         g_visualHasSetup=false;
+         g_visualLastReady=false;
+         g_visualNoTrade=true;
+         g_visualDecisionScore=0;
+         g_visualDataState="SETUP REJECTED • "+geometryWhy;
+      }
+      if(sym==_Symbol || InpPrintBrokerSymbolProfiles)
+         Print(sym,": invalid setup geometry blocked before confluence/news/AI/risk pipeline — ",geometryWhy);
+      return;
+   }
 
    ConfluenceReport pbReport=EvaluateConfluence(pb),brReport=EvaluateConfluence(br),primaryReport=EvaluateConfluence(primary);
    ApplyAdvancedConfluence(pb,pbReport); ApplyAdvancedConfluence(br,brReport);
@@ -17194,7 +17409,7 @@ void ScanSymbol(const string sym,const string scanReason)
    filterState+=" | Release "+(releaseAllows?"OK":"BLOCK");
    filterState+=" | StopRisk "+(stopObsAllows?"OK":"BLOCK");
    card+="\n"+filterState+"\n";
-   card+="Strategy decision: "+(strategyActionOK?"HIGH-CONFIDENCE":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
+   card+="Strategy decision: "+(strategyActionOK?"QUALIFIED-CANDIDATE / FINAL GATES PENDING":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
    card+="Historical strategy evidence gate: "+evidenceText+"\n";
    card+="GPT execution gate: "+aiGateWhy+"\n";
    card+="Release safety gate: "+(releaseAllows?"PASS":"BLOCK - "+releaseWhy)+"\n";
@@ -17226,7 +17441,9 @@ void ScanSymbol(const string sym,const string scanReason)
    }
 
    NotifyCard(card);
-   RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
+   // The visible ENTRY ARMED state is reserved for the fully authorized candidate,
+   // not merely a strategy trigger that still has news/risk/release/execution gates pending.
+   RenderAdvancedDashboard(primary,primaryReport,filterState,approvalReady);
    UpdateRiskAnalyticsPanel();
 
    int existing=ActivePendingForSymbol(sym);
@@ -17254,21 +17471,34 @@ void ScanAll(const string reason)
    if(total<=0) return;
 
    int batch=(InpUniversalScanBatchSize<=0?total:MathMin(total,InpUniversalScanBatchSize));
+   if(batch<1) batch=1;
    int scanned=0;
    int visited=0;
    int start=g_universalScanCursor;
-   while(scanned<batch && visited<total)
+   bool attachedDone=false;
+
+   // Always refresh the attached chart first so the dashboard cannot remain stale
+   // while a large broker universe is being rotated in bounded batches.
+   bool attachedInUniverse=ArrayContainsString(g_symbols,_Symbol);
+   if(!IsStopped() && attachedInUniverse && BrokerSymbolEligibleForUniverse(_Symbol))
+   {
+      ScanSymbol(_Symbol,reason+" / attached-chart priority");
+      scanned++;
+      attachedDone=true;
+   }
+
+   while(scanned<batch && visited<total && !IsStopped())
    {
       int idx=(start+visited)%total;
       string sym=g_symbols[idx];
       visited++;
-      if(sym=="") continue;
+      if(sym=="" || (attachedDone && sym==_Symbol)) continue;
       ScanSymbol(sym,reason);
       scanned++;
    }
 
    g_universalScanCursor=(start+visited)%total;
-   PrintFormat("GPT_EA universe scan: %d/%d symbols processed | next cursor=%d | reason=%s",
+   PrintFormat("GPT_EA universe scan: %d/%d symbols processed in bounded batch | next cursor=%d | reason=%s",
                scanned,total,g_universalScanCursor,reason);
 }
 
@@ -17280,6 +17510,7 @@ int OnInit()
    { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
 
    PrintResolvedBrokerProfiles();
+   PurgeLegacyVisualObjects();
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
@@ -17296,6 +17527,7 @@ int OnInit()
    StrategyIntelligenceInit();
    NewsIntermarketInit();
 
+   Print("GPT_EA runtime build R7-DASH-DATA-HARDENED-20260918 • source version 1.21");
    Print("GPT_EA Full Intelligence initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
          ", Min strategy=",InpMinStrategyScore,

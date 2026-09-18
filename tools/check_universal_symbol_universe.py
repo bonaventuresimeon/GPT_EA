@@ -51,6 +51,26 @@ require(bool(re.search(r'int\s+batch\s*=\s*\(InpUniversalScanBatchSize<=0\?total
         "ScanAll must bound full-universe work by InpUniversalScanBatchSize")
 require("InpUniverseClockProbeSymbols" in text,
         "continuous M5 scheduling must use bounded universe probes")
+for token in (
+    "InpRequireSynchronizedMarketData",
+    "InpMinBarsD1","InpMinBarsH4","InpMinBarsH1","InpMinBarsM30","InpMinBarsM15","InpMinBarsM5",
+    "SymbolAnalysisDataReady","TimeframeAnalysisDataReady","SERIES_SYNCHRONIZED",
+    "TradeSetupGeometrySafe","DATA LOADING / INSUFFICIENT HISTORY",
+):
+    require(token in text, f"runtime data-readiness/geometry guard missing token: {token}")
+scan_start=text.find("void ScanSymbol(")
+scan_end=text.find("void ScanAll(",scan_start)
+scan_body=text[scan_start:scan_end] if scan_start>=0 and scan_end>scan_start else ""
+require(scan_body.find("SymbolAnalysisDataReady(sym,dataWhy)")>=0 and
+        scan_body.find("SymbolAnalysisDataReady(sym,dataWhy)")<scan_body.find("MultiTFScore(sym"),
+        "ScanSymbol must fail closed on synchronized market data before multi-timeframe analysis")
+require(scan_body.find("TradeSetupGeometrySafe(primary,geometryWhy)")>=0 and
+        scan_body.find("TradeSetupGeometrySafe(primary,geometryWhy)")<scan_body.find("EvaluateConfluence(primary)"),
+        "ScanSymbol must reject invalid entry/SL/TP geometry before confluence/news/AI/risk work")
+require('hi=0; lo=0;' in text and 'double localHi=-1.0e100,localLo=1.0e100;' in text,
+        "AsianRange must contain sentinels locally and expose 0/N/A when unavailable")
+require('daily/weekly available %s/%s' in text and 'daily/weekly available %.2f/%.2f' not in text,
+        "adaptive risk UI must not render unlimited 1e100 budget sentinels as currency")
 require("g_fullBrokerUniverseMode" in text and
         "Full broker universe uses live per-symbol execution validation." in text,
         "release/deployment safety must be dynamic-universe aware")

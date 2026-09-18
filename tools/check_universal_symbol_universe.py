@@ -30,8 +30,16 @@ require('if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) return true;' in text,
         "full-catalog discovery must defer entry-eligibility checks until unselected symbols are selected")
 require("if(!BrokerSymbolEligibleForUniverse(sym))" in text,
         "ScanSymbol must recheck exact broker eligibility after EnsureSymbol selects the instrument")
-require("SYMBOL_TRADE_MODE_DISABLED" in text, "disabled symbols must be filtered")
+require("SYMBOL_TRADE_MODE_DISABLED" in text, "disabled-symbol handling must be explicit")
 require("SYMBOL_TRADE_MODE_CLOSEONLY" in text, "close-only handling must be explicit")
+require("SymbolExist(sym,isCustom)" in text and "InpIncludeCustomSymbols" in text,
+        "broker/server discovery must distinguish local custom symbols")
+require("InpAnalyzeNonTradableSymbols" in text and "BrokerSymbolTradeableNow" in text,
+        "analysis eligibility must be separated from live entry tradability")
+require("InpRefreshBrokerUniverse" in text and "RefreshFullBrokerUniverseIfDue" in text,
+        "full broker universe must refresh while the EA is running")
+require("symbolTradeableNow && strategyActionOK" in text,
+        "analysis-only symbols must remain blocked from entry authorization")
 require("SYMBOL_CALC_MODE_SERV_COLLATERAL" in text,
         "non-executable service-collateral symbols must be excluded")
 require("DiscoverFullBrokerUniverse" in text, "full broker-universe discovery function is missing")
@@ -48,9 +56,21 @@ require("g_fullBrokerUniverseMode" in text and
         "release/deployment safety must be dynamic-universe aware")
 require("ReleaseSafetyAllows(s.symbol" in text,
         "per-symbol release safety must remain enforced before execution")
-require("|universe=%d:%d:%d:%d:%d:%d:%d:%s" in text and
-        "InpAutoMajorUniverse);" in text,
-        "universal symbol controls must be bound into the configuration fingerprint")
+for token in (
+    "InpAutoResolveBrokerSymbols?1:0",
+    "InpUseMarketWatchUniverse?1:0",
+    "InpMaxMarketWatchSymbols",
+    "InpIncludeCloseOnlySymbols?1:0",
+    "InpAnalyzeNonTradableSymbols?1:0",
+    "InpIncludeCustomSymbols?1:0",
+    "InpRefreshBrokerUniverse?1:0",
+    "InpBrokerUniverseRefreshSeconds",
+    "InpMaxBrokerUniverseSymbols",
+    "InpUniversalScanBatchSize",
+    "InpUniverseClockProbeSymbols",
+    "InpAutoMajorUniverse);",
+):
+    require(token in text, f"universal config fingerprint missing: {token}")
 require('return "GEN:"+c;' in text,
         "unknown but tradeable broker symbols must remain generically analyzable")
 require("CleanCryptoPairContains" in text,
@@ -74,8 +94,8 @@ for token in (
     require(token in text, f"broker-native classification metadata missing: {token}")
 
 for token in (
-    "US100","US30","US500","US2000","GER40","JP225","HK50","AUS200","FRA40","EU50",
-    "XAUUSD","XAGUSD","USOIL","UKOIL","NATGAS","COPPER","COCOA","COFFEE","WHEAT","CORN",
+    "US100","USTEC","NAS100","US30","US500","SPX500","US2000","GER40","DE40","DE30","JP225","HK50","AUS200","FRA40","EU50","STOXX50","DXY",
+    "XAUUSD","XAGUSD","XPTUSD","XPDUSD","USOIL","UKOIL","NATGAS","XNGUSD","COPPER","COCOA","COFFEE","WHEAT","CORN",
     "BTCUSD","ETHUSD","SOLUSD","XRPUSD","LTCUSD","UNIUSD","BNBUSD",
     "EURUSD","GBPUSD","GBPCAD","USDJPY",
 ):

@@ -2516,11 +2516,15 @@ void ChaosInit()
 input bool   InpAutoResolveBrokerSymbols      = true;
 input bool   InpUseMarketWatchUniverse        = false;   // optional supplement for AUTO/manual modes; ALL already covers the full broker catalog
 input int    InpMaxMarketWatchSymbols         = 0;       // 0 = unlimited when Market Watch supplementation is enabled
-input bool   InpIncludeCloseOnlySymbols       = false;   // normally exclude symbols that cannot accept new entries
+input bool   InpIncludeCloseOnlySymbols       = false;   // execution still blocks close-only; controls discovery when non-tradable analysis is disabled
+input bool   InpAnalyzeNonTradableSymbols     = true;    // analyze existing broker symbols even when temporarily disabled/close-only; never bypass execution gates
+input bool   InpIncludeCustomSymbols          = false;   // false = broker/server instruments only; local MT5 custom symbols are excluded
+input bool   InpRefreshBrokerUniverse         = true;    // discover symbols added/removed by the broker after EA startup
+input int    InpBrokerUniverseRefreshSeconds  = 300;     // minimum 30 sec; only applies to ALL/full-broker mode
 input int    InpMaxBrokerUniverseSymbols      = 0;       // 0 = unlimited; applies to ALL/full-broker discovery
 input int    InpUniversalScanBatchSize        = 40;      // <=0 = scan the whole resolved universe in one cycle
 input int    InpUniverseClockProbeSymbols     = 12;      // bounded M5-bar probes for continuous-scan scheduling
-input string InpAutoMajorUniverse             = "XAUUSD,XAGUSD,US100,US30,US500,GER40,UK100,JP225,HK50,AUS200,FRA40,EU50,EURUSD,GBPUSD,GBPCAD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,USOIL,UKOIL,NATGAS,BTCUSD,ETHUSD,SOLUSD,XRPUSD,LTCUSD,UNIUSD,BNBUSD";
+input string InpAutoMajorUniverse             = "XAUUSD,XAGUSD,XPTUSD,XPDUSD,US100,USTEC,NAS100,US30,US500,SPX500,GER40,DE40,DE30,UK100,JP225,HK50,AUS200,FRA40,EU50,STOXX50,DXY,EURUSD,GBPUSD,GBPCAD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,USOIL,UKOIL,NATGAS,XNGUSD,BTCUSD,ETHUSD,SOLUSD,XRPUSD,LTCUSD,UNIUSD,BNBUSD,ADAUSD,DOGEUSD,AVAXUSD,LINKUSD";
 input bool   InpPrintBrokerSymbolProfiles     = false;
 input int    InpMaxPrintedBrokerProfiles      = 50;      // <=0 = print every resolved profile
 input bool   InpCheckBrokerExecutionRules     = true;
@@ -2584,6 +2588,8 @@ int      g_universalScanCursor=0;
 int      g_universalUniverseTotal=0;
 int      g_universalUniverseEligible=0;
 bool     g_fullBrokerUniverseMode=false;
+datetime g_lastBrokerUniverseRefresh=0;
+int      g_lastBrokerCatalogSize=0;
 
 // ----------------------- Symbol normalization -------------------------
 string UpperCopy(string s){ StringToUpper(s); return s; }
@@ -2658,9 +2664,11 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
    // Major global indices and common CFD aliases.
    if(StringFind(u,"US100")>=0 || StringFind(u,"NAS100")>=0 || StringFind(u,"NASDAQ100")>=0 || StringFind(u,"USTEC")>=0 || StringFind(u,"NQ100")>=0) return "INDEX:US100";
    if(StringFind(u,"US30")>=0 || StringFind(u,"DJ30")>=0 || StringFind(u,"DOW30")>=0 || StringFind(u,"DOW JONES")>=0) return "INDEX:US30";
-   if(StringFind(u,"US500")>=0 || StringFind(u,"SPX500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P 500")>=0) return "INDEX:US500";
+   if(StringFind(u,"US500")>=0 || StringFind(u,"SPX500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P 500")>=0 ||
+      c=="SPX" || StringFind(u,"S&P500")>=0) return "INDEX:US500";
    if(StringFind(u,"US2000")>=0 || StringFind(u,"RUSSELL 2000")>=0 || StringFind(u,"RUSSELL2000")>=0) return "INDEX:US2000";
-   if(StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX40")>=0 || StringFind(u,"GERMANY 40")>=0) return "INDEX:GER40";
+   if(StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX40")>=0 || StringFind(u,"GERMANY 40")>=0 ||
+      StringFind(u,"GER30")>=0 || StringFind(u,"DE30")>=0 || StringFind(u,"DAX30")>=0 || StringFind(u,"GERMANY 30")>=0) return "INDEX:GER40";
    if(StringFind(u,"UK100")>=0 || StringFind(u,"FTSE100")>=0) return "INDEX:UK100";
    if(StringFind(u,"JP225")>=0 || StringFind(u,"JPN225")>=0 || StringFind(u,"NIKKEI")>=0) return "INDEX:JP225";
    if(StringFind(u,"HK50")>=0 || StringFind(u,"HKG50")>=0 || StringFind(u,"HANG SENG")>=0) return "INDEX:HK50";
@@ -2672,11 +2680,12 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
       StringFind(c,"SMI20")==0 || c=="SMI") return "INDEX:CH20";
    if(StringFind(u,"SA40")>=0 || StringFind(u,"JSE40")>=0) return "INDEX:SA40";
    if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY INDEX")>=0) return "INDEX:VIX";
+   if(c=="DXY" || c=="USDX" || StringFind(u,"USD INDEX")>=0 || StringFind(u,"US DOLLAR INDEX")>=0) return "INDEX:DXY";
 
    // Energy
    if(StringFind(u,"WTI")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"WTICOIL")>=0 || StringFind(u,"WEST TEXAS")>=0 || StringFind(u,"XTI")>=0) return "ENERGY:WTI";
    if(StringFind(u,"BRENT")>=0 || StringFind(u,"UKOIL")>=0 || StringFind(u,"XBR")>=0) return "ENERGY:BRENT";
-   if(StringFind(u,"NATGAS")>=0 || StringFind(u,"NATURAL GAS")>=0 || StringFind(u,"NGAS")>=0) return "ENERGY:NATGAS";
+   if(StringFind(u,"NATGAS")>=0 || StringFind(u,"NATURAL GAS")>=0 || StringFind(u,"NGAS")>=0 || StringFind(u,"XNG")>=0) return "ENERGY:NATGAS";
 
    // Non-energy commodities / softs / agriculture / industrial metals.
    if(StringFind(u,"COPPER")>=0 || StringFind(u,"XCU")>=0) return "COMMODITY:COPPER";
@@ -2818,18 +2827,54 @@ bool BrokerSymbolEligibleForUniverse(const string sym)
 {
    if(sym=="") return false;
 
-   // SymbolsTotal(false) includes instruments outside Market Watch. Discovery must not
-   // interpret unavailable pre-selection metadata as "disabled"; exact eligibility is
-   // rechecked after EnsureSymbol() selects the instrument for analysis.
+   // ALL means the connected broker/server catalog. Local terminal custom symbols are
+   // excluded by default so synthetic user data cannot silently enter live discovery.
+   bool isCustom=false;
+   if(!SymbolExist(sym,isCustom)) return false;
+   if(isCustom && !InpIncludeCustomSymbols) return false;
+
+   // Service collateral is an account asset, not a market to analyze or trade.
+   ENUM_SYMBOL_CALC_MODE cm=(ENUM_SYMBOL_CALC_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+   if(cm==SYMBOL_CALC_MODE_SERV_COLLATERAL) return false;
+
+   // Unselected symbols may expose incomplete trade-mode metadata. Keep them in the
+   // catalog and perform the exact state check after EnsureSymbol() selects them.
    if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) return true;
 
    ENUM_SYMBOL_TRADE_MODE tm=(ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
+   if(InpAnalyzeNonTradableSymbols) return true;
    if(tm==SYMBOL_TRADE_MODE_DISABLED) return false;
    if(tm==SYMBOL_TRADE_MODE_CLOSEONLY && !InpIncludeCloseOnlySymbols) return false;
+   return true;
+}
 
-   // Service-collateral symbols are account assets, not executable market instruments.
-   ENUM_SYMBOL_CALC_MODE cm=(ENUM_SYMBOL_CALC_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
-   if(cm==SYMBOL_CALC_MODE_SERV_COLLATERAL) return false;
+bool BrokerSymbolTradeableNow(const string sym,string &why)
+{
+   why="";
+   if(!EnsureSymbol(sym)){ why="Symbol unavailable at broker."; return false; }
+
+   ENUM_SYMBOL_TRADE_MODE tm=(ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
+   if(tm==SYMBOL_TRADE_MODE_DISABLED){ why="Symbol trading is disabled."; return false; }
+   if(tm==SYMBOL_TRADE_MODE_CLOSEONLY){ why="Symbol is currently close-only."; return false; }
+
+   long orderMode=SymbolInfoInteger(sym,SYMBOL_ORDER_MODE);
+   if((orderMode & SYMBOL_ORDER_MARKET)!=(long)SYMBOL_ORDER_MARKET)
+   { why="Broker does not allow market orders for this symbol."; return false; }
+   if((orderMode & SYMBOL_ORDER_SL)!=(long)SYMBOL_ORDER_SL)
+   { why="Broker does not allow protective Stop Loss orders for this symbol."; return false; }
+
+   double point=SymbolInfoDouble(sym,SYMBOL_POINT);
+   double tickSize=SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE);
+   double volMin=SymbolInfoDouble(sym,SYMBOL_VOLUME_MIN);
+   double volStep=SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP);
+   if(point<=0 || tickSize<=0 || volMin<=0 || volStep<=0)
+   { why="Broker contract geometry is incomplete for execution."; return false; }
+
+   MqlTick tick={};
+   if(!SymbolInfoTick(sym,tick) || tick.time<=0 || tick.bid<=0 || tick.ask<=0)
+   { why="No usable broker tick is available."; return false; }
+
+   why="Symbol is currently entry-tradeable.";
    return true;
 }
 
@@ -2866,6 +2911,41 @@ int DiscoverFullBrokerUniverse(string &arr[])
    }
    g_universalUniverseEligible=ArraySize(arr);
    return ArraySize(arr)-before;
+}
+
+bool SymbolArraysEqual(string &a[],string &b[])
+{
+   if(ArraySize(a)!=ArraySize(b)) return false;
+   for(int i=0;i<ArraySize(a);i++) if(a[i]!=b[i]) return false;
+   return true;
+}
+
+void RefreshFullBrokerUniverseIfDue(const bool force=false)
+{
+   if(!g_fullBrokerUniverseMode || !InpRefreshBrokerUniverse) return;
+
+   datetime now=TimeTradeServer();
+   if(now<=0) now=TimeLocal();
+   int waitSec=(InpBrokerUniverseRefreshSeconds<30?30:InpBrokerUniverseRefreshSeconds);
+   if(!force && g_lastBrokerUniverseRefresh>0 && now-g_lastBrokerUniverseRefresh<waitSec) return;
+   g_lastBrokerUniverseRefresh=now;
+
+   string refreshed[];
+   int oldCount=ArraySize(g_symbols);
+   int oldCatalog=g_lastBrokerCatalogSize;
+   DiscoverFullBrokerUniverse(refreshed);
+   g_lastBrokerCatalogSize=g_universalUniverseTotal;
+
+   if(!SymbolArraysEqual(g_symbols,refreshed))
+   {
+      ArrayResize(g_symbols,ArraySize(refreshed));
+      for(int i=0;i<ArraySize(refreshed);i++) g_symbols[i]=refreshed[i];
+      if(ArraySize(g_symbols)>0) g_universalScanCursor=g_universalScanCursor%ArraySize(g_symbols);
+      else g_universalScanCursor=0;
+      g_universalUniverseEligible=ArraySize(g_symbols);
+      PrintFormat("GPT_EA broker universe refreshed: catalog %d -> %d | scan universe %d -> %d.",
+                  oldCatalog,g_lastBrokerCatalogSize,oldCount,ArraySize(g_symbols));
+   }
 }
 
 bool ResolveConfiguredSymbolsUniversal()
@@ -2928,7 +3008,9 @@ bool ResolveConfiguredSymbolsUniversal()
 
    g_universalUniverseEligible=ArraySize(g_symbols);
    g_universalScanCursor=0;
-   PrintFormat("GPT_EA resolved symbol universe ready: %d tradeable symbols.",ArraySize(g_symbols));
+   g_lastBrokerCatalogSize=g_universalUniverseTotal;
+   g_lastBrokerUniverseRefresh=TimeTradeServer();
+   PrintFormat("GPT_EA resolved symbol universe ready: %d scannable broker symbols.",ArraySize(g_symbols));
    return true;
 }
 
@@ -11118,7 +11200,7 @@ string CurrentSensitiveConfigText()
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
       "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
       "trail=%.3f|lock1=%.3f:%.3f|lock2=%.3f:%.3f|api_mode=%d|proxy=%s|https=%d|"
-      "model=%s|policy=%s|symbols=%s|universe=%d:%d:%d:%d:%d:%d:%d:%s",
+      "model=%s|policy=%s|symbols=%s|universe=%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d:%s",
       InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
       InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
       InpFastEMA,InpSlowEMA,InpRSIPeriod,InpATRPeriod,InpSwingBars,InpPullbackExpiryM15,InpBreakoutExpiryM15,
@@ -11132,8 +11214,9 @@ string CurrentSensitiveConfigText()
       (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
       InpOpenAIModel,InpModelPolicyVersion,InpSymbols,
       InpAutoResolveBrokerSymbols?1:0,InpUseMarketWatchUniverse?1:0,InpMaxMarketWatchSymbols,
-      InpIncludeCloseOnlySymbols?1:0,InpMaxBrokerUniverseSymbols,InpUniversalScanBatchSize,
-      InpUniverseClockProbeSymbols,InpAutoMajorUniverse);
+      InpIncludeCloseOnlySymbols?1:0,InpAnalyzeNonTradableSymbols?1:0,InpIncludeCustomSymbols?1:0,
+      InpRefreshBrokerUniverse?1:0,InpBrokerUniverseRefreshSeconds,InpMaxBrokerUniverseSymbols,
+      InpUniversalScanBatchSize,InpUniverseClockProbeSymbols,InpAutoMajorUniverse);
 
    cfg+=StringFormat(
       "|clock=%d:%d:%d|modelhealth=%d:%d:%.4f:%.4f:%.3f:%.3f:det%d|"
@@ -16495,9 +16578,12 @@ void ScanSymbol(const string sym,const string scanReason)
    if(!EnsureSymbol(sym)){ Print("Symbol unavailable: ",sym); return; }
    if(!BrokerSymbolEligibleForUniverse(sym))
    {
-      if(InpPrintBrokerSymbolProfiles) Print("GPT_EA universe skip (not entry-eligible): ",sym);
+      if(InpPrintBrokerSymbolProfiles) Print("GPT_EA universe skip (not scannable): ",sym);
       return;
    }
+
+   string symbolTradeWhy="";
+   bool symbolTradeableNow=BrokerSymbolTradeableNow(sym,symbolTradeWhy);
 
    string trend="";
    bool alignedBull=false,alignedBear=false;
@@ -16570,6 +16656,7 @@ void ScanSymbol(const string sym,const string scanReason)
    card+="Live web/news intelligence: "+webText+"\n";
    card+="Broker environment: "+BrokerEnvironmentSummary()+"\n";
    card+="Broker symbol profile: "+SymbolProfileSummary(sym)+"\n";
+   card+="Broker symbol state: "+(symbolTradeableNow?"TRADEABLE":"ANALYSIS-ONLY")+" | "+symbolTradeWhy+"\n";
 
    string thesis=BuildMandatory25PointThesis(sym,primary,pb,br,decision,primaryReport,newsText,webText,intermarket,spreadText,sessionText);
    card+=thesis;
@@ -16603,7 +16690,7 @@ void ScanSymbol(const string sym,const string scanReason)
 
    double rrFloor=(decision.strategy==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR);
    bool strategyActionOK=(decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE);
-   bool hardValid=(strategyActionOK && primary.valid && strategyConfluence && institutionalOK && evidenceAllows &&
+   bool hardValid=(symbolTradeableNow && strategyActionOK && primary.valid && strategyConfluence && institutionalOK && evidenceAllows &&
                    !newsBlock && !yieldBlock && !sessionBlock && spreadOk && EffectiveRRDynamic(primary)>=rrFloor &&
                    !intermarket.severeConflict && !(InpBlockOnWebIntelVerdictBLOCK && webBlock) && aiAllows &&
                    releaseAllows && stopObsAllows && riskAllows && brokerAllows && serverAllows);
@@ -16653,6 +16740,7 @@ void ScanSymbol(const string sym,const string scanReason)
 
 void ScanAll(const string reason)
 {
+   RefreshFullBrokerUniverseIfDue(false);
    int total=ArraySize(g_symbols);
    if(total<=0) return;
 
@@ -16749,6 +16837,7 @@ void OnTimer()
    StrategyIntelligenceTimer();
    NewsIntermarketTimer();
    StyleApprovalUI();
+   RefreshFullBrokerUniverseIfDue(false);
 
    string why="";
    if(ScheduledScanDue(why))
@@ -16783,6 +16872,7 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
    if(sparam==BTN_SCAN_NOW)
    {
       ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
+      RefreshFullBrokerUniverseIfDue(true);
       ScanAll("Manual SCAN NOW");
       RefreshElegantChartDashboard(true);
       return;

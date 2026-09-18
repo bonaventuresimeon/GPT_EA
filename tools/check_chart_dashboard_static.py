@@ -25,6 +25,8 @@ required=[
     "UI_STATE_SCANNING","UI_STATE_SETUP_FOUND","UI_STATE_WAITING_CONFIRMATION","UI_STATE_ENTRY_ARMED",
     "UI_STATE_TRADE_ACTIVE","UI_STATE_TP1","UI_STATE_BREAK_EVEN","UI_STATE_TRAILING","UI_STATE_CLOSED",
     "ApplyDashboardChartReserve","DashboardLayout","VisualMTFMatrix","VisualConfidenceBar",
+    "RenderPremiumHUDFrame","DASH_HEADER_BG","DASH_FOOTER_BG","DASH_TOP_RAIL","DASH_INNER_FRAME",
+    "R8-ELEGANT-HUD-INPUTS-20260918","HUD122",
     "PurgeLegacyVisualObjects","g_visualDataState","DATA LOADING / INSUFFICIENT HISTORY",
     "RenderScanningDashboard","RenderClosedDashboard","RenderDashboardControls",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
@@ -99,7 +101,7 @@ def function_body(name:str)->str:
 visual_functions=[
     "SetVisualPriceTag","SetVisualBand","RecordTrailingMovement","DrawLiveManagementMap","SetPlanPriceTag",
     "VisualStopRulesText","VisualTradeTimeline",
-    "RenderLiveManagementDashboard","RenderCandidateOperationalDashboard",
+    "RenderPremiumHUDFrame","RenderLiveManagementDashboard","RenderCandidateOperationalDashboard",
     "RenderScanningDashboard","RenderClosedDashboard","RefreshElegantChartDashboard",
 ]
 for name in visual_functions:
@@ -111,7 +113,7 @@ for name in visual_functions:
         if forbidden in body:
             errors.append(f"{name} must remain read-only; found {forbidden}")
 
-# Premium rendering contract: transparent cards, reserved chart gutter, no legacy debug layers.
+# Premium rendering contract: boxed chart-matched HUD, optional glass inner cards, reserved chart gutter, no legacy debug layers.
 risk_panel=function_body("UpdateRiskAnalyticsPanel")
 if "InpElegantChartDashboard && InpPremiumDashboard" not in risk_panel or "ObjectDelete(0,RISK_PANEL)" not in risk_panel:
     errors.append("premium dashboard must suppress the legacy risk/performance overlay")
@@ -126,9 +128,15 @@ if 'Comment("")' not in notify or "else Comment(card);" not in notify:
 
 rect=function_body("SetPremiumRect")
 if "InpDashboardTransparent" not in rect or "clrNONE" not in rect:
-    errors.append("premium dashboard outer shell must support transparent fill")
-if "bool transparentShell=(name==DASH_PANEL);" not in rect:
-    errors.append("only the outer dashboard shell may become transparent; information cards must stay opaque")
+    errors.append("premium dashboard must support optional glass inner-card fill")
+if "bool glassCard=" not in rect or "name==DASH_PANEL" in rect:
+    errors.append("dashboard transparency must be limited to inner information cards; the outer HUD shell must stay opaque")
+hud=function_body("RenderPremiumHUDFrame")
+for token in ("DASH_PANEL","DASH_INNER_FRAME","DASH_HEADER_BG","DASH_TOP_RAIL","DASH_FOOTER_BG","C'11,15,22'"):
+    if token not in hud:
+        errors.append("boxed HUD frame missing token: "+token)
+if "InpDashboardHeight" not in function_body("DashboardLayout"):
+    errors.append("responsive dashboard layout must honor InpDashboardHeight")
 if 'RenderAdvancedDashboard(primary,primaryReport,filterState,approvalReady);' not in text:
     errors.append("ENTRY ARMED dashboard state must be driven by final approvalReady, not the pre-gate trigger")
 for premature in (

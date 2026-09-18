@@ -1,0 +1,13 @@
+# MetaEditor build artifacts
+*.ex5
+GPT_EA.log
+metaeditor-first-errors.txt
+
+# Python tooling
+__pycache__/
+*.pyc
+
+# Local editor / OS noise
+.vscode/*.local.json
+.DS_Store
+Thumbs.db

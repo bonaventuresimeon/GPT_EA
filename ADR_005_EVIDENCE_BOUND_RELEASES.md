@@ -16,9 +16,12 @@
 
 # ADR-005: Evidence-Bound Production Releases
 
+**ADR ID:** ADR-005  
 **Status:** Accepted  
 **Decision date:** 2026-09-18  
 **Scope:** GPT_EA architecture and release governance
+**Supersedes:** None  
+**Superseded by:** None
 
 ## 🎯 Context
 

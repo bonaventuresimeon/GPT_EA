@@ -1622,10 +1622,10 @@ string VisualVolatilityLabel(const ConfluenceReport &r)
 void ClearDashboardSections()
 {
    ObjectDelete(0,DASH_MARKET_CARD); ObjectDelete(0,DASH_MARKET_LABEL); ObjectDelete(0,DASH_MARKET_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE"); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
    ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL); ObjectDelete(0,DASH_RISK_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE"); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE"); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL); ObjectDelete(0,DASH_ACTION_LABEL+"_TITLE");
 }
 

@@ -2,7 +2,8 @@
 """Repository-level static release checks for the current GPT_EA release chain.
 
 Base evidence identity remains R6 while the active runtime additionally layers
-supplemental CI/five-day evidence and the Part37 API transport guard. This is
+supplemental CI/five-day evidence, API transport, legal/customer-risk/privacy
+guards and the R6 resilience execution platform. This is
 not a substitute for MetaEditor compilation, Strategy Tester, broker validation,
 WebRequest failure injection or the required demo soak.
 """
@@ -49,6 +50,16 @@ REQUIRED_FILES = [
     "GPT_EA_Part35_AdaptiveIntegration.mqh",
     "GPT_EA_Part36_DemoSoakEvidence.mqh",
     "GPT_EA_Part37_APITransport.mqh",
+    "GPT_EA_Part37A_APICompat.mqh",
+    "GPT_EA_Part38_LegalLicenseGate.mqh",
+    "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh",
+    "GPT_EA_Part40_PrivacyReleaseGate.mqh",
+    "GPT_EA_Part39_DataIntegrityQuarantine.mqh",
+    "GPT_EA_Part40_ModelClockTrust.mqh",
+    "GPT_EA_Part41_PortfolioStressLatency.mqh",
+    "GPT_EA_Part42_ExecutionReliability.mqh",
+    "GPT_EA_Part43_CausalAttribution.mqh",
+    "GPT_EA_Part44_ChaosFaultInjection.mqh",
     "INTELLIGENCE_TEST_MATRIX.md",
     "INTELLIGENCE_HARDENING_TESTS.md",
     "FULL_INTELLIGENCE_COVERAGE.md",
@@ -78,6 +89,14 @@ REQUIRED_FILES = [
     "RELEASE_EVIDENCE_MANIFEST.md",
     "ADAPTIVE_EXECUTION_ARCHITECTURE.md",
     "ADAPTIVE_EXECUTION_TEST_MATRIX.md",
+    "R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
+    "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json",
+    "RESILIENCE_HARDENING_EVIDENCE_TEMPLATE.json",
+    "ROLLBACK_PACKAGE_CONTRACT.md",
+    "ROLLBACK_PACKAGE_MANIFEST_SCHEMA.json",
+    "MT5_VALIDATION_EVIDENCE_SCHEMA.json",
+    "MT5_VALIDATION_EVIDENCE_TEMPLATE.json",
+    "MT5_VALIDATION_ACCEPTANCE_MATRIX.md",
     "tools/import_soak_snapshot.py",
     "tools/fetch_ci_job_metadata.py",
     "tools/build_ci_evidence.py",
@@ -91,6 +110,15 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"',
     '#include "GPT_EA_Part28B_CIReleaseEvidence.mqh"',
     '#include "GPT_EA_Part37_APITransport.mqh"',
+    '#include "GPT_EA_Part38_LegalLicenseGate.mqh"',
+    '#include "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh"',
+    '#include "GPT_EA_Part40_PrivacyReleaseGate.mqh"',
+    '#include "GPT_EA_Part44_ChaosFaultInjection.mqh"',
+    '#include "GPT_EA_Part40_ModelClockTrust.mqh"',
+    '#include "GPT_EA_Part41_PortfolioStressLatency.mqh"',
+    '#include "GPT_EA_Part39_DataIntegrityQuarantine.mqh"',
+    '#include "GPT_EA_Part42_ExecutionReliability.mqh"',
+    '#include "GPT_EA_Part43_CausalAttribution.mqh"',
     '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
     '#include "GPT_EA_Part31_ExecutionLearning.mqh"',
     '#include "GPT_EA_Part31A_RegimeSizing.mqh"',
@@ -100,11 +128,11 @@ REQUIRED_MAIN_WIRING = [
     '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
     '#include "GPT_EA_Part36_DemoSoakEvidence.mqh"',
     '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
-    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API",
-    "#define ReleaseGateSummary ReleaseGateSummaryR7API",
-    "#define StopFailureObservabilityInit StopFailureObservabilityInitR7API",
-    "#define AdvancedSafetyInit AdvancedSafetyInitR7API",
-    "#define AdvancedSafetyTimer AdvancedSafetyTimerR7API",
+    "#define ReleaseSafetyAllows ReleaseSafetyAllowsR10Privacy",
+    "#define ReleaseGateSummary ReleaseGateSummaryR10Privacy",
+    "#define StopFailureObservabilityInit StopFailureObservabilityInitR10Privacy",
+    "#define AdvancedSafetyInit AdvancedSafetyInitR10Privacy",
+    "#define AdvancedSafetyTimer AdvancedSafetyTimerR10Privacy",
     "#define WebRequest GPTAPIWebRequest",
     "#undef WebRequest",
     "#define SelectDynamicStrategy SelectDynamicStrategyR5",
@@ -163,19 +191,19 @@ REQUIRED_TOKENS = {
     "GPT_EA_Part31_ExecutionLearning.mqh": [
         "CalibratedConfidenceValue", "ExecutionSlippageForecastPoints", "RegisterAdaptiveExecutionFill",
         "UpdateOpenMAEMFE", "EventSpecificBehaviorAllows", "LearnedStrategyExpiryM15",
-        "RefreshStrategyHealthModes", "RefreshRegimeTransition", "GPT_EA_ExecutionLearning.csv",
+        "RefreshStrategyHealthModes", "RefreshRegimeTransition", "GPT_EA_ExecutionLearningV2.csv",
     ],
     "GPT_EA_Part31A_RegimeSizing.mqh": ["AdaptiveLotSizeForRiskFinal", "REGIME_RISK_MULT"],
     "GPT_EA_Part31B_ExecutionFinalizer.mqh": ["FinalizeAdaptiveLearningHistoryR5", "ExecutionLearningTimerR5"],
     "GPT_EA_Part32_ChampionChallenger.mqh": [
         "ChallengerEligibleForPromotion", "ChampionChallengerScanHook", "SHADOW_REJECTED_COUNTERFACTUAL",
-        "InpAutoPromoteChallenger", "GPT_EA_ShadowValidation.csv",
+        "InpAutoPromoteChallenger", "GPT_EA_ShadowValidationV2.csv",
     ],
     "GPT_EA_Part33_LifecycleIntegrityReplay.mqh": [
         "LIFE_CANDIDATE", "LIFE_WAIT_CONFIRMATION", "LIFE_APPROVED", "LIFE_SENT", "LIFE_FILLED",
         "GPTDisagreementAllowsHighConfidence", "GPTReviewIntegrityAllows", "WriteDecisionSnapshot",
     ],
-    "GPT_EA_Part34_StrategyHealthDashboard.mqh": ["REDUCED_RISK", "SHADOW", "DISABLED", "GPT_EA_StrategyHealth.csv"],
+    "GPT_EA_Part34_StrategyHealthDashboard.mqh": ["REDUCED_RISK", "SHADOW", "DISABLED", "GPT_EA_StrategyHealthV2.csv"],
     "GPT_EA_Part35_AdaptiveIntegration.mqh": [
         "LIFECYCLE_WAIT_HUMAN_APPROVAL", "LIFECYCLE_WAIT_MARKET_CONFIRMATION",
         "SelectDynamicStrategyR5", "AdaptivePreAuthorizationRiskAllowsR5", "AIReviewAllowsExecutionR5",
@@ -191,6 +219,25 @@ REQUIRED_TOKENS = {
         "GPTAPIWebRequest", "APITransportReleaseEvidenceAllows", "ReleaseSafetyAllowsR7API",
         "InpReleaseAPITransportPassed", "GPT_API_DIRECT_OPENAI", "GPT_API_SECURE_PROXY",
         "APITrustedDirectEndpoint", "X-Client-Request-Id", "X-GPT-EA-Token",
+    ],
+    "GPT_EA_Part39_DataIntegrityQuarantine.mqh": [
+        "CurrentConfigFingerprint", "LearningSampleShouldQuarantine", "StrategyConfigVersion", "GPT_EA_StrategyConfigRegistry.csv",
+    ],
+    "GPT_EA_Part40_ModelClockTrust.mqh": [
+        "ClockDriftAllows", "MODEL_TRUST_REDUCED", "MODEL_TRUST_DETERMINISTIC_ONLY", "DeterministicEmergencyStrategyAllowed",
+    ],
+    "GPT_EA_Part41_PortfolioStressLatency.mqh": [
+        "PORT_STRESS_USD_UP", "PORT_STRESS_YIELDS_UP", "PORT_STRESS_VOLATILITY_SPIKE",
+        "WorstMacroScenarioPortfolioLoss", "GapRiskAllows", "MarginStressAllows", "DecisionAgeLatencyAllows",
+    ],
+    "GPT_EA_Part42_ExecutionReliability.mqh": [
+        "INTENT_PREPARED", "INTENT_SENT", "INTENT_UNCERTAIN", "PrepareAtomicTradeIntent",
+        "MarkTradeIntentSent", "ReconcileBrokerAgainstEA", "HandleReliabilityTradeTransaction",
+    ],
+    "GPT_EA_Part43_CausalAttribution.mqh": ["CausalAttributionForPosition", "FinalizeCausalAttributionHistory"],
+    "GPT_EA_Part44_ChaosFaultInjection.mqh": [
+        "CHAOS_CORRUPT_CHECKPOINT", "ChaosInjectBeforeOrderSend", "ChaosInjectPostFillPreBind",
+        "ChaosDropTradeTransaction", "ChaosDuplicateTradeTransaction", "ChaosEnvironmentAllows",
     ],
 }
 
@@ -296,14 +343,18 @@ def main() -> int:
     critical_order = [
         "GPT_EA_Part28_ReleaseCertification.mqh", "GPT_EA_Part29_DeploymentDriftGuard.mqh",
         "GPT_EA_Part28B_CIReleaseEvidence.mqh", "GPT_EA_Part37_APITransport.mqh",
-        "GPT_EA_Part15_StrategyIntelligence.mqh", "GPT_EA_Part21_ResearchValidation.mqh",
+        "GPT_EA_Part38_LegalLicenseGate.mqh", "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh",
+        "GPT_EA_Part40_PrivacyReleaseGate.mqh", "GPT_EA_Part15_StrategyIntelligence.mqh", "GPT_EA_Part21_ResearchValidation.mqh",
         "GPT_EA_Part27_StrategyCompletion.mqh", "GPT_EA_Part16_NewsIntermarket.mqh",
         "GPT_EA_Part22_IntelligenceFreshness.mqh", "GPT_EA_Part16A_StrictRevalidation.mqh",
         "GPT_EA_Part17_ThesisEngine.mqh", "GPT_EA_Part25_ThesisHardening.mqh",
-        "GPT_EA_Part26_DeepGPTPolicy.mqh", "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
+        "GPT_EA_Part26_DeepGPTPolicy.mqh", "GPT_EA_Part40_ModelClockTrust.mqh",
+        "GPT_EA_Part41_PortfolioStressLatency.mqh", "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",
+        "GPT_EA_Part39_DataIntegrityQuarantine.mqh",
         "GPT_EA_Part31_ExecutionLearning.mqh", "GPT_EA_Part31A_RegimeSizing.mqh",
         "GPT_EA_Part31B_ExecutionFinalizer.mqh", "GPT_EA_Part32_ChampionChallenger.mqh",
-        "GPT_EA_Part33_LifecycleIntegrityReplay.mqh", "GPT_EA_Part34_StrategyHealthDashboard.mqh",
+        "GPT_EA_Part33_LifecycleIntegrityReplay.mqh", "GPT_EA_Part42_ExecutionReliability.mqh",
+        "GPT_EA_Part43_CausalAttribution.mqh", "GPT_EA_Part34_StrategyHealthDashboard.mqh",
         "GPT_EA_Part36_DemoSoakEvidence.mqh", "GPT_EA_Part35_AdaptiveIntegration.mqh",
         "GPT_EA_Part05.mqh", "GPT_EA_Part23_IntelligenceObservability.mqh",
         "GPT_EA_Part13_AdvancedPositionManager.mqh", "GPT_EA_Part07.mqh",
@@ -326,7 +377,7 @@ def main() -> int:
         errors.append("R6 soak schema version contract is missing")
 
     part28b = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
-    for flag in ("InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated"):
+    for flag in ("InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated", "InpReleaseMT5ValidationPassed", "InpReleaseResilienceHardeningPassed"):
         if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', part28b):
             errors.append(f"supplemental release attestation must default false: {flag}")
 
@@ -339,7 +390,8 @@ def main() -> int:
         errors.append("champion/challenger auto-promotion must default false")
 
     part05 = (ROOT / "GPT_EA_Part05.mqh").read_text(encoding="utf-8")
-    for token in ["AdaptivePreEntryAllows", "RegisterAdaptiveExecutionRequest", "RegisterAdaptiveExecutionFill", "StoredAIIntegrityAllows"]:
+    for token in ["AdaptivePreEntryAllows", "RegisterAdaptiveExecutionRequest", "RegisterAdaptiveExecutionFill", "StoredAIIntegrityAllows",
+                  "PrepareAtomicTradeIntent", "MarkTradeIntentSent", "BindTradeIntentToPosition"]:
         if token not in part05: errors.append(f"Part05 execution wiring missing: {token}")
 
     part01 = (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8")

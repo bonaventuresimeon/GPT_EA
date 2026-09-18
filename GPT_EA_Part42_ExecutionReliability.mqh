@@ -486,29 +486,48 @@ void ReconcileBrokerAgainstEA()
             WriteReconciliationRow("WARN","UNEXPLAINED_VOLUME_REDUCTION",sym,pid,tk,magic,comment,
                StringFormat("volume %.4f -> %.4f without recorded partial state",oldVol,vol));
          }
-         if(oldSL>0 && MathAbs(sl-oldSL)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         datetime expectedUntil=(datetime)GVRead(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+         double expectedSL=GVRead(PosKey(pid,"EA_EXPECT_SL"),oldSL);
+         double expectedTP=GVRead(PosKey(pid,"EA_EXPECT_TP"),oldTP);
+         bool expectedWindow=(expectedUntil>0 && TimeTradeServer()<=expectedUntil);
+         bool expectedSLMatch=(MathAbs(sl-expectedSL)<=0.5*tick);
+         bool expectedTPMatch=(MathAbs(tp-expectedTP)<=0.5*tick);
+         bool expectedModification=(expectedWindow && expectedSLMatch && expectedTPMatch);
+
+         if(oldSL>0 && MathAbs(sl-oldSL)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5 && !expectedModification)
          {
             double tracked=GVRead(PosKey(pid,"LASTSL"),GVRead(PosKey(pid,"INITSL"),oldSL));
             if(tracked>0 && MathAbs(sl-tracked)>0.5*tick)
             {
-               GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
-               MarkLearningQuarantine(pid,sym,"SL differs from EA-tracked protection state");
-               WriteReconciliationRow("WARN","UNEXPLAINED_SL_CHANGE",sym,pid,tk,magic,comment,
-                  StringFormat("SL %.10f -> %.10f tracked %.10f",oldSL,sl,tracked));
+               GVWrite(PosKey(pid,"MANUAL_INTERVENTION"),1);
+               MarkLearningQuarantine(pid,sym,"external SL modification differs from EA-tracked protection state");
+               WriteReconciliationRow("WARN","EXTERNAL_SL_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("SL %.10f -> %.10f tracked %.10f; no matching EA modification intent",oldSL,sl,tracked));
             }
          }
-         if(oldTP>0 && MathAbs(tp-oldTP)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         if(oldTP>0 && MathAbs(tp-oldTP)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5 && !expectedModification)
          {
             int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),0);
             bool expectedTrailRemoval=(stage>=4 && !InpKeepTP3WhileTrailing && tp<=0);
             if(!expectedTrailRemoval)
             {
-               GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
-               MarkLearningQuarantine(pid,sym,"TP differs from EA-tracked target state");
-               WriteReconciliationRow("WARN","UNEXPLAINED_TP_CHANGE",sym,pid,tk,magic,comment,
-                  StringFormat("TP %.10f -> %.10f",oldTP,tp));
+               GVWrite(PosKey(pid,"MANUAL_INTERVENTION"),1);
+               MarkLearningQuarantine(pid,sym,"external TP modification differs from EA-tracked target state");
+               WriteReconciliationRow("WARN","EXTERNAL_TP_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("TP %.10f -> %.10f; no matching EA modification intent",oldTP,tp));
             }
          }
+         if(expectedModification)
+         {
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+            WriteReconciliationRow("INFO","EA_MODIFICATION_RECONCILED",sym,pid,tk,magic,comment,
+               StringFormat("expected EA SL/TP modification reconciled at SL %.10f TP %.10f",sl,tp));
+         }
+         else if(expectedUntil>0 && TimeTradeServer()>expectedUntil)
+         {
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+         }
+
          GVWrite(PosKey(pid,"RECON_VOL"),vol);
          GVWrite(PosKey(pid,"RECON_SL"),sl);
          GVWrite(PosKey(pid,"RECON_TP"),tp);
@@ -586,8 +605,7 @@ void HandleReliabilityTradeTransaction(const MqlTradeTransaction &trans,const Mq
    }
    g_lastTransactionSignature=h; g_lastTransactionTime=now;
 
-   if(ChaosDuplicateTradeTransaction())
-      GVWrite(SysKey("DUPLICATE_TRADE_CALLBACK"),GVRead(SysKey("DUPLICATE_TRADE_CALLBACK"),0)+1);
+   bool injectDuplicate=ChaosDuplicateTradeTransaction();
 
    ulong pid=trans.position;
    string sym=trans.symbol;
@@ -603,22 +621,18 @@ void HandleReliabilityTradeTransaction(const MqlTradeTransaction &trans,const Mq
       }
    }
 
-   if(trans.type==TRADE_TRANSACTION_POSITION && pid>0 && request.magic!=InpMagic)
-   {
-      if(GVRead(PosKey(pid,"STRATEGY"),0)>0 || GVRead(PosKey(pid,"INTENT_BOUND"),0)>0.5)
-         MarkManualIntervention(pid,sym,"position modification originated outside EA magic");
-   }
-   else if(pid>0 && request.magic==InpMagic)
-   {
-      ulong tk=FindOpenTicketByIdentifier(pid);
-      if(tk>0 && PositionSelectByTicket(tk))
-      {
-         GVWrite(PosKey(pid,"RECON_VOL"),PositionGetDouble(POSITION_VOLUME));
-         GVWrite(PosKey(pid,"RECON_SL"),PositionGetDouble(POSITION_SL));
-         GVWrite(PosKey(pid,"RECON_TP"),PositionGetDouble(POSITION_TP));
-      }
-   }
+   // MqlTradeRequest is authoritative only for TRADE_TRANSACTION_REQUEST.
+   // Do not infer manual POSITION modifications from request.magic here.
+   // Periodic broker reconciliation compares current SL/TP/volume with explicit
+   // EA modification intents and flags only unexplained external changes.
 
+   if(injectDuplicate)
+   {
+      // Simulate delivery of the same callback a second time. The duplicate
+      // signature guard is the only state transition the duplicate may cause.
+      if(h==g_lastTransactionSignature && now-g_lastTransactionTime<=2)
+         GVWrite(SysKey("DUPLICATE_TRADE_CALLBACK"),GVRead(SysKey("DUPLICATE_TRADE_CALLBACK"),0)+1);
+   }
 }
 
 void ExecutionReliabilityInit()

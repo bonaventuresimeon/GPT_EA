@@ -14496,8 +14496,469 @@ void NotifyCardObserved(const string card)
    NotifyCard(card);
 }
 // ===== END INLINED GPT_EA_Part23_IntelligenceObservability.mqh =====
-#include "GPT_EA_Part06.mqh"
-#include "GPT_EA_Part13_AdvancedPositionManager.mqh"
+// ===== BEGIN INLINED GPT_EA_Part06.mqh =====
+bool ReducePosition(ulong ticket,double closeVolume)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   long type=PositionGetInteger(POSITION_TYPE);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   closeVolume=NormalizeVolumeDown(sym,MathMin(closeVolume,vol));
+   if(closeVolume<=0 || closeVolume>=vol) return trade.PositionClose(ticket,InpMaxSlippagePoints);
+
+   long marginMode=AccountInfoInteger(ACCOUNT_MARGIN_MODE);
+   if(marginMode==ACCOUNT_MARGIN_MODE_RETAIL_HEDGING)
+      return trade.PositionClosePartial(ticket,closeVolume,InpMaxSlippagePoints);
+
+   // Netting/exchange: reduce by opposite market deal.
+   trade.SetExpertMagicNumber(InpMagic); trade.SetDeviationInPoints(InpMaxSlippagePoints); trade.SetTypeFillingBySymbol(sym);
+   if(type==POSITION_TYPE_BUY) return trade.Sell(closeVolume,sym,0,0,0,"CGPT-partial");
+   return trade.Buy(closeVolume,sym,0,0,0,"CGPT-partial");
+}
+
+int BarsSince(const string sym,ENUM_TIMEFRAMES tf,datetime from)
+{
+   int n=Bars(sym,tf,from,TimeTradeServer());
+   return MathMax(0,n-1);
+}
+
+bool MomentumStillAligned(const string sym,bool bull)
+{
+   double e20h1,e50h1,r15;
+   if(!EMAValue(sym,PERIOD_H1,InpFastEMA,1,e20h1) || !EMAValue(sym,PERIOD_H1,InpSlowEMA,1,e50h1) || !RSIValue(sym,PERIOD_M15,InpRSIPeriod,1,r15)) return false;
+   return bull ? (e20h1>e50h1 && r15>=50.0) : (e20h1<e50h1 && r15<=50.0);
+}
+
+bool NearNextBarrier(const string sym,bool bull,double &barrier)
+{
+   double hi,lo,atr;
+   if(!RecentHighLow(sym,PERIOD_M15,1,InpSwingBars,hi,lo) || !ATRValue(sym,PERIOD_M15,InpATRPeriod,1,atr)) return false;
+   barrier=(bull?hi:lo);
+   MqlTick t; if(!GetTickSafe(sym,t)) return false;
+   double p=(bull?t.bid:t.ask);
+   return MathAbs(p-barrier)<=0.25*atr;
+}
+
+bool M5ReversalAgainst(const string sym,bool bull)
+{
+   double rsi,e20,c;
+   if(!RSIValue(sym,PERIOD_M5,InpRSIPeriod,1,rsi) || !EMAValue(sym,PERIOD_M5,InpFastEMA,1,e20) || !CloseValue(sym,PERIOD_M5,1,c)) return false;
+   return bull ? (rsi<48.0 && c<e20) : (rsi>52.0 && c>e20);
+}
+
+void ManagePositions()
+{
+   trade.SetExpertMagicNumber(InpMagic); trade.SetDeviationInPoints(InpMaxSlippagePoints);
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket=PositionGetTicket(i); if(ticket==0 || !PositionSelectByTicket(ticket)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      string sym=PositionGetString(POSITION_SYMBOL);
+      long type=PositionGetInteger(POSITION_TYPE);
+      bool bull=(type==POSITION_TYPE_BUY);
+      double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl=PositionGetDouble(POSITION_SL);
+      double vol=PositionGetDouble(POSITION_VOLUME);
+      datetime opened=(datetime)PositionGetInteger(POSITION_TIME);
+      MqlTick t; if(!GetTickSafe(sym,t)) continue;
+      double px=(bull?t.bid:t.ask);
+
+      double initSL=GVGet(ticket,"INITSL",sl);
+      double tp1=GVGet(ticket,"TP1",0);
+      double tp2=GVGet(ticket,"TP2",0);
+      int expiry=(int)GVGet(ticket,"EXP",InpPullbackExpiryM15);
+      bool tp1done=(GVGet(ticket,"TP1DONE",0)>0.5);
+      if(tp1<=0)
+      {
+         double R=MathAbs(entry-initSL); tp1=(bull?entry+R:entry-R); tp2=(bull?entry+2*R:entry-2*R);
+         GVSet(ticket,"TP1",tp1); GVSet(ticket,"TP2",tp2); GVSet(ticket,"EXP",expiry);
+      }
+
+      bool reached=(bull?px>=tp1:px<=tp1);
+      if(reached && !tp1done)
+      {
+         double closeVol=vol*InpPartialAtTP1Percent/100.0;
+         if(InpPartialAtTP1Percent>0 && InpPartialAtTP1Percent<100) ReducePosition(ticket,closeVol);
+         if(PositionSelectByTicket(ticket) && InpMoveSLToBEAfterTP1)
+         {
+            double atr=0; ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
+            double be=(bull?entry+InpBECostATRFrac*atr:entry-InpBECostATRFrac*atr);
+            double currentTP=PositionGetDouble(POSITION_TP);
+            ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+            double expectedSL=NormPrice(sym,be);
+            GVWrite(PosKey(pid,"EA_EXPECT_SL"),expectedSL);
+            GVWrite(PosKey(pid,"EA_EXPECT_TP"),currentTP);
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
+            if(!trade.PositionModify(ticket,expectedSL,currentTP))
+               GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+         }
+         GVSet(ticket,"TP1DONE",1);
+         tp1done=true;
+      }
+
+      // Time-based invalidation: before TP1, no result after adaptive candle budget => exit.
+      if(!tp1done && BarsSince(sym,PERIOD_M15,opened)>=expiry)
+      {
+         Print(sym,": time invalidation — TP1 not reached within ",expiry," M15 candles.");
+         trade.PositionClose(ticket,InpMaxSlippagePoints);
+         continue;
+      }
+
+      // After TP1, stale near next barrier + momentum failure => close remainder.
+      if(tp1done)
+      {
+         double barrier=0;
+         bool near=NearNextBarrier(sym,bull,barrier);
+         bool stalled=(BarsSince(sym,PERIOD_M5,opened)>=InpPostTP1StallM5);
+         if(near && stalled && (!MomentumStillAligned(sym,bull) || M5ReversalAgainst(sym,bull)))
+         {
+            PrintFormat("%s: closing remainder after TP1; stall near %.5f with momentum deterioration.",sym,barrier);
+            trade.PositionClose(ticket,InpMaxSlippagePoints);
+            continue;
+         }
+      }
+   }
+}
+
+// ---------------------- Approval workflow -------------------------
+void DeleteApprovalObjects()
+{
+   ObjectDelete(0,BTN_APPROVE);
+   ObjectDelete(0,BTN_DENY);
+   ObjectDelete(0,LBL_PROMPT);
+   ChartRedraw();
+}
+
+int FirstActivePending()
+{
+   for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) return i;
+   return -1;
+}
+
+int ActivePendingForSymbol(const string sym)
+{
+   for(int i=0;i<ArraySize(g_pending);i++)
+      if(g_pending[i].active && g_pending[i].setup.symbol==sym) return i;
+   return -1;
+}
+
+void RenderApprovalPrompt()
+{
+   int idx=FirstActivePending();
+   g_displayPending=idx;
+   if(idx<0){ DeleteApprovalObjects(); return; }
+
+   int remain=(int)MathMax(0,(long)(g_pending[idx].expiresAt-TimeTradeServer()));
+   TradeSetup s=g_pending[idx].setup;
+   string kind=(s.kind==SETUP_PULLBACK?"PULLBACK":(s.kind==SETUP_BREAKOUT?"BREAKOUT":"BREAKOUT-RETEST"));
+   string txt=StringFormat(
+      "TRADE APPROVAL REQUIRED | %s %s | %s | Confidence %d%% | Expires in %ds\nEntry %.5f | SL %.5f | TP1 %.5f | TP2 %.5f | TP3 %.5f",
+      s.symbol,Arrow(s.bullish),kind,s.confidence,remain,s.preferred,s.sl,s.tp1,s.tp2,s.tp3);
+
+   if(ObjectFind(0,LBL_PROMPT)<0) ObjectCreate(0,LBL_PROMPT,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,LBL_PROMPT,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,LBL_PROMPT,OBJPROP_XDISTANCE,20);
+   ObjectSetInteger(0,LBL_PROMPT,OBJPROP_YDISTANCE,25);
+   ObjectSetInteger(0,LBL_PROMPT,OBJPROP_FONTSIZE,10);
+   ObjectSetString(0,LBL_PROMPT,OBJPROP_TEXT,txt);
+
+   if(ObjectFind(0,BTN_APPROVE)<0) ObjectCreate(0,BTN_APPROVE,OBJ_BUTTON,0,0,0);
+   ObjectSetInteger(0,BTN_APPROVE,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,BTN_APPROVE,OBJPROP_XDISTANCE,20);
+   ObjectSetInteger(0,BTN_APPROVE,OBJPROP_YDISTANCE,78);
+   ObjectSetInteger(0,BTN_APPROVE,OBJPROP_XSIZE,125);
+   ObjectSetInteger(0,BTN_APPROVE,OBJPROP_YSIZE,30);
+   ObjectSetString(0,BTN_APPROVE,OBJPROP_TEXT,"APPROVE TRADE");
+
+   if(ObjectFind(0,BTN_DENY)<0) ObjectCreate(0,BTN_DENY,OBJ_BUTTON,0,0,0);
+   ObjectSetInteger(0,BTN_DENY,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+// ===== END INLINED GPT_EA_Part06.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part13_AdvancedPositionManager.mqh =====
+// ============================================================================
+// GPT_EA Part 13 - Advanced position manager
+// ============================================================================
+
+bool RestoreMissingProtectiveStop(ulong ticket)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) return false;
+   double currentSL=PositionGetDouble(POSITION_SL);
+   if(currentSL>0) return true;
+
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   if(initSL<=0)
+   {
+      Print(sym,": CRITICAL - open GPT_EA position has no SL and no recoverable original SL.");
+      return false;
+   }
+
+   string why="";
+   double restoredSL=NormalizePriceToTick(sym,initSL);
+   if(!StopBrokerSafe(sym,bull,restoredSL,why))
+   {
+      Print(sym,": cannot restore missing protective SL yet - ",why);
+      return false;
+   }
+   double tp=PositionGetDouble(POSITION_TP);
+   if(ChaosInjectStopModifyFailure())
+   {
+      GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
+      Print(sym,": CHAOS synthetic protective-stop restoration failure.");
+      return false;
+   }
+   GVWrite(PosKey(pid,"EA_EXPECT_SL"),restoredSL);
+   GVWrite(PosKey(pid,"EA_EXPECT_TP"),tp);
+   GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
+   if(!trade.PositionModify(ticket,restoredSL,tp))
+   {
+      GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+      Print(sym,": failed to restore missing protective SL - ",trade.ResultRetcodeDescription());
+      return false;
+   }
+   Print(sym,": CRITICAL recovery action - protective SL restored from durable state/history.");
+   ClearStopFailureState(ticket,"missing protective SL restored");
+   SafeUniversalCheckpointNow();
+   return true;
+}
+
+ulong RefreshTicketFromPositionId(ulong pid,ulong fallback)
+{
+   ulong current=FindOpenTicketByIdentifier(pid);
+   return current>0?current:fallback;
+}
+
+bool PositionFlag(ulong pid,ulong ticket,const string field)
+{
+   return (GVRead(PosKey(pid,field),LegacyTicketRead(ticket,field,0))>0.5);
+}
+
+void WritePositionFlag(ulong pid,ulong ticket,const string field,double value)
+{
+   GVWrite(PosKey(pid,field),value);
+   LegacyTicketWrite(ticket,field,value);
+}
+
+void EnsurePartialProtectionStartObserved(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(GVRead(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0)>0.5) return;
+   GVWrite(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),1);
+   RecordPartialProtectionObservation(ticket,"PARTIAL_PROTECTION_STARTED",reason);
+}
+
+void CompletePartialProtectionObservation(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(GVRead(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0)<=0.5) return;
+   RecordPartialProtectionObservation(ticket,"PARTIAL_PROTECTION_COMPLETED",reason);
+   GVWrite(PosKey(pid,"PARTIAL_PROTECT_STARTED_LOGGED"),0);
+}
+
+bool HandleTP1State(ulong &ticket,double px,double tp1,bool bull)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool reached=(bull?px>=tp1:px<=tp1);
+   if(!reached) return PositionFlag(pid,ticket,"TP1DONE");
+
+   bool partialDone=PositionFlag(pid,ticket,"TP1PARTIAL");
+   if(!partialDone)
+   {
+      bool partialOK=true;
+      double vol=PositionGetDouble(POSITION_VOLUME);
+      if(InpPartialAtTP1Percent>0 && InpPartialAtTP1Percent<100.0)
+      {
+         double closeVol=vol*InpPartialAtTP1Percent/100.0;
+         partialOK=ReducePosition(ticket,closeVol);
+      }
+      else if(InpPartialAtTP1Percent>=100.0)
+      {
+         partialOK=trade.PositionClose(ticket,InpMaxSlippagePoints);
+         if(partialOK) return true;
+      }
+      if(!partialOK)
+      {
+         Print(sym,": TP1 reached but partial close failed; state remains retryable - ",trade.ResultRetcodeDescription());
+         return false;
+      }
+      ticket=RefreshTicketFromPositionId(pid,ticket);
+      if(!PositionSelectByTicket(ticket)) return true;
+      WritePositionFlag(pid,ticket,"TP1PARTIAL",1);
+      double now=(double)TimeTradeServer();
+      GVWrite(PosKey(pid,"TP1_TIME"),now);
+      LegacyTicketWrite(ticket,"TP1_TIME",now);
+      if(InpMoveSLToBEAfterTP1 && !PositionProtectedAtOrBeyondBE(ticket))
+         EnsurePartialProtectionStartObserved(ticket,"TP1 scale-out completed; required breakeven protection is pending.");
+      SafeUniversalCheckpointNow();
+   }
+
+   double rNow=0,R=0,entry=0,livePx=0; bool liveBull=true;
+   if(!CurrentPositionR(ticket,rNow,R,entry,livePx,liveBull)) return false;
+   bool protectionReady=!InpMoveSLToBEAfterTP1;
+   if(InpMoveSLToBEAfterTP1)
+   {
+      if(PositionProtectedAtOrBeyondBE(ticket))
+      {
+         protectionReady=true;
+         ClearStopFailureState(ticket,"TP1 breakeven protection already satisfied");
+      }
+      else
+      {
+         EnsurePartialProtectionStartObserved(ticket,"TP1 partial remains complete while breakeven protection is pending.");
+         if(StopUpdateRetryDue(pid))
+         {
+            EnsureBreakEvenProtection(ticket,rNow,R,entry,liveBull);
+            protectionReady=PositionProtectedAtOrBeyondBE(ticket);
+            AuditStopUpdateAttempt(ticket,rNow,"TP1 breakeven");
+         }
+      }
+   }
+
+   if(protectionReady)
+   {
+      WritePositionFlag(pid,ticket,"TP1DONE",1);
+      if(GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0))<=0)
+      {
+         double now=(double)TimeTradeServer();
+         GVWrite(PosKey(pid,"TP1_TIME"),now);
+         LegacyTicketWrite(ticket,"TP1_TIME",now);
+      }
+      CompletePartialProtectionObservation(ticket,"TP1 partial and required breakeven protection are complete.");
+      SafeUniversalCheckpointNow();
+      return true;
+   }
+
+   Print(sym,": TP1 partial completed, but BE protection is not yet broker-valid; retry policy remains active.");
+   return false;
+}
+
+bool HandleTP2Partial(ulong &ticket,double px,double tp2,bool bull,double rNow)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(PositionFlag(pid,ticket,"TP2PARTIAL")) return true;
+   bool reached=(bull?px>=tp2:px<=tp2) || rNow>=2.0;
+   if(!reached) return false;
+
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   bool ok=true;
+   if(InpPartialAtTP2Percent>0 && InpPartialAtTP2Percent<100.0)
+      ok=ReducePosition(ticket,vol*InpPartialAtTP2Percent/100.0);
+   else if(InpPartialAtTP2Percent>=100.0)
+      ok=trade.PositionClose(ticket,InpMaxSlippagePoints);
+
+   if(!ok)
+   {
+      Print(sym,": TP2 partial failed; state remains retryable - ",trade.ResultRetcodeDescription());
+      return false;
+   }
+
+   ticket=RefreshTicketFromPositionId(pid,ticket);
+   if(PositionSelectByTicket(ticket))
+   {
+      WritePositionFlag(pid,ticket,"TP2PARTIAL",1);
+      double now=(double)TimeTradeServer();
+      GVWrite(PosKey(pid,"TP2_TIME"),now);
+      LegacyTicketWrite(ticket,"TP2_TIME",now);
+      SafeUniversalCheckpointNow();
+   }
+   return true;
+}
+
+void ManagePositionsAdvanced()
+{
+   RefreshStopFailurePolicyConfigGate();
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetDeviationInPoints(InpMaxSlippagePoints);
+
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket=PositionGetTicket(i);
+      if(ticket==0 || !PositionSelectByTicket(ticket)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+
+      string sym=PositionGetString(POSITION_SYMBOL);
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+      double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+      datetime opened=(datetime)PositionGetInteger(POSITION_TIME);
+
+      // Existing positions remain managed even when release gates block new entries.
+      if(!RestoreMissingProtectiveStop(ticket))
+      {
+         HandleUnprotectedStopFailure(ticket,"protective SL missing and restoration did not succeed");
+         continue;
+      }
+      if(!PositionSelectByTicket(ticket)) continue;
+
+      double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",PositionGetDouble(POSITION_SL)));
+      if(initSL<=0) initSL=HistoricalInitialSL(pid);
+      double R=MathAbs(entry-initSL);
+      if(R<=0) continue;
+
+      double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
+      double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
+      double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
+      int expiry=(int)LegacyTicketRead(ticket,"EXP",InpPullbackExpiryM15);
+      LegacyTicketWrite(ticket,"TP1",tp1);
+      LegacyTicketWrite(ticket,"TP2",tp2);
+      LegacyTicketWrite(ticket,"TP3",tp3);
+      LegacyTicketWrite(ticket,"EXP",expiry);
+
+      MqlTick tick; if(!GetTickSafe(sym,tick)) continue;
+      double px=(bull?tick.bid:tick.ask);
+
+      bool tp1done=HandleTP1State(ticket,px,tp1,bull);
+      ticket=RefreshTicketFromPositionId(pid,ticket);
+      if(!PositionSelectByTicket(ticket)) continue;
+
+      if(!tp1done && BarsSince(sym,PERIOD_M15,opened)>=expiry)
+      {
+         Print(sym,": time invalidation — TP1 not reached within ",expiry," M15 candles.");
+         trade.PositionClose(ticket,InpMaxSlippagePoints);
+         continue;
+      }
+
+      double rNow=0,liveR=0,liveEntry=0,livePx=0; bool liveBull=true;
+      if(!CurrentPositionR(ticket,rNow,liveR,liveEntry,livePx,liveBull)) continue;
+
+      if(tp1done)
+      {
+         if(StopUpdateRetryDue(pid))
+         {
+            AdvanceProfitProtection(ticket,rNow,liveR,liveEntry,livePx,liveBull);
+            AuditStopUpdateAttempt(ticket,rNow,"post-TP1 profit protection");
+         }
+         ticket=RefreshTicketFromPositionId(pid,ticket);
+         if(!PositionSelectByTicket(ticket)) continue;
+
+         HandleTP2Partial(ticket,livePx,tp2,liveBull,rNow);
+         ticket=RefreshTicketFromPositionId(pid,ticket);
+         if(!PositionSelectByTicket(ticket)) continue;
+
+         datetime tp1Time=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0));
+         if(tp1Time<=0) tp1Time=TimeTradeServer();
+         double barrier=0;
+         bool near=NearNextBarrier(sym,liveBull,barrier);
+         bool stalled=(BarsSince(sym,PERIOD_M5,tp1Time)>=InpPostTP1StallM5);
+         if(near && stalled && (!MomentumStillAligned(sym,liveBull) || M5ReversalAgainst(sym,liveBull)))
+         {
+            PrintFormat("%s: closing managed remainder; post-TP1 stall near %.5f with momentum deterioration.",sym,barrier);
+            trade.PositionClose(ticket,InpMaxSlippagePoints);
+            continue;
+         }
+      }
+   }
+}
+// ===== END INLINED GPT_EA_Part13_AdvancedPositionManager.mqh =====
 
 // Scanner/approval path uses the adaptive execution wrappers while older modules retain
 // their original deterministic functions.
@@ -14514,7 +14975,473 @@ void NotifyCardObserved(const string card)
 #define NewsIntermarketInit NewsIntermarketInitR5
 #define NewsIntermarketTimer NewsIntermarketTimerR5
 #define DeleteAdvancedDashboard DeleteAdvancedDashboardR5
-#include "GPT_EA_Part07.mqh"
+// ===== BEGIN INLINED GPT_EA_Part07.mqh =====
+// ============================================================================
+// GPT_EA Part 07 - Approval workflow, full intelligence scanner and MT5 hooks
+// ============================================================================
+
+void DeletePending(const int idx,const string reason)
+{
+   if(idx<0 || idx>=ArraySize(g_pending) || !g_pending[idx].active) return;
+   string sym=g_pending[idx].setup.symbol;
+   g_pending[idx].active=false;
+   if(StringFind(reason,"denied")>=0 || StringFind(reason,"timeout")>=0)
+      MarkSignalCooldown(sym);
+   PersistPendingApprovals();
+   SafeUniversalCheckpointNow();
+   PrintFormat("%s pending setup deleted: %s",sym,reason);
+   if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
+      SendNotification(StringFormat("%s pending setup deleted: %s",sym,reason));
+   RenderApprovalPrompt();
+   StyleApprovalUI();
+}
+
+void QueueForApproval(const TradeSetup &s,const string card,const string scanReason)
+{
+   if(!s.valid) return;
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   {
+      Print(s.symbol,": approval prompt suppressed by release gate - ",releaseWhy);
+      return;
+   }
+   string stopWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopWhy))
+   {
+      Print(s.symbol,": approval prompt suppressed by partial-protection/stop gate - ",stopWhy);
+      return;
+   }
+
+   datetime now=TimeTradeServer();
+   int timeout=MathMax(10,InpApprovalTimeoutSeconds);
+   int idx=ActivePendingForSymbol(s.symbol);
+   if(idx<0)
+   {
+      idx=ArraySize(g_pending);
+      ArrayResize(g_pending,idx+1);
+   }
+   g_pending[idx].active=true;
+   g_pending[idx].setup=s;
+   g_pending[idx].card=card;
+   g_pending[idx].scanReason=scanReason;
+   g_pending[idx].createdAt=now;
+   g_pending[idx].expiresAt=now+timeout;
+   PersistPendingApprovals();
+   SafeUniversalCheckpointNow();
+   RenderApprovalPrompt();
+   StyleApprovalUI();
+
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(s.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   string msg=StringFormat("GPT_EA approval required: %s %s %s. APPROVE or DENY within %d seconds.",s.symbol,StrategyClassName(cls),Arrow(s.bullish),timeout);
+   Print(msg);
+   if(InpApprovalAlert && InpEnableAlerts) Alert(msg);
+   if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(msg);
+}
+
+void ProcessApprovalTimeouts()
+{
+   datetime now=TimeTradeServer();
+   for(int i=0;i<ArraySize(g_pending);i++)
+      if(g_pending[i].active && now>=g_pending[i].expiresAt)
+         DeletePending(i,"approval timeout - no user response");
+   RenderApprovalPrompt();
+   StyleApprovalUI();
+}
+
+bool StrategyAwareConfluenceGate(TradeSetup &s,ConfluenceReport &r,StrategyClass cls,string &why)
+{
+   why="";
+   bool nonTrend=(cls==STRATEGY_COUNTER_TREND_SCALP || cls==STRATEGY_COUNTER_TREND_SWING || cls==STRATEGY_POTENTIAL_REVERSAL ||
+                  cls==STRATEGY_RANGE_TRADE || cls==STRATEGY_MEAN_REVERSION);
+   if(!nonTrend)
+   {
+      ApplyAdvancedConfluence(s,r);
+      if(InpUseAdvancedConfluence && !r.valid){ why=StringFormat("standard confluence invalid at %d/100",r.score); return false; }
+   }
+   else
+   {
+      // Counter-trend/range strategies are intentionally allowed to disagree with HTF direction,
+      // but must still pass spread/proximity/strategy-specific confirmation and a demanding score.
+      int required=(cls==STRATEGY_COUNTER_TREND_SCALP || cls==STRATEGY_COUNTER_TREND_SWING || cls==STRATEGY_POTENTIAL_REVERSAL)?InpMinCounterTrendScore:InpMinStrategyScore;
+      s.confidence=(int)MathRound(0.65*s.confidence+0.35*r.score);
+      if(!r.spreadOK || s.confidence<MathMin(99,required-5))
+      { s.valid=false; why=StringFormat("non-trend confluence insufficient: score %d confidence %d",r.score,s.confidence); return false; }
+      r.valid=true;
+   }
+   why=StringFormat("strategy-aware confluence PASS %d/100",r.score);
+   return true;
+}
+
+bool FreshApprovalValidation(const TradeSetup &s,string &why)
+{
+   why="";
+   if(!s.valid){ why="Stored setup is no longer marked valid."; return false; }
+
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   { why="Release safety gate failed: "+releaseWhy; return false; }
+
+   string stopWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopWhy))
+   { why="Partial-protection/stop gate failed: "+stopWhy; return false; }
+
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(s.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   if(cls==STRATEGY_NO_TRADE){ why="No valid strategy classification remains."; return false; }
+   if(!PriceInsideZone(s)){ why="Price left the approved entry zone."; return false; }
+   if(!StrategyExecutionTrigger(s,cls)){ why="Strategy-specific M5 execution trigger is no longer present."; return false; }
+
+   TradeSetup live=s;
+   live.sl=NormalizePriceToTick(live.symbol,live.sl);
+   live.tp1=NormalizePriceToTick(live.symbol,live.tp1);
+   live.tp2=NormalizePriceToTick(live.symbol,live.tp2);
+   live.tp3=NormalizePriceToTick(live.symbol,live.tp3);
+
+   ConfluenceReport fresh=EvaluateConfluence(live);
+   string confWhy="";
+   if(!StrategyAwareConfluenceGate(live,fresh,cls,confWhy))
+   { why="Confluence revalidation failed: "+confWhy; return false; }
+
+   string institutional="";
+   EnhanceSetupWithInstitutionalFilters(live,fresh,institutional);
+   if(!live.valid && cls!=STRATEGY_COUNTER_TREND_SCALP && cls!=STRATEGY_COUNTER_TREND_SWING && cls!=STRATEGY_POTENTIAL_REVERSAL)
+   { why="Institutional/regime validation failed: "+institutional; return false; }
+
+   string intelWhy="";
+   if(!PreEntryIntelligenceRevalidation(live,intelWhy))
+   { why="Deep pre-entry intelligence failed: "+intelWhy; return false; }
+
+   double liveRR=EffectiveRRDynamic(live);
+   double rrFloor=(cls==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR);
+   if(liveRR<rrFloor)
+   { why=StringFormat("Effective R:R deteriorated to %.2f below %.2f strategy floor.",liveRR,rrFloor); return false; }
+
+   double atr=0; ATRValue(s.symbol,PERIOD_M15,InpATRPeriod,1,atr);
+   string sessionText="";
+   if(SessionConditionInvalidates(s.symbol,s.preferred,atr,sessionText))
+   { why=sessionText; return false; }
+
+   string riskWhy="";
+   if(!PreAuthorizationRiskAllows(live,riskWhy))
+   { why="Risk authorization failed: "+riskWhy; return false; }
+
+   double rm=0,ol=0;
+   double lots=LotSizeForRisk(live,rm,ol);
+   string brokerWhy="";
+   if(lots<=0 || !BrokerExecutionAllows(live,lots,brokerWhy))
+   { why="Broker execution validation failed: "+brokerWhy; return false; }
+
+   string serverWhy="";
+   if(!ServerOrderCheckAllows(live,lots,DynamicSlippagePoints(live.symbol),serverWhy))
+   { why="Server OrderCheck failed: "+serverWhy; return false; }
+   why="Fresh strategy + news + intermarket + confluence + risk + broker validation PASS.";
+   return true;
+}
+
+void ApprovePending(const int idx)
+{
+   if(idx<0 || idx>=ArraySize(g_pending) || !g_pending[idx].active) return;
+   if(TimeTradeServer()>=g_pending[idx].expiresAt)
+   {
+      DeletePending(idx,"approval arrived after timeout");
+      return;
+   }
+
+   TradeSetup s=g_pending[idx].setup;
+   g_pending[idx].active=false;
+   PersistPendingApprovals();
+   SafeUniversalCheckpointNow();
+   RenderApprovalPrompt();
+   StyleApprovalUI();
+
+   string why="";
+   if(!FreshApprovalValidation(s,why))
+   {
+      Print(s.symbol,": APPROVED but final validation failed: ",why," No order opened.");
+      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
+         SendNotification(s.symbol+": approval rejected by fresh validation - "+why);
+      return;
+   }
+
+   if(ApprovedPlaceTrade(s))
+   {
+      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(s.symbol+": APPROVED - trade executed.");
+   }
+   else
+   {
+      Print(s.symbol,": APPROVED but final strategy/news/release/broker/risk validation failed. No order opened.");
+      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER))
+         SendNotification(s.symbol+": approved, but final execution validation failed; no trade opened.");
+   }
+}
+
+string FilterStateText(bool newsBlock,bool yieldBlock,bool spreadOk,bool sessionBlock,bool aiAllows)
+{
+   return StringFormat("Filters: Calendar %s | Yield %s | Spread %s | Session %s | AI %s",
+      newsBlock?"BLOCK":"OK",yieldBlock?"BLOCK":"OK",spreadOk?"OK":"BLOCK",sessionBlock?"BLOCK":"OK",aiAllows?"OK":"VETO");
+}
+
+// ----------------------------- Scanner ----------------------------
+void ScanSymbol(const string sym,const string scanReason)
+{
+   if(!EnsureSymbol(sym)){ Print("Symbol unavailable: ",sym); return; }
+
+   string trend="";
+   bool alignedBull=false,alignedBear=false;
+   int mtfScore=MultiTFScore(sym,trend,alignedBull,alignedBear);
+   bool baseBull=(mtfScore>=0);
+   if(alignedBear) baseBull=false; else if(alignedBull) baseBull=true;
+   int base=BaseConfidenceFromScore(mtfScore,alignedBull,alignedBear,baseBull);
+
+   TradeSetup pb=BuildPullback(sym,baseBull,base,trend);
+   TradeSetup br=BuildBreakoutRetest(sym,baseBull,base,trend);
+
+   // First classify the market and choose the strategy; never force pullback/breakout on every chart.
+   StrategyDecision decision;
+   SelectDynamicStrategy(sym,pb,br,decision);
+   TradeSetup primary=decision.setup;
+   if(primary.symbol=="") primary=(pb.confidence>=br.confidence?pb:br);
+
+   ConfluenceReport pbReport=EvaluateConfluence(pb),brReport=EvaluateConfluence(br),primaryReport=EvaluateConfluence(primary);
+   ApplyAdvancedConfluence(pb,pbReport); ApplyAdvancedConfluence(br,brReport);
+   string pbInstitutional="",brInstitutional="";
+   EnhanceSetupWithInstitutionalFilters(pb,pbReport,pbInstitutional);
+   EnhanceSetupWithInstitutionalFilters(br,brReport,brInstitutional);
+
+   string strategyConfWhy="";
+   bool strategyConfluence=StrategyAwareConfluenceGate(primary,primaryReport,decision.strategy,strategyConfWhy);
+   string primaryInstitutional="";
+   bool institutionalOK=EnhanceSetupWithInstitutionalFilters(primary,primaryReport,primaryInstitutional);
+   if(decision.counterTrend && strategyConfluence)
+   {
+      // HTF opposition is expected for a valid counter-trend setup. Institutional filters remain informative,
+      // while counter-trend score/trigger and hard risk/news gates carry the stricter authorization burden.
+      primary.valid=(primary.valid && primary.effectiveRR1>=MathMax(1.10,InpMinEffectiveRR-0.30));
+      institutionalOK=primary.valid;
+   }
+
+   string newsText="",yieldText="",spreadText="",sessionText="";
+   bool newsBlock=CalendarBlock(sym,newsText);
+   bool yieldBlock=YieldShock(yieldText);
+   bool spreadOk=SpreadOK(sym,spreadText);
+   double atr=0; ATRValue(sym,PERIOD_M15,InpATRPeriod,1,atr);
+   bool sessionBlock=SessionConditionInvalidates(sym,primary.preferred,atr,sessionText);
+
+   IntermarketReport intermarket=AssessIntermarket(sym,primary.bullish);
+   string webText="",webError=""; bool webBlock=false,webWatch=false;
+   bool webAvailable=GetLiveWebIntel(sym,primary,decision,false,webText,webBlock,webWatch,webError);
+   string emergencyWebWhy="";
+   bool emergencyWebBypass=(!webAvailable && g_lastWebIntelFailureClass=="UNAVAILABLE" &&
+                            DeterministicEmergencyExecutionActive(sym,decision.strategy,emergencyWebWhy));
+   if(!webAvailable && InpBlockIfWebIntelUnavailable && !emergencyWebBypass) webBlock=true;
+   if(emergencyWebBypass)
+   {
+      webBlock=false; webWatch=true;
+      webText="DETERMINISTIC_ONLY external-intelligence transport outage bypass | "+emergencyWebWhy+" | "+webText;
+   }
+
+   bool readyNow=(primary.valid && decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE && StrategyExecutionTrigger(primary,decision.strategy));
+   string upcoming=UpcomingEventSummary(sym);
+
+   string card=StrategyDecisionHeader(decision);
+   card+=BuildCard(primary,pb,br,scanReason,newsBlock,newsText,spreadText,spreadOk,yieldBlock,yieldText,sessionBlock,sessionText);
+   card+=ConfluenceCardBlock(primaryReport,upcoming,readyNow);
+   card+=StringFormat("Pullback confluence: %d/100 | Breakout-retest confluence: %d/100 | Selected strategy confluence: %d/100\n",pbReport.score,brReport.score,primaryReport.score);
+   card+="Strategy rationale: "+decision.rationale+"\n";
+   card+="Strategy confirmation: "+decision.confirmation+"\n";
+   card+="Counterargument: "+decision.counterargument+"\n";
+   card+="Institutional validation: "+primaryInstitutional+"\n";
+   card+="Pullback institutional: "+pbInstitutional+"\n";
+   card+="Breakout institutional: "+brInstitutional+"\n";
+   card+="Intermarket: "+intermarket.detail+"\n";
+   card+="Live web/news intelligence: "+webText+"\n";
+   card+="Broker environment: "+BrokerEnvironmentSummary()+"\n";
+   card+="Broker symbol profile: "+SymbolProfileSummary(sym)+"\n";
+
+   string thesis=BuildMandatory25PointThesis(sym,primary,pb,br,decision,primaryReport,newsText,webText,intermarket,spreadText,sessionText);
+   card+=thesis;
+
+   bool aiAvailable=false; string aiAnswer="",aiError="";
+   bool requestAI=(InpUseOpenAI && (!InpAIReviewHighConfidenceOnly || decision.score>=InpMinStrategyScore));
+   if(requestAI)
+   {
+      aiAvailable=CallOpenAI(BuildDeepGPTPrompt(sym,card,thesis,webText,decision),aiAnswer,aiError);
+      if(aiAvailable) card+="\n━━━━━━━━━━━━━━━━━━━━\n🤖 GPT ADVERSARIAL VALIDATION\n━━━━━━━━━━━━━━━━━━━━\n"+aiAnswer+"\n";
+      else card+="\nGPT secondary validation unavailable: "+aiError+"\n";
+   }
+
+   string aiGateWhy="";
+   bool aiAllows=AIReviewAllowsExecution(aiAnswer,aiAvailable,aiGateWhy);
+   if(!requestAI && InpAICanVetoTrade){ aiAllows=true; aiGateWhy="AI review not requested for this candidate."; }
+
+   string releaseWhy=""; bool releaseAllows=ReleaseSafetyAllows(sym,releaseWhy);
+   string stopObsWhy=""; bool stopObsAllows=StopObservabilityAllowsNewEntries(stopObsWhy);
+   string evidenceText=""; bool evidenceAllows=StrategyEvidenceAllows(decision.strategy,evidenceText);
+
+   string riskWhy=""; bool riskAllows=PreAuthorizationRiskAllows(primary,riskWhy);
+   double previewRisk=0,previewOneLot=0;
+   double previewLots=LotSizeForRisk(primary,previewRisk,previewOneLot);
+   string brokerWhy=""; bool brokerAllows=(previewLots>0 && BrokerExecutionAllows(primary,previewLots,brokerWhy));
+   if(previewLots<=0) brokerWhy="Preview lot calculation returned zero.";
+
+   string serverWhy=""; bool serverAllows=false;
+   if(brokerAllows) serverAllows=ServerOrderCheckAllows(primary,previewLots,DynamicSlippagePoints(sym),serverWhy);
+   else serverWhy="Skipped because broker execution gate did not pass.";
+
+   double rrFloor=(decision.strategy==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR);
+   bool strategyActionOK=(decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE);
+   bool hardValid=(strategyActionOK && primary.valid && strategyConfluence && institutionalOK && evidenceAllows &&
+                   !newsBlock && !yieldBlock && !sessionBlock && spreadOk && EffectiveRRDynamic(primary)>=rrFloor &&
+                   !intermarket.severeConflict && !(InpBlockOnWebIntelVerdictBLOCK && webBlock) && aiAllows &&
+                   releaseAllows && stopObsAllows && riskAllows && brokerAllows && serverAllows);
+   bool approvalReady=(hardValid && readyNow);
+
+   string filterState=FilterStateText(newsBlock,yieldBlock,spreadOk,sessionBlock,aiAllows);
+   filterState+=" | Web "+(webBlock?"BLOCK":webWatch?"WATCH":"OK");
+   filterState+=" | Intermarket "+(intermarket.severeConflict?"BLOCK":"OK");
+   filterState+=" | Release "+(releaseAllows?"OK":"BLOCK");
+   filterState+=" | StopRisk "+(stopObsAllows?"OK":"BLOCK");
+   card+="\n"+filterState+"\n";
+   card+="Strategy decision: "+(strategyActionOK?"HIGH-CONFIDENCE":"WAIT/NO TRADE")+" | "+strategyConfWhy+"\n";
+   card+="Historical strategy evidence gate: "+evidenceText+"\n";
+   card+="GPT execution gate: "+aiGateWhy+"\n";
+   card+="Release safety gate: "+(releaseAllows?"PASS":"BLOCK - "+releaseWhy)+"\n";
+   card+="Partial-protection/stop gate: "+stopObsWhy+"\n";
+   card+="Portfolio/risk gate: "+riskWhy+"\n";
+   card+="Broker execution gate: "+brokerWhy+"\n";
+   card+="MT5 OrderCheck gate: "+serverWhy+"\n";
+   card+=StringFormat("Portfolio risk %.2f%% | daily loss %.2f%% | drawdown %.2f%% | consecutive losses %d\n",
+                      CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),ConsecutiveLosses());
+   card+=StringFormat("Dynamic slippage ceiling %d points | dynamic effective R:R %.2f\n",DynamicSlippagePoints(sym),EffectiveRRDynamic(primary));
+   card+=StringFormat("FINAL DECISION: %s\n",approvalReady?"✅ HIGH-CONFIDENCE TRADE SETUP — APPROVE / DENY ACTIVE":
+                     decision.action==STRATEGY_ACTION_NO_TRADE?"❌ NO TRADE":"⏳ WAIT FOR CONFIRMATION / REANALYZE");
+
+   NotifyCard(card);
+   RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
+   UpdateRiskAnalyticsPanel();
+
+   int existing=ActivePendingForSymbol(sym);
+   if(approvalReady)
+   {
+      PersistStrategyCandidate(sym,decision);
+      if(InpRequireApproval) QueueForApproval(primary,card,scanReason);
+      else
+      {
+         string freshWhy="";
+         if(FreshApprovalValidation(primary,freshWhy)) ApprovedPlaceTrade(primary);
+         else Print(sym,": execution skipped after final validation: ",freshWhy);
+      }
+   }
+   else if(existing>=0)
+   {
+      DeletePending(existing,"fresh scan no longer meets complete intelligence/entry conditions");
+   }
+}
+
+void ScanAll(const string reason)
+{
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") ScanSymbol(g_symbols[i],reason);
+}
+
+// -------------------------- MT5 event hooks -----------------------
+int OnInit()
+{
+   if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
+   if(!ResolveConfiguredSymbolsUniversal())
+   { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
+
+   PrintResolvedBrokerProfiles();
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetDeviationInPoints(InpMaxSlippagePoints);
+   ApplyChartPolish();
+   EventSetTimer(MathMax(1,InpTimerSeconds));
+   RiskRecoveryInit();
+   PrepareRecoveryCheckpointFallback();
+   UniversalRecoveryInit();
+   RecoverySafetyAudit();
+   SafeUniversalCheckpointNow();
+   AdvancedSafetyInit();
+   StopFailurePolicyInit();
+   StopFailureObservabilityInit();
+   StrategyIntelligenceInit();
+   NewsIntermarketInit();
+
+   Print("GPT_EA Full Intelligence initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
+         ", Timeout=",InpApprovalTimeoutSeconds,"s",
+         ", Min strategy=",InpMinStrategyScore,
+         ", Min confluence=",InpMinAdvancedConfluence,
+         ", Portfolio cap=",DoubleToString(InpMaxPortfolioRiskPercent,2),"%",
+         ", Live web intel=",InpUseLiveWebIntelligence?"ON":"OFF",
+         ", ReleaseGate=",ReleaseGateSummary());
+
+   if(InpUseOpenAI && StringLen(Trim(InpOpenAIAPIKey))<20)
+      Print("OpenAI enabled but API key is blank. Enter it locally in EA Inputs. Never commit the key.");
+   if(InpUseOpenAI || InpUseLiveWebIntelligence)
+      Print("MT5 WebRequest allow-list must include: https://api.openai.com");
+
+   ScanAll("EA startup / restart recovery full-intelligence scan");
+   RenderApprovalPrompt(); StyleApprovalUI(); UpdateRiskAnalyticsPanel(); SafeUniversalCheckpointNow();
+   return INIT_SUCCEEDED;
+}
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+   UniversalRecoveryShutdown();
+   BackupRecoveryCheckpointIfValid();
+   RiskRecoveryShutdown();
+   DeleteApprovalObjects();
+   DeleteAdvancedDashboard();
+   Comment("");
+}
+
+void OnTimer()
+{
+   // Existing positions remain managed even if new-entry intelligence or release gates are blocked.
+   ManagePositionsAdvanced();
+   ProcessApprovalTimeouts();
+   RiskRecoveryTimer();
+   SafeUniversalRecoveryTimer();
+   AdvancedSafetyTimer();
+   StopFailurePolicyTimer();
+   StopFailureObservabilityTimer();
+   StrategyIntelligenceTimer();
+   NewsIntermarketTimer();
+   StyleApprovalUI();
+
+   string why="";
+   if(ScheduledScanDue(why)) ScanAll(why);
+}
+
+void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
+{
+   HandleReliabilityTradeTransaction(trans,request,result);
+}
+
+void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)
+{
+   if(id!=CHARTEVENT_OBJECT_CLICK) return;
+   if(sparam==BTN_SCAN_NOW)
+   {
+      ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
+      ScanAll("Manual SCAN NOW"); return;
+   }
+   if(sparam==BTN_PAUSE)
+   {
+      ObjectSetInteger(0,BTN_PAUSE,OBJPROP_STATE,false);
+      ToggleTradingPause(); SafeUniversalCheckpointNow(); UpdateRiskAnalyticsPanel();
+      if(g_manualPaused) for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
+      return;
+   }
+   if(g_displayPending<0) return;
+   if(sparam==BTN_APPROVE){ ObjectSetInteger(0,BTN_APPROVE,OBJPROP_STATE,false); ApprovePending(g_displayPending); }
+   else if(sparam==BTN_DENY){ ObjectSetInteger(0,BTN_DENY,OBJPROP_STATE,false); DeletePending(g_displayPending,"user denied trade"); }
+}
+
+void OnTick()
+{
+   // Multi-symbol intelligence scans, approval expiry, recovery and position management are timer-driven.
+}
+// ===== END INLINED GPT_EA_Part07.mqh =====
 #undef DeleteAdvancedDashboard
 #undef NewsIntermarketTimer
 #undef NewsIntermarketInit

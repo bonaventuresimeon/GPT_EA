@@ -319,7 +319,7 @@ def main() -> int:
     for inc in includes:
         if not repo_path(inc).exists(): errors.append(f"local include missing: {inc}")
 
-    source_files = [MAIN] + [ROOT / inc for inc in includes if repo_path(inc).exists()]
+    source_files = [MAIN] + [repo_path(inc) for inc in includes if repo_path(inc).exists()]
     seen_inputs: dict[str, str] = {}
     input_re = re.compile(r'^\s*input\s+[A-Za-z_][\w<>]*\s+([A-Za-z_]\w*)', re.M)
     for path in source_files:

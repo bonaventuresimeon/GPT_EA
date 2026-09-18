@@ -42,8 +42,16 @@ bool PreEntryIntelligenceRevalidationStrict(const TradeSetup &s,string &why)
 
    string web="",err=""; bool block=false,watch=false;
    bool webOK=GetLiveWebIntel(s.symbol,s,d,true,web,block,watch,err);
-   if(!webOK || (InpBlockOnWebIntelVerdictBLOCK && block))
-   { why="Live news/web intelligence invalidated execution: "+web; return false; }
+   string emergencyWebWhy="";
+   bool emergencyWebBypass=(!webOK && g_lastWebIntelFailureClass=="UNAVAILABLE" &&
+                            DeterministicEmergencyExecutionActive(s.symbol,expected,emergencyWebWhy));
+   if((!webOK && !emergencyWebBypass) || (webOK && InpBlockOnWebIntelVerdictBLOCK && block))
+   { why="Live news/web intelligence invalidated execution: "+web+" | class "+g_lastWebIntelFailureClass; return false; }
+   if(emergencyWebBypass)
+   {
+      block=false; watch=true;
+      web="DETERMINISTIC_ONLY external-intelligence transport outage bypass | "+emergencyWebWhy+" | "+web;
+   }
 
    string cal=""; if(CalendarBlock(s.symbol,cal)){ why="Economic calendar now blocks execution: "+cal; return false; }
    string yield=""; if(YieldShock(yield)){ why="Treasury-yield shock now blocks execution: "+yield; return false; }
@@ -56,6 +64,7 @@ bool PreEntryIntelligenceRevalidationStrict(const TradeSetup &s,string &why)
    GVWrite(SymKey(s.symbol,"CAND_STATE"),(double)d.state);
    GVWrite(SymKey(s.symbol,"CAND_SCORE"),(double)d.score);
    GVWrite(SymKey(s.symbol,"CAND_TIME"),(double)TimeTradeServer());
-   why="Strict pre-entry intelligence PASS | "+StrategyClassName(expected)+" remains valid | "+MarketStateName(d.state)+" | "+im.detail+(watch?" | web WATCH":" | web CLEAR");
+   why="Strict pre-entry intelligence PASS | "+StrategyClassName(expected)+" remains valid | "+MarketStateName(d.state)+" | "+im.detail+
+       (emergencyWebBypass?" | deterministic-only transport fallback":(watch?" | web WATCH":" | web CLEAR"));
    return true;
 }

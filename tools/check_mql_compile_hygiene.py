@@ -28,6 +28,9 @@ def iter_calls(name: str):
         start = source.find(token, pos)
         if start < 0:
             return
+        if start > 0 and (source[start - 1].isalnum() or source[start - 1] == "_"):
+            pos = start + len(token)
+            continue
         i = start + len(token)
         depth = 1
         args = 1

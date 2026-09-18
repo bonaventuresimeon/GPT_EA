@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
-PART37=(ROOT/"GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37_APITransport.mqh").exists() else ""
-COMPAT=(ROOT/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37A_APICompat.mqh").exists() else ""
+PART37=(MQH/"GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8") if (MQH/"GPT_EA_Part37_APITransport.mqh").exists() else ""
+COMPAT=(MQH/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (MQH/"GPT_EA_Part37A_APICompat.mqh").exists() else ""
 TEMPLATE=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
 errors=[]
 

@@ -61,7 +61,7 @@
       "required": true
     },
     {
-      "path": "RELEASE_TRUTH_DASHBOARD.md",
+      "path": "docs/RELEASE_TRUTH_DASHBOARD.md",
       "evidence_type": "release_truth_dashboard",
       "required": true
     },
@@ -76,12 +76,12 @@
       "required": true
     },
     {
-      "path": "ADR_INDEX.md",
+      "path": "docs/ADR_INDEX.md",
       "evidence_type": "architecture_decision_index",
       "required": true
     },
     {
-      "path": "ADR_SUPERSESSION_POLICY.md",
+      "path": "docs/ADR_SUPERSESSION_POLICY.md",
       "evidence_type": "architecture_decision_policy",
       "required": true
     }

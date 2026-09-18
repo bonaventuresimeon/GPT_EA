@@ -1599,32 +1599,6 @@ void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const
       filterState,action);
    ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
 
-   if(InpShowStopMovementRules)
-   {
-      if(ObjectFind(0,DASH_RULES)<0) ObjectCreate(0,DASH_RULES,OBJ_LABEL,0,0,0);
-      ObjectSetInteger(0,DASH_RULES,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0,DASH_RULES,OBJPROP_XDISTANCE,InpDashboardX+22);
-      ObjectSetInteger(0,DASH_RULES,OBJPROP_YDISTANCE,InpDashboardY+362);
-      ObjectSetInteger(0,DASH_RULES,OBJPROP_COLOR,C'192,171,230');
-      ObjectSetInteger(0,DASH_RULES,OBJPROP_FONTSIZE,8);
-      ObjectSetString(0,DASH_RULES,OBJPROP_FONT,"Segoe UI");
-      ObjectSetString(0,DASH_RULES,OBJPROP_TEXT,ExactStopMovementRulesText());
-   }
-   else DeleteVisualObject(DASH_RULES);
-
-   if(InpShowCompactTradeTimeline)
-   {
-      if(ObjectFind(0,DASH_TIMELINE)<0) ObjectCreate(0,DASH_TIMELINE,OBJ_LABEL,0,0,0);
-      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_XDISTANCE,InpDashboardX+22);
-      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_YDISTANCE,InpDashboardY+420);
-      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_COLOR,C'223,204,137');
-      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_FONTSIZE,8);
-      ObjectSetString(0,DASH_TIMELINE,OBJPROP_FONT,"Segoe UI Semibold");
-      ObjectSetString(0,DASH_TIMELINE,OBJPROP_TEXT,CompactTradeTimelineText(ticket,pid,stage,tp1done,tp2partial));
-   }
-   else DeleteVisualObject(DASH_TIMELINE);
-
    if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
    ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
    ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
@@ -16187,66 +16161,13 @@ string VisualTPState(bool reached,bool partial)
    return "WAIT";
 }
 
-string CompactEventTime(datetime value)
-{
-   if(value<=0) return "";
-   datetime now=TimeTradeServer();
-   MqlDateTime a={},b={};
-   TimeToStruct(value,a);
-   TimeToStruct(now,b);
-   if(a.year==b.year && a.mon==b.mon && a.day==b.day)
-      return TimeToString(value,TIME_MINUTES);
-   return TimeToString(value,TIME_DATE|TIME_MINUTES);
-}
 
-string TimelineNode(const string label,datetime when,bool done,bool active=false)
-{
-   if(done)
-   {
-      string t=CompactEventTime(when);
-      return "✓ "+label+(t!=""?" "+t:"");
-   }
-   if(active) return "● "+label+" NOW";
-   return "○ "+label;
-}
 
-string ExactStopMovementRulesText()
-{
-   return StringFormat(
-      "STOP RULES  •  B.E. ≥ %.2fR → entry ± max(cost, %.2fR)  │  LOCK ≥ %.2fR → +%.2fR  │  STRONG ≥ %.2fR → +%.2fR\n"
-      "TRAIL ≥ %.2fR  •  %.2f× M5 ATR + %d-bar M5 structure ± %.2f ATR  •  min ratchet %.2fR  •  broker stops/freeze must pass  •  never loosen SL",
-      InpBETriggerR,InpBELockMinR,InpProfitLockTriggerR,InpProfitLockR,
-      InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,InpTrailATRMultiplier,
-      InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
-}
 
-string CompactTradeTimelineText(ulong ticket,ulong pid,int stage,bool tp1done,bool tp2done)
-{
-   if(!PositionSelectByTicket(ticket)) return "TIMELINE unavailable";
-   datetime entryTime=(datetime)PositionGetInteger(POSITION_TIME);
-   datetime tp1Time=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0));
-   datetime beTime=(datetime)GVRead(PosKey(pid,"BE_TIME"),0);
-   datetime lockTime=(datetime)GVRead(PosKey(pid,"PROFIT_LOCK_TIME"),0);
-   datetime strongTime=(datetime)GVRead(PosKey(pid,"STRONG_LOCK_TIME"),0);
-   datetime tp2Time=(datetime)GVRead(PosKey(pid,"TP2_TIME"),LegacyTicketRead(ticket,"TP2_TIME",0));
-   datetime trailTime=(datetime)GVRead(PosKey(pid,"TRAIL_TIME"),0);
-   datetime trailLast=(datetime)GVRead(PosKey(pid,"TRAIL_LAST_TIME"),0);
 
-   bool beDone=(stage>=1 || beTime>0);
-   bool lockDone=(stage>=2 || lockTime>0);
-   bool strongDone=(stage>=3 || strongTime>0);
-   bool trailDone=(stage>=4 || trailTime>0);
-   string line="TIMELINE  "+TimelineNode("ENTRY",entryTime,true);
-   line+="  →  "+TimelineNode("TP1",tp1Time,tp1done,!tp1done && stage<=0);
-   line+="  →  "+TimelineNode("B.E.",beTime,beDone,tp1done && !beDone);
-   line+="  →  "+TimelineNode("+0.5R LOCK",lockTime,lockDone,beDone && !lockDone);
-   line+="  →  "+TimelineNode("+1R LOCK",strongTime,strongDone,lockDone && !strongDone);
-   line+="  →  "+TimelineNode("TP2",tp2Time,tp2done,strongDone && !tp2done);
-   line+="  →  "+TimelineNode("TRAIL",trailTime,trailDone,strongDone && !trailDone);
-   if(trailDone && trailLast>0)
-      line+="  │  last trail "+CompactEventTime(trailLast);
-   return line;
-}
+
+
+
 
 string LiveManagementAction(bool tp1done,bool tp2done,int stage,double rNow,int expiry,int elapsedM15)
 {
@@ -16363,7 +16284,7 @@ string VisualStopRulesText(const bool bull)
       "%s  •  TP1 completion gates the protection ladder\n"
       "B.E. @ %.2fR → entry +/− max(cost, %.2fR), cost=max(%.2fx ATR, spread+learned slip)\n"
       "Lock @ %.2fR → %.2fR  •  Strong @ %.2fR → %.2fR  •  Trail @ %.2fR → %s\n"
-      "Trail inputs: ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR  •  broker stop/freeze safe",
+      "Trail inputs: ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR  •  broker stop/freeze safe  •  SL never regresses",
       dir,InpBETriggerR,InpBELockMinR,InpBECostATRFrac,InpProfitLockTriggerR,InpProfitLockR,
       InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,trailFormula,
       InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
@@ -16481,15 +16402,27 @@ void RenderLiveManagementDashboard(ulong ticket)
                    d,tp3,tp3reached?"HIT":"RUNNER",InpTrailStartR,elapsedM15,expiry),
       C'71,184,132');
 
-   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+302,sw,90,
-      "EXACT STOP-MOVEMENT RULES",
-      VisualStopRulesText(bull),
-      C'182,137,68');
+   if(InpShowStopMovementRules)
+      SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+302,sw,90,
+         "EXACT STOP-MOVEMENT RULES",
+         VisualStopRulesText(bull),
+         C'182,137,68');
+   else
+   {
+      DeleteVisualObject(DASH_RULES_CARD);
+      DeleteVisualObject(DASH_RULES_LABEL);
+   }
 
-   SetDashboardSection(DASH_TIMELINE_CARD,DASH_TIMELINE_LABEL,sx,InpDashboardY+400,sw,80,
-      "COMPACT TRADE TIMELINE",
-      VisualTradeTimeline(pid,ticket),
-      C'106,128,201');
+   if(InpShowCompactTradeTimeline)
+      SetDashboardSection(DASH_TIMELINE_CARD,DASH_TIMELINE_LABEL,sx,InpDashboardY+400,sw,80,
+         "COMPACT TRADE TIMELINE",
+         VisualTradeTimeline(pid,ticket),
+         C'106,128,201');
+   else
+   {
+      DeleteVisualObject(DASH_TIMELINE_CARD);
+      DeleteVisualObject(DASH_TIMELINE_LABEL);
+   }
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+488,sw,96,
       "RISK & SAFETY",

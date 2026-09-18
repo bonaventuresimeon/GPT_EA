@@ -19,6 +19,7 @@ _REQUIRED_KEYS = {
     "resilience_schema",
     "soak_acceptance_schema",
     "api_transport_schema",
+    "broker_coverage_schema",
     "compile_evidence_schema",
     "final_review_schema",
     "risk_ack_schema",

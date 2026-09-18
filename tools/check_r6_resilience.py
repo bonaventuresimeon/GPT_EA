@@ -7,10 +7,11 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
 errors:list[str]=[]
 
 def read(name:str)->str:
-    p=ROOT/name
+    p=MQH/name if name.lower().endswith(".mqh") and "/" not in name and "\\" not in name else ROOT/name
     if not p.exists():
         errors.append(f"missing R6 resilience artifact: {name}")
         return ""

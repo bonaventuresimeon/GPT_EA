@@ -13,6 +13,7 @@ from typing import Any
 ROOT=Path(__file__).resolve().parents[1]
 RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
 SCHEMA_VERSION="mt5_validation_evidence_v2"
+MATRIX_LAST_ID=53  # acceptance contract ends at M5-053
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -70,7 +71,7 @@ def validate_matrix_bundle(path:Path)->list[str]:
     errors:list[str]=[]
     text=path.read_text(encoding="utf-8",errors="replace")
     lines=text.splitlines()
-    for n in range(1,54):
+    for n in range(1,MATRIX_LAST_ID+1):
         mid=f"M5-{n:03d}"
         matches=[line for line in lines if f"| {mid} |" in line]
         if len(matches)!=1:

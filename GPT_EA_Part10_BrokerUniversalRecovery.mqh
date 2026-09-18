@@ -562,6 +562,13 @@ void WriteUniversalRecoveryCheckpoint()
 void RestoreUniversalRecoveryCheckpoint()
 {
    if(!InpUseRecoveryFileCheckpoint) return;
+   if(ChaosInjectCorruptCheckpoint())
+   {
+      GVWrite(SysKey("RECOVERY_CHECKPOINT_ANOMALY"),1);
+      GVWrite(SysKey("RECOVERY_CHECKPOINT_ANOMALY_TIME"),(double)TimeTradeServer());
+      Print("GPT_EA CHAOS: simulated corrupted recovery checkpoint; disk restore refused and broker/GV reconciliation remains authoritative.");
+      return;
+   }
    int h=FileOpen(RecoveryStateFileName(),FILE_READ|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
 

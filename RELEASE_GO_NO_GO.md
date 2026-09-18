@@ -127,7 +127,9 @@ The release is **NO-GO** for any of the following:
 - PROXY mode exposes or forwards the OpenAI bearer key from MT5;
 - proxy credential reuses the OpenAI API key;
 - API/proxy secret appears in source or health/release logs;
-- required GPT/web intelligence failure can authorize a trade instead of following WAIT/NO-TRADE policy;
+- required GPT/web intelligence failure can authorize a trade outside the narrowly certified deterministic-only emergency exception;
+- deterministic-only mode bypasses an available GPT veto, web BLOCK verdict, stale/schema/provenance failure, calendar/yield/intermarket conflict, or a disallowed strategy;
+- the deterministic-only exception is used for anything other than external GPT/web transport unavailability;
 - uncontrolled synchronous API retry loop;
 - API transport evidence validator FAIL;
 - five-day acceptance machine record FAIL;

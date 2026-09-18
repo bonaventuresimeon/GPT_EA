@@ -34,8 +34,12 @@ bool RestoreMissingProtectiveStop(ulong ticket)
       Print(sym,": CHAOS synthetic protective-stop restoration failure.");
       return false;
    }
+   GVWrite(PosKey(pid,"EA_EXPECT_SL"),restoredSL);
+   GVWrite(PosKey(pid,"EA_EXPECT_TP"),tp);
+   GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
    if(!trade.PositionModify(ticket,restoredSL,tp))
    {
+      GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
       Print(sym,": failed to restore missing protective SL - ",trade.ResultRetcodeDescription());
       return false;
    }

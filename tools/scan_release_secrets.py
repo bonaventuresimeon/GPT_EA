@@ -39,6 +39,15 @@ def main()->int:
         for name,pat in PATTERNS:
             if pat.search(data):
                 hits.append((p.as_posix(),name))
+        # Input documentation may contain placeholders; only flag a plausible
+        # concrete value, never <YOUR KEY>, blank, or the harmless proxy marker.
+        for m in re.finditer(rb"InpOpenAIAPIKey\s*=\s*([^\r\n;]+)",data,re.I):
+            value=m.group(1).strip()
+            upper=value.upper()
+            if not value or value.startswith(b"<") or b"YOUR" in upper or value==b"PROXY_TRANSPORT_ACTIVE":
+                continue
+            if len(value)>=20:
+                hits.append((p.as_posix(),"OPENAI_INPUT_VALUE"))
     if hits:
         print("RELEASE SECRET SCAN: FAILED")
         for path,name in hits:

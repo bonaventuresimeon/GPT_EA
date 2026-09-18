@@ -10,6 +10,15 @@ input double InpStressMetalShockPct              = 2.00;
 input double InpStressEnergyShockPct             = 4.00;
 input double InpStressCryptoShockPct             = 5.00;
 input double InpStressOtherShockPct              = 1.50;
+input bool   InpUseMacroScenarioStress            = true;
+input double InpStressUSDStrengthPct              = 1.00;
+input double InpStressYieldShockBps               = 20.0;
+input double InpStressYieldIndexEffectPct         = 1.50;
+input double InpStressYieldGoldEffectPct          = 1.00;
+input double InpStressYieldCryptoEffectPct        = 2.00;
+input double InpStressEquityRiskOffPct            = 2.00;
+input double InpStressVolatilityIndexDropPct      = 3.00;
+input double InpStressCorrelatedGapMultiplier     = 1.50;
 input bool   InpUseGapRiskSizingGate             = true;
 input double InpMaxGapLossMultipleOfPlannedRisk  = 2.00;
 input bool   InpUseMarginStressGate              = true;
@@ -17,6 +26,192 @@ input double InpMinimumStressedMarginLevelPct    = 250.0;
 input bool   InpUseDecisionHalfLife              = true;
 input bool   InpUseExecutionLatencyBudget        = true;
 input double InpMaxLatencyBudgetFraction         = 0.35;
+
+
+enum PortfolioStressScenario
+{
+   PORT_STRESS_USD_UP=0,
+   PORT_STRESS_YIELDS_UP=1,
+   PORT_STRESS_EQUITY_RISK_OFF=2,
+   PORT_STRESS_GOLD_UP=3,
+   PORT_STRESS_GOLD_DOWN=4,
+   PORT_STRESS_OIL_UP=5,
+   PORT_STRESS_OIL_DOWN=6,
+   PORT_STRESS_VOLATILITY_SPIKE=7,
+   PORT_STRESS_CORRELATED_GAP_DOWN=8,
+   PORT_STRESS_CORRELATED_GAP_UP=9
+};
+
+string PortfolioStressScenarioName(int scenario)
+{
+   switch(scenario)
+   {
+      case PORT_STRESS_USD_UP: return StringFormat("USD +%.2f%%",InpStressUSDStrengthPct);
+      case PORT_STRESS_YIELDS_UP: return StringFormat("YIELDS +%.0f bps",InpStressYieldShockBps);
+      case PORT_STRESS_EQUITY_RISK_OFF: return StringFormat("EQUITY INDICES -%.2f%%",InpStressEquityRiskOffPct);
+      case PORT_STRESS_GOLD_UP: return StringFormat("GOLD +%.2f%%",InpStressMetalShockPct);
+      case PORT_STRESS_GOLD_DOWN: return StringFormat("GOLD -%.2f%%",InpStressMetalShockPct);
+      case PORT_STRESS_OIL_UP: return StringFormat("OIL +%.2f%%",InpStressEnergyShockPct);
+      case PORT_STRESS_OIL_DOWN: return StringFormat("OIL -%.2f%%",InpStressEnergyShockPct);
+      case PORT_STRESS_VOLATILITY_SPIKE: return "VOLATILITY SPIKE";
+      case PORT_STRESS_CORRELATED_GAP_DOWN: return "CORRELATED GAP RISK-OFF";
+      case PORT_STRESS_CORRELATED_GAP_UP: return "CORRELATED GAP RISK-ON";
+   }
+   return "UNKNOWN";
+}
+
+double FXUSDScenarioShockPct(const string sym,double usdStrengthPct)
+{
+   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   if(StringFind(key,"FX:")!=0 || StringLen(key)<12) return 0.0;
+   string pair=StringSubstr(key,3,6);
+   string base=StringSubstr(pair,0,3),quote=StringSubstr(pair,3,3);
+   if(base=="USD") return usdStrengthPct;
+   if(quote=="USD") return -usdStrengthPct;
+   return 0.0;
+}
+
+double MacroScenarioShockPct(const string sym,int scenario)
+{
+   string cls=StressAssetClass(sym);
+   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   double gap=MathMax(1.0,InpStressCorrelatedGapMultiplier);
+
+   if(scenario==PORT_STRESS_USD_UP)
+   {
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct);
+      if(cls=="METAL") return -0.75*InpStressUSDStrengthPct;
+      if(cls=="CRYPTO") return -1.50*InpStressUSDStrengthPct;
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_YIELDS_UP)
+   {
+      double scale=MathMax(0.10,InpStressYieldShockBps/20.0);
+      if(cls=="INDEX") return -InpStressYieldIndexEffectPct*scale;
+      if(cls=="METAL") return -InpStressYieldGoldEffectPct*scale;
+      if(cls=="CRYPTO") return -InpStressYieldCryptoEffectPct*scale;
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.40*scale);
+      if(cls=="ENERGY") return -0.40*scale;
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_EQUITY_RISK_OFF)
+   {
+      if(cls=="INDEX") return -InpStressEquityRiskOffPct;
+      if(cls=="CRYPTO") return -MathMax(InpStressCryptoShockPct,InpStressEquityRiskOffPct*1.75);
+      if(cls=="ENERGY") return -MathMax(2.0,InpStressEquityRiskOffPct);
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.00:0.50);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.50);
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_GOLD_UP)
+      return (StringFind(key,"METAL:XAU")==0?MathAbs(InpStressMetalShockPct):0.0);
+   if(scenario==PORT_STRESS_GOLD_DOWN)
+      return (StringFind(key,"METAL:XAU")==0?-MathAbs(InpStressMetalShockPct):0.0);
+   if(scenario==PORT_STRESS_OIL_UP)
+      return (cls=="ENERGY"?MathAbs(InpStressEnergyShockPct):0.0);
+   if(scenario==PORT_STRESS_OIL_DOWN)
+      return (cls=="ENERGY"?-MathAbs(InpStressEnergyShockPct):0.0);
+
+   if(scenario==PORT_STRESS_VOLATILITY_SPIKE)
+   {
+      string u=sym; StringToUpper(u);
+      if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY")>=0) return 40.0;
+      if(cls=="INDEX") return -MathAbs(InpStressVolatilityIndexDropPct);
+      if(cls=="CRYPTO") return -MathMax(5.0,InpStressCryptoShockPct);
+      if(cls=="ENERGY") return -MathMax(3.0,InpStressEnergyShockPct*0.75);
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.50:0.75);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.75);
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_CORRELATED_GAP_DOWN)
+   {
+      if(cls=="INDEX") return -InpStressIndexShockPct*gap;
+      if(cls=="CRYPTO") return -InpStressCryptoShockPct*gap;
+      if(cls=="ENERGY") return -InpStressEnergyShockPct*gap;
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?InpStressMetalShockPct:0.5*InpStressMetalShockPct);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct*gap);
+      return -InpStressOtherShockPct*gap;
+   }
+
+   if(scenario==PORT_STRESS_CORRELATED_GAP_UP)
+   {
+      if(cls=="INDEX") return InpStressIndexShockPct*gap;
+      if(cls=="CRYPTO") return InpStressCryptoShockPct*gap;
+      if(cls=="ENERGY") return InpStressEnergyShockPct*gap;
+      if(cls=="METAL") return -InpStressMetalShockPct;
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,-InpStressUSDStrengthPct*gap);
+      return InpStressOtherShockPct*gap;
+   }
+   return 0.0;
+}
+
+double ScenarioPositionPnLMoney(ulong ticket,int scenario)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return 0.0;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double shock=MacroScenarioShockPct(sym,scenario);
+   if(MathAbs(shock)<0.000001) return 0.0;
+   long type=PositionGetInteger(POSITION_TYPE);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   double stressed=entry*(1.0+shock/100.0);
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(type==POSITION_TYPE_BUY?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,sym,vol,entry,stressed,pnl)) return 0.0;
+   return pnl;
+}
+
+double ScenarioProposedPnLMoney(const TradeSetup &s,double lots,int scenario)
+{
+   double shock=MacroScenarioShockPct(s.symbol,scenario);
+   if(MathAbs(shock)<0.000001) return 0.0;
+   double stressed=s.preferred*(1.0+shock/100.0);
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(s.bullish?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,s.symbol,lots,s.preferred,stressed,pnl)) return 0.0;
+   return pnl;
+}
+
+double WorstMacroScenarioPortfolioLoss(const TradeSetup &s,double lots,string &worstName)
+{
+   worstName="none";
+   if(!InpUseMacroScenarioStress) return 0.0;
+   double worst=0.0;
+   for(int scenario=PORT_STRESS_USD_UP;scenario<=PORT_STRESS_CORRELATED_GAP_UP;scenario++)
+   {
+      double pnl=ScenarioProposedPnLMoney(s,lots,scenario);
+      for(int i=PositionsTotal()-1;i>=0;i--)
+      {
+         ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+         if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+         pnl+=ScenarioPositionPnLMoney(tk,scenario);
+      }
+      double loss=MathMax(0.0,-pnl);
+      if(loss>worst)
+      {
+         worst=loss;
+         worstName=PortfolioStressScenarioName(scenario);
+      }
+   }
+   return worst;
+}
+
+double WorstMacroScenarioProposedLoss(const TradeSetup &s,double lots,string &worstName)
+{
+   worstName="none";
+   if(!InpUseMacroScenarioStress) return 0.0;
+   double worst=0.0;
+   for(int scenario=PORT_STRESS_USD_UP;scenario<=PORT_STRESS_CORRELATED_GAP_UP;scenario++)
+   {
+      double loss=MathMax(0.0,-ScenarioProposedPnLMoney(s,lots,scenario));
+      if(loss>worst){ worst=loss; worstName=PortfolioStressScenarioName(scenario); }
+   }
+   return worst;
+}
 
 string StressAssetClass(const string sym)
 {
@@ -114,8 +309,12 @@ bool GapRiskAllows(const TradeSetup &s,double lots,string &why)
    double planned=ProposedRiskMoney(s,lots);
    if(planned<=0){ why="planned stop risk unavailable"; return false; }
    double gap=ProposedStressLossMoney(s,lots);
+   string macroName="";
+   double macro=WorstMacroScenarioProposedLoss(s,lots,macroName);
+   if(macro>gap) gap=macro;
    double multiple=gap/planned;
-   why=StringFormat("gap/scenario loss %.2f vs planned %.2f = %.2fx",gap,planned,multiple);
+   why=StringFormat("gap/scenario loss %.2f vs planned %.2f = %.2fx | worst macro %s %.2f",
+                    gap,planned,multiple,macroName,macro);
    return multiple<=MathMax(1.0,InpMaxGapLossMultipleOfPlannedRisk);
 }
 
@@ -169,20 +368,26 @@ bool PortfolioStressLatencyAllows(const TradeSetup &s,double lots,string &why)
    if(!DecisionAgeLatencyAllows(s,c,age)){ why=age; return false; }
 
    double proposedStress=ProposedStressLossMoney(s,lots);
-   double total=CurrentPortfolioScenarioStressLoss()+proposedStress;
+   double assetClassStress=CurrentPortfolioScenarioStressLoss()+proposedStress;
+   string worstMacro="";
+   double macroStress=WorstMacroScenarioPortfolioLoss(s,lots,worstMacro);
+   double total=MathMax(assetClassStress,macroStress);
    double equity=AccountInfoDouble(ACCOUNT_EQUITY);
    double pct=(equity>0?total/equity*100.0:999.0);
    if(InpUsePortfolioScenarioStress && pct>InpMaxScenarioStressLossPctEquity)
    {
-      why=StringFormat("scenario-stress BLOCK %.2f%% equity > %.2f%% | %s",pct,InpMaxScenarioStressLossPctEquity,age);
+      why=StringFormat("scenario-stress BLOCK %.2f%% equity > %.2f%% | asset adverse %.2f | worst macro %s %.2f | %s",
+                       pct,InpMaxScenarioStressLossPctEquity,assetClassStress,worstMacro,macroStress,age);
       return false;
    }
 
    string gap="";
    if(!GapRiskAllows(s,lots,gap)){ why="gap risk BLOCK: "+gap+" | "+age; return false; }
    string margin="";
-   if(!MarginStressAllows(s,lots,proposedStress,margin)){ why="margin stress BLOCK: "+margin+" | "+age; return false; }
+   double proposedForMargin=MathMax(proposedStress,MathMax(0.0,macroStress-CurrentPortfolioScenarioStressLoss()));
+   if(!MarginStressAllows(s,lots,proposedForMargin,margin)){ why="margin stress BLOCK: "+margin+" | "+age; return false; }
 
-   why=StringFormat("scenario stress %.2f%% equity PASS | %s | %s | %s",pct,gap,margin,age);
+   why=StringFormat("scenario stress %.2f%% equity PASS | asset adverse %.2f | worst macro %s %.2f | %s | %s | %s",
+                    pct,assetClassStress,worstMacro,macroStress,gap,margin,age);
    return true;
 }

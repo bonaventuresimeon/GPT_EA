@@ -29,7 +29,7 @@ Copy this file to `artifacts/r6-resilience-matrix.md`. Every RH row must be chan
 | RH-005 | Intent ledger | PREPARED intent is durably written before submission | HOLD | |
 | RH-006 | Exactly once | SENT is persisted before broker network call | HOLD | |
 | RH-007 | Exactly once | Duplicate/restart execution cannot resubmit unresolved SENT/UNCERTAIN intent | HOLD | |
-| RH-008 | Exactly once | Matching broker nonce reconstructs FILLED/CLOSED state after restart | HOLD | |
+| RH-008 | Exactly once | Matching broker nonce, or strict magic+symbol+time+side+volume fallback when a broker strips the comment, reconstructs FILLED/CLOSED state without retry | HOLD | |
 | RH-009 | Ambiguous failure | CTrade failure remains UNCERTAIN until broker reconciliation | HOLD | |
 | RH-010 | Broker reconciliation | Orphan EA position/lifecycle mismatch is detected | HOLD | |
 | RH-011 | Broker reconciliation | Unexpected EA pending order is detected | HOLD | |
@@ -60,7 +60,7 @@ Copy this file to `artifacts/r6-resilience-matrix.md`. Every RH row must be chan
 | RH-036 | Decision half-life | Strategy-specific stale candidate is blocked | HOLD | |
 | RH-037 | Latency | Analysis/approval/model/SENT/ack/fill timeline is recorded | HOLD | |
 | RH-038 | Latency | Learned execution latency exceeding strategy budget blocks entry | HOLD | |
-| RH-039 | Storage | Critical ledger/heartbeat write failure blocks new exposure | HOLD | |
+| RH-039 | Storage | Critical ledger/heartbeat write failure blocks new exposure and marks open managed positions for learning quarantine | HOLD | |
 | RH-040 | Configuration drift | REAL runtime config fingerprint must equal certified fingerprint | HOLD | |
 | RH-041 | Causal attribution | Post-trade cause classification writes one finalized cause per closed position | HOLD | |
 | RH-042 | Chaos | Fault injection categorically refuses REAL accounts | HOLD | |

@@ -1500,7 +1500,9 @@ string VisualOneLine(string text,const int maxChars)
    StringReplace(text,"\r"," ");
    StringReplace(text,"\n"," ");
    while(StringFind(text,"  ")>=0) StringReplace(text,"  "," ");
-   return VisualShortText(text,maxChars);
+   if(StringLen(text)<=maxChars) return text;
+   int keep=(int)MathMax(8,maxChars-3);
+   return StringSubstr(text,0,keep)+"...";
 }
 
 string DashboardStateName(const VisualDashboardState state)
@@ -16751,7 +16753,14 @@ void RenderLiveManagementDashboard(ulong ticket)
       DashboardStateColor(uiState));
 
    ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
-   RenderDashboardControls(panelW,panelH,-1);
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA MANAGEMENT NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\n"+VisualOneLine(action,compact?74:106));
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
    DrawLiveManagementMap(ticket);
    ChartRedraw();
 }
@@ -16844,12 +16853,17 @@ void RenderCandidateOperationalDashboard()
       C'64,137,204');
    y+=h1+gap;
 
-   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,y,sw,h2,
-      "GPT TRADE INTELLIGENCE / LEVEL LADDER",
-      StringFormat("%s  •  Entry %.*f–%.*f  •  Preferred %.*f  •  Eff R:R 1:%.2f\nSL %.*f  •  B.E. %.*f  •  TP1 %.*f  •  TP2 %.*f  •  TP3 %.*f  •  Trail %.*f\nPullback %d/100  ↔  Breakout-Retest %d/100",
+   string tradeBody="";
+   if(g_visualNoTrade || !s.valid)
+      tradeBody=StringFormat("NO EXECUTABLE ENTRY ARMED  •  reference candidate %s\nPullback %d/100  ↔  Breakout-Retest %d/100  •  current R:R %.2f\nThe EA will not draw/authorize entry levels until the selected setup becomes valid.",
+         StrategyClassName(strategy),g_visualPullbackScore,g_visualBreakoutScore,s.effectiveRR1);
+   else
+      tradeBody=StringFormat("%s  •  Entry %.*f–%.*f  •  Preferred %.*f  •  Eff R:R 1:%.2f\nSL %.*f  •  B.E. %.*f  •  TP1 %.*f  •  TP2 %.*f  •  TP3 %.*f  •  Trail %.*f\nPullback %d/100  ↔  Breakout-Retest %d/100",
          StrategyClassName(strategy),d,s.zoneLow,d,s.zoneHigh,d,s.preferred,s.effectiveRR1,
-         d,s.sl,d,be,d,s.tp1,d,s.tp2,d,s.tp3,d,trailStart,g_visualPullbackScore,g_visualBreakoutScore),
-      C'84,156,213');
+         d,s.sl,d,be,d,s.tp1,d,s.tp2,d,s.tp3,d,trailStart,g_visualPullbackScore,g_visualBreakoutScore);
+
+   SetDashboardSection(DASH_TRADE_CARD,DASH_TRADE_LABEL,sx,y,sw,h2,
+      "GPT TRADE INTELLIGENCE / LEVEL LADDER",tradeBody,C'84,156,213');
    y+=h2+gap;
 
    string confirm=StringFormat("Structure %s  •  M5 rejection %s  •  Sweep %s  •  FVG %s",
@@ -16879,7 +16893,15 @@ void RenderCandidateOperationalDashboard()
       DashboardStateColor(uiState));
 
    ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
-   RenderDashboardControls(panelW,panelH,pending);
+   int pendingAny=FirstActivePending();
+   int controlsPending=(pending>=0?pending:pendingAny);
+   if(controlsPending>=0 && controlsPending!=pending)
+   {
+      string pendingSym=g_pending[controlsPending].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nCurrent chart: "+decisionLine+"  •  "+VisualOneLine(action,compact?58:82));
+   }
+   RenderDashboardControls(panelW,panelH,controlsPending);
 
    if(s.valid && !g_visualNoTrade) DrawTradeMap(s);
    else DeleteTradeMap();
@@ -16926,7 +16948,14 @@ void RenderScanningDashboard()
    ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
    ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
    ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
-   RenderDashboardControls(panelW,panelH,-1);
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "EA ACTION NOW\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nScanner remains active while the decision window is open.");
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
    ChartRedraw();
 }
 
@@ -16956,7 +16985,14 @@ void RenderClosedDashboard()
       "TRADE COMPLETE",
       StringFormat("Finalized result %.2fR\nPosition metadata and analytics have been recorded.\nThe EA will resume SCANNING automatically.",g_dashboardClosedR),
       DashboardStateColor(UI_STATE_CLOSED));
-   RenderDashboardControls(panelW,panelH,-1);
+   int pendingAny=FirstActivePending();
+   if(pendingAny>=0)
+   {
+      string pendingSym=g_pending[pendingAny].setup.symbol;
+      ObjectSetString(0,DASH_ACTION_LABEL,OBJPROP_TEXT,
+         "TRADE COMPLETE\nPENDING APPROVAL: "+pendingSym+"  •  use APPROVE / DENY below\nClosed trade analytics are recorded; scanner continues.");
+   }
+   RenderDashboardControls(panelW,panelH,pendingAny);
    ChartRedraw();
 }
 

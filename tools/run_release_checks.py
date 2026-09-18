@@ -8,6 +8,7 @@ gate and writes static-check.txt at repository root.
 """
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -46,9 +47,22 @@ def run_check(path: Path) -> tuple[int, str]:
 
 def main() -> int:
     lines: list[str] = []
+    try:
+        source_git_sha = subprocess.check_output(
+            ["git","rev-parse","HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        source_git_sha = "UNKNOWN"
+    main_source = ROOT / "GPT_EA.mq5"
+    source_file_sha256 = hashlib.sha256(main_source.read_bytes()).hexdigest() if main_source.exists() else "MISSING"
+
     lines.append("GPT_EA OFFLINE STATIC RELEASE CHECK")
     lines.append(f"UTC: {datetime.now(timezone.utc).isoformat()}")
     lines.append(f"Python: {sys.version.split()[0]}")
+    lines.append(f"SOURCE_GIT_SHA={source_git_sha}")
+    lines.append("SOURCE_LAYOUT=MONOLITHIC")
+    lines.append(f"SOURCE_FILE=GPT_EA.mq5")
+    lines.append(f"SOURCE_FILE_SHA256={source_file_sha256}")
     lines.append("")
 
     failed = False

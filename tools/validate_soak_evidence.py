@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from validate_five_day_soak_record import validate_record
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT=Path(__file__).resolve().parents[1]
 SCHEMA_PATH=ROOT/"SOAK_EVIDENCE_SCHEMA.json"

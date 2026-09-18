@@ -18,6 +18,9 @@ from validate_runner_recovery_evidence import validate_runner_recovery
 from validate_resilience_hardening_evidence import validate_resilience
 from validate_rollback_readiness import validate_rollback_readiness
 from validate_soak_evidence import validate_soak
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT=Path(__file__).resolve().parents[1]
 MQH=ROOT/"mqh"

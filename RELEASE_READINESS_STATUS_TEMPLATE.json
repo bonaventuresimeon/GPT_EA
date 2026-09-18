@@ -1,9 +1,0 @@
-{
-  "schema_version":"release_readiness_status_v1",
-  "release_validation_id":"GPT_EA_FULL_INTELLIGENCE_R6_20260917",
-  "candidate_git_sha":"0000000000000000000000000000000000000000",
-  "generated_utc":"",
-  "code_readiness":{"state":"CODE_STATIC_HOLD","basis":"NONE","static_result":"UNKNOWN","source_git_sha":"","reason":"Not evaluated."},
-  "evidence_readiness":{"state":"EVIDENCE_HOLD","missing_gates":[],"final_review_decision":"UNKNOWN","authoritative_validation_passed":false,"reason":"Not evaluated."},
-  "overall_state":"HOLD"
-}

@@ -144,6 +144,8 @@ Confirm `mt5_validation_evidence_v2` validates for the exact Git/EX5/SET candida
 
 ## 7A. Resilience and rollback review
 
+For `DETERMINISTIC_ONLY`, verify the emergency exception is limited to **external GPT/web transport unavailability only** for an explicitly allowed strategy away from high-impact events. An available GPT veto, web `BLOCK`, stale/schema/provenance failure, calendar/yield/intermarket conflict, or deterministic integrity failure must remain blocking. The MT5 runtime report must contain `DETERMINISTIC_FALLBACK_BOUNDARY=PASS`.
+
 Confirm the exact candidate's `resilience_hardening_evidence_v1` validates, every RH-001 through RH-048 row is PASS, and its certified configuration fingerprint is the fingerprint supplied to Part28B. Review the MT5 v2 retained intent ledger, broker/EA reconciliation journal, web-intelligence provenance journal, model-health journal and resilience runtime report.
 
 The runtime report must show zero duplicate orders, zero unresolved intents and zero unreconciled positions, plus PASS for REAL-account chaos refusal, macro stress, provenance freshness, storage failure fail-closed behavior and configuration-drift fail-closed behavior.

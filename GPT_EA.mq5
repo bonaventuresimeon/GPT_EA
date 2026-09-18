@@ -10750,7 +10750,7 @@ string CurrentSensitiveConfigText()
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
       "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
       "trail=%.3f|lock1=%.3f:%.3f|lock2=%.3f:%.3f|api_mode=%d|proxy=%s|https=%d|"
-      "model=%s|policy=%s|symbols=%s",
+      "model=%s|policy=%s|symbols=%s|universe=%d:%d:%d:%d:%d:%d:%d:%s",
       InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
       InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
       InpFastEMA,InpSlowEMA,InpRSIPeriod,InpATRPeriod,InpSwingBars,InpPullbackExpiryM15,InpBreakoutExpiryM15,
@@ -10762,7 +10762,10 @@ string CurrentSensitiveConfigText()
       InpMaxMacroFactorRiskPercent,InpUseDynamicQualitySizing?1:0,InpMinAdaptiveRiskMultiplier,InpMaxAdaptiveRiskMultiplier,
       InpTrailStartR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
       (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
-      InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
+      InpOpenAIModel,InpModelPolicyVersion,InpSymbols,
+      InpAutoResolveBrokerSymbols?1:0,InpUseMarketWatchUniverse?1:0,InpMaxMarketWatchSymbols,
+      InpIncludeCloseOnlySymbols?1:0,InpMaxBrokerUniverseSymbols,InpUniversalScanBatchSize,
+      InpUniverseClockProbeSymbols,InpAutoMajorUniverse);
 
    cfg+=StringFormat(
       "|clock=%d:%d:%d|modelhealth=%d:%d:%.4f:%.4f:%.3f:%.3f:det%d|"

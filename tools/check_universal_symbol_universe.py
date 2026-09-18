@@ -38,6 +38,9 @@ require("g_fullBrokerUniverseMode" in text and
         "release/deployment safety must be dynamic-universe aware")
 require("ReleaseSafetyAllows(s.symbol" in text,
         "per-symbol release safety must remain enforced before execution")
+require("|universe=%d:%d:%d:%d:%d:%d:%d:%s" in text and
+        "InpAutoMajorUniverse);" in text,
+        "universal symbol controls must be bound into the configuration fingerprint")
 require('return "GEN:"+c;' in text,
         "unknown but tradeable broker symbols must remain generically analyzable")
 

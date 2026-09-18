@@ -68,6 +68,12 @@ if BUNDLE.exists():
     final = documents.get("FINAL_RELEASE_REVIEW_TEMPLATE.json", {}).get("review", {})
     require(final.get("broker_coverage_pass") is False,
             "final review broker_coverage_pass must default false")
+    pack = documents.get("RELEASE_EVIDENCE_PACK_TEMPLATE.json", {}).get("artifacts", [])
+    pack_types = {str(x.get("evidence_type", "")) for x in pack if isinstance(x, dict)}
+    require("broker_agnostic_coverage" in pack_types,
+            "release evidence pack must require broker coverage evidence")
+    require("broker_agnostic_coverage_validation" in pack_types,
+            "release evidence pack must require broker coverage validator output")
     require(contract.get("broker_coverage_schema") == "broker_agnostic_coverage_v1",
             "release_contract broker_coverage_schema mismatch")
 else:

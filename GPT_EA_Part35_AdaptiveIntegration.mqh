@@ -71,9 +71,11 @@ bool AdaptivePreAuthorizationRiskAllowsR5(const TradeSetup &s,string &why)
    StrategyClass c=CandidateStrategyForSymbol(s.symbol);
    string emergencyAI="";
    bool deterministicOnly=DeterministicEmergencyExecutionActive(s.symbol,c,emergencyAI);
+   bool storedRequested=GVRead(SymKey(s.symbol,"AI_REVIEW_REQUESTED"),0)>0.5;
+   bool storedAvailable=GVRead(SymKey(s.symbol,"AI_REVIEW_AVAILABLE"),0)>0.5;
    string ai="";
-   if(deterministicOnly)
-      ai="DETERMINISTIC_ONLY: stored GPT review requirement bypassed; "+emergencyAI;
+   if(deterministicOnly && (!storedRequested || !storedAvailable))
+      ai="DETERMINISTIC_ONLY: unavailable stored GPT review bypassed; "+emergencyAI;
    else if(!StoredAIIntegrityAllows(s.symbol,ai))
    { why="GPT integrity/disagreement: "+ai; return false; }
 
@@ -106,12 +108,12 @@ bool AIReviewAllowsExecutionR5(const string aiText,bool aiAvailable,string &why)
    if(g_r5ContextReady)
    {
       string emergency="";
-      if(DeterministicEmergencyExecutionActive(g_r5Primary.symbol,g_r5Decision.strategy,emergency))
+      if(!aiAvailable && DeterministicEmergencyExecutionActive(g_r5Primary.symbol,g_r5Decision.strategy,emergency))
       {
          string det="";
          bool detOK=DeterministicSetupIntegrity(g_r5Primary,det);
          PersistAIIntegrityDecision(g_r5Primary.symbol,detOK,true,false,false,"");
-         why="DETERMINISTIC_ONLY: GPT review ignored by emergency policy | "+emergency+" | "+det;
+         why="DETERMINISTIC_ONLY: unavailable GPT transport bypassed by emergency policy | "+emergency+" | "+det;
          return detOK;
       }
    }

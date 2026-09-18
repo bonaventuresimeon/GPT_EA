@@ -49,7 +49,7 @@ string StrategyConfigVersion(StrategyClass c)
 
 string CurrentSensitiveConfigText()
 {
-   return StringFormat(
+   string cfg=StringFormat(
       "risk=%.4f|eq=%d|approval=%d|exec=%d|maxpos=%d|minconf=%d|minrr=%.4f|spread=%.4f|slip=%d|"
       "fast=%d|slow=%d|rsi=%d|atr=%d|swing=%d|pbexp=%d|brexp=%d|tp1=%.2f|be=%d|"
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
@@ -68,6 +68,34 @@ string CurrentSensitiveConfigText()
       InpTrailStartR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
       (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
       InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
+
+   cfg+=StringFormat(
+      "|clock=%d:%d:%d|modelhealth=%d:%d:%.4f:%.4f:%.3f:%.3f:det%d|"
+      "stress=%d:%.3f:idx%.3f:fx%.3f:metal%.3f:energy%.3f:crypto%.3f:other%.3f|"
+      "macro=%d:usd%.3f:yld%.1f:yidx%.3f:ygold%.3f:ycrypto%.3f:riskoff%.3f:vol%.3f:gap%.3f|"
+      "gapgate=%d:%.3f|margingate=%d:%.1f|halflife=%d|latency=%d:%.3f|"
+      "webfresh=%d:%d:%d:primary%d:risk%d:%d|"
+      "quarantine=%d:%d:%d:%d:%d:reset%d|chaos=%d:%d:%d",
+      InpUseClockDriftProtection?1:0,InpClockOffsetDriftToleranceSeconds,InpAllowOneHourDSTOffsetShift?1:0,
+      InpUseModelDegradationMonitor?1:0,InpModelHealthMinSamples,InpModelReducedTrustFailureRate,
+      InpModelDeterministicFailureRate,InpModelReducedTrustRiskMultiplier,InpModelDeterministicRiskMultiplier,
+      InpAllowDeterministicEmergencyMode?1:0,
+      InpUsePortfolioScenarioStress?1:0,InpMaxScenarioStressLossPctEquity,InpStressIndexShockPct,InpStressFXShockPct,
+      InpStressMetalShockPct,InpStressEnergyShockPct,InpStressCryptoShockPct,InpStressOtherShockPct,
+      InpUseMacroScenarioStress?1:0,InpStressUSDStrengthPct,InpStressYieldShockBps,InpStressYieldIndexEffectPct,
+      InpStressYieldGoldEffectPct,InpStressYieldCryptoEffectPct,InpStressEquityRiskOffPct,
+      InpStressVolatilityIndexDropPct,InpStressCorrelatedGapMultiplier,
+      InpUseGapRiskSizingGate?1:0,InpMaxGapLossMultipleOfPlannedRisk,
+      InpUseMarginStressGate?1:0,InpMinimumStressedMarginLevelPct,
+      InpUseDecisionHalfLife?1:0,InpUseExecutionLatencyBudget?1:0,InpMaxLatencyBudgetFraction,
+      InpWebIntelMaxAsOfAgeMinutes,InpWebIntelMaxFutureSkewSeconds,InpWebIntelMinAnnotationURLs,
+      InpRequirePrimarySourceForHighRisk?1:0,InpWebIntelRiskWatchScore,InpWebIntelRiskBlockScore,
+      InpQuarantineManualIntervention?1:0,InpQuarantineBrokerAnomaly?1:0,InpQuarantineConnectionAnomaly?1:0,
+      InpQuarantineChaosSamples?1:0,InpQuarantineStorageFailure?1:0,InpResetLearningOnGenerationChange?1:0,
+      InpEnableChaosFaultInjection?1:0,InpChaosFaultScenario,InpChaosOneShot?1:0);
+
+   cfg+=LateResilienceConfigText();
+   return cfg;
 }
 
 string CurrentConfigFingerprint()

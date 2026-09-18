@@ -15,6 +15,24 @@ input int    InpStorageHealthIntervalSeconds     = 60;
 input bool   InpUseConfigurationDriftGate        = true;
 input bool   InpAllowLegacyOpenPositionsOnUpgrade= true;
 
+string LateResilienceConfigText()
+{
+   return StringFormat(
+      "|intent=%d:%d:amb%d|reconcile=%d:manual%d|storage=%d:int%d|configdrift=%d:legacy%d|"
+      "cc=%d:auto%d:min%d:avg%.3f:pf%.3f:dd%.3f:inst%.3f|"
+      "sig=%d:z%.3f:lower%.3f|prob=%d:trades%d:min%d:avg%.3f:pf%.3f:dd%.3f:requal%d",
+      InpUseAtomicTradeIntentLedger?1:0,InpUseExactlyOnceExecution?1:0,InpIntentAmbiguityResolveSeconds,
+      InpUseBrokerEAReconciliation?1:0,InpBlockUnexpectedManualExposure?1:0,
+      InpUseStorageHealthGate?1:0,InpStorageHealthIntervalSeconds,
+      InpUseConfigurationDriftGate?1:0,InpAllowLegacyOpenPositionsOnUpgrade?1:0,
+      InpUseChampionChallenger?1:0,InpAutoPromoteChallenger?1:0,InpChampionChallengerMinSamples,
+      InpChallengerMinAvgRAdvantage,InpChallengerMinPFAdvantage,InpChallengerMaxExtraDrawdownR,InpChallengerMaxInstabilityR,
+      InpUsePromotionSignificance?1:0,InpPromotionSignificanceZ,InpPromotionMinLowerAdvantageR,
+      InpUsePromotionProbationRollback?1:0,InpPromotionProbationTrades,InpPromotionRollbackMinTrades,
+      InpPromotionRollbackMinAvgR,InpPromotionRollbackMinPF,InpPromotionRollbackMaxExtraDDR,
+      InpRollbackRequalifyNewSamples);
+}
+
 enum IntentState
 {
    INTENT_NONE=0,

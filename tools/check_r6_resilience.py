@@ -100,8 +100,10 @@ require_tokens("GPT_EA_Part41_PortfolioStressLatency.mqh",[
 ])
 require_tokens("GPT_EA_Part42_ExecutionReliability.mqh",[
     "INTENT_PREPARED","INTENT_SENT","INTENT_FILLED","INTENT_UNCERTAIN","PrepareAtomicTradeIntent",
-    "MarkTradeIntentSent","PositionOrHistoryMatchesIntent","ReconcileBrokerAgainstEA",
-    "CriticalStorageHealthCheck","ConfigurationDriftAllows","MarkManualIntervention",
+    "MarkTradeIntentSent","PositionOrHistoryMatchesIntent","IntentGeometryMatchesPosition",
+    "IntentGeometryMatchesDeal","IntentGeometryMatchesHistoryOrder","INTENT_COMMENT_FALLBACK_POSITION",
+    "ReconcileBrokerAgainstEA","CriticalStorageHealthCheck","MarkOpenPositionsStorageAnomaly",
+    "ConfigurationDriftAllows","MarkManualIntervention",
     "HandleReliabilityTradeTransaction","GPT_EA_TradeIntentLedger.csv","GPT_EA_BrokerReconciliation.csv",
 ])
 require_tokens("GPT_EA_Part43_CausalAttribution.mqh",["CausalAttributionForPosition","FinalizeCausalAttributionHistory","GPT_EA_CausalAttribution.csv"])

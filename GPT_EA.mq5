@@ -9115,23 +9115,2309 @@ string BuildDeepGPTPrompt(const string sym,const string card,const string thesis
           "Symbol: "+sym+"\nSelected strategy: "+d.strategyName+"\nSignal card:\n"+card+"\nMandatory thesis:\n"+thesis+"\nLive web intelligence:\n"+webIntel;
 }
 // ===== END INLINED GPT_EA_Part17_ThesisEngine.mqh =====
-#include "GPT_EA_Part25_ThesisHardening.mqh"
+// ===== BEGIN INLINED GPT_EA_Part25_ThesisHardening.mqh =====
+// ============================================================================
+// GPT_EA Part 25 - Thesis hardening and explicit disproof/RR comparison
+// ============================================================================
+
+string DeterministicDisproofChecklist(const StrategySnapshot &x,const StrategyDecision &d,const TradeSetup &s)
+{
+   string out="Disproof checklist: ";
+   out+=(x.trendFailure?"trend failure already detected; ":"HTF structure not yet failed; ");
+   out+=(x.falseBreakUp||x.falseBreakDown?"false-break evidence present; ":"no current false-break flag; ");
+   out+=(x.exhaustion?"exhaustion present; ":"no exhaustion flag; ");
+   out+=(ChaseRiskDetected(x)?"entry is vulnerable to chasing; ":"chase filter clear; ");
+   out+=(d.counterTrend?"counter-trend thesis requires strict sweep/BOS/rejection; ":"direction is not classified counter-trend; ");
+   out+=StringFormat("SL invalidation %.5f; strategy score %d/100.",s.sl,d.score);
+   return out;
+}
+
+string BuildMandatory25PointThesisFinal(const string sym,TradeSetup &primary,TradeSetup &pb,TradeSetup &br,
+                                        const StrategyDecision &d,const ConfluenceReport &c,
+                                        const string calendarText,const string webText,const IntermarketReport &im,
+                                        const string spreadText,const string sessionText)
+{
+   string thesis=BuildMandatory25PointThesis(sym,primary,pb,br,d,c,calendarText,webText,im,spreadText,sessionText);
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   RealisticRRReport pbr=RealisticRiskReward(pb);
+   RealisticRRReport brr=RealisticRiskReward(br);
+   RealisticRRReport pr=RealisticRiskReward(primary);
+
+   thesis+="\n━━━━━━━━━━━━━━━━━━━━\n🔬 EXECUTION / RESEARCH HARDENING ADDENDUM\n━━━━━━━━━━━━━━━━━━━━\n";
+   thesis+="Retracement model: "+RetracementIntelligenceText(x)+"\n";
+   thesis+="Pullback realistic execution: "+pbr.detail+"\n";
+   thesis+="Breakout-retest realistic execution: "+brr.detail+"\n";
+   thesis+="Selected setup realistic execution: "+pr.detail+"\n";
+   thesis+="Comparison rule: choose neither setup merely because its theoretical R multiple is larger. The executable setup must retain structure, trigger quality and weighted R:R after spread, slippage, commission and partial exits.\n";
+   thesis+="Strategy-specific candle invalidation: "+IntegerToString(primary.expiryM15)+" M15 candles for the currently selected strategy after ATR/opening-range adaptation; breakout/counter-trend scalp setups require faster follow-through than retracement/swing setups.\n";
+   thesis+="Historical/context/walk-forward validation: "+d.evidence+"\n";
+   thesis+=DeterministicDisproofChecklist(x,d,primary)+"\n";
+   thesis+="News freshness contract: a HIGH-CONFIDENCE authorization must not silently rely on unavailable/stale live-news intelligence when fail-closed high-confidence news mode is enabled. Intermarket contradiction is accepted only from fresh broker bars.\n";
+   return thesis;
+}
+// ===== END INLINED GPT_EA_Part25_ThesisHardening.mqh =====
 #define ExtractOpenAIText ExtractOpenAITextWide
-#include "GPT_EA_Part26_DeepGPTPolicy.mqh"
+// ===== BEGIN INLINED GPT_EA_Part26_DeepGPTPolicy.mqh =====
+// ============================================================================
+// GPT_EA Part 26 - Deep GPT policy for final adversarial validation
+// ============================================================================
+
+input bool   InpUseDeepGPTReviewModel       = true;
+input string InpDeepGPTReviewModel          = "gpt-5.6-sol";
+input string InpDeepGPTReasoningEffort      = "high";
+input int    InpDeepGPTMaxOutputTokens      = 1200;
+
+string ValidReasoningEffort(string effort)
+{
+   StringToLower(effort);
+   if(effort=="none" || effort=="low" || effort=="medium" || effort=="high" ||
+      effort=="xhigh" || effort=="max") return effort;
+   return "high";
+}
+
+bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
+{
+   answer=""; errorText="";
+   if(!InpUseOpenAI){ errorText="OpenAI disabled."; return false; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest unavailable in Strategy Tester."; return false; }
+   if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured in EA inputs."; return false; }
+
+   string model=(InpUseDeepGPTReviewModel?Trim(InpDeepGPTReviewModel):Trim(InpOpenAIModel));
+   if(model=="") model=InpOpenAIModel;
+   string effort=ValidReasoningEffort(InpDeepGPTReasoningEffort);
+   int maxTokens=(InpDeepGPTMaxOutputTokens<200?200:InpDeepGPTMaxOutputTokens);
+   string body="{\"model\":\""+JsonEscape(model)+"\","
+               "\"reasoning\":{\"effort\":\""+JsonEscape(effort)+"\"},"
+               "\"max_output_tokens\":"+IntegerToString(maxTokens)+","
+               "\"input\":\""+JsonEscape(prompt)+"\"}";
+   string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
+   char data[],result[]; string resultHeaders="";
+   int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
+
+   ResetLastError();
+   int code=WebRequest("POST",InpOpenAIEndpoint,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
+   if(code==-1)
+   {
+      errorText=StringFormat("Deep GPT WebRequest failed (%d). Add https://api.openai.com to MT5 WebRequest allow-list.",GetLastError());
+      return false;
+   }
+   string json=CharArrayToString(result,0,-1,CP_UTF8);
+   if(code<200 || code>=300)
+   {
+      errorText=StringFormat("Deep GPT HTTP %d: %s",code,StringSubstr(json,0,600));
+      return false;
+   }
+   answer=ExtractOpenAIText(json);
+   if(answer=="" || StringFind(answer,"could not be parsed")>=0)
+   {
+      errorText="Deep GPT response text unavailable.";
+      return false;
+   }
+   return true;
+}
+// ===== END INLINED GPT_EA_Part26_DeepGPTPolicy.mqh =====
 #undef ExtractOpenAIText
 #undef WebRequest
 #undef InpOpenAIAPIKey
 
-#include "GPT_EA_Part40_ModelClockTrust.mqh"
-#include "GPT_EA_Part41_PortfolioStressLatency.mqh"
+// ===== BEGIN INLINED GPT_EA_Part40_ModelClockTrust.mqh =====
+// ============================================================================
+// GPT_EA Part 40 - Clock integrity, model degradation and deterministic fallback
+// ============================================================================
+
+input bool   InpUseClockDriftProtection          = true;
+input int    InpClockOffsetDriftToleranceSeconds = 120;
+input bool   InpAllowOneHourDSTOffsetShift       = true;
+input bool   InpUseModelDegradationMonitor       = true;
+input int    InpModelHealthMinSamples            = 10;
+input double InpModelReducedTrustFailureRate     = 0.20;
+input double InpModelDeterministicFailureRate    = 0.45;
+input double InpModelReducedTrustRiskMultiplier  = 0.60;
+input double InpModelDeterministicRiskMultiplier = 0.35;
+input bool   InpAllowDeterministicEmergencyMode  = true;
+input string InpModelHealthFile                  = "GPT_EA_ModelHealth.csv";
+
+enum ModelTrustMode
+{
+   MODEL_TRUST_NORMAL=0,
+   MODEL_TRUST_REDUCED=1,
+   MODEL_TRUST_DETERMINISTIC_ONLY=2
+};
+
+string ModelTrustModeName(int mode)
+{
+   if(mode==MODEL_TRUST_REDUCED) return "REDUCED_TRUST";
+   if(mode==MODEL_TRUST_DETERMINISTIC_ONLY) return "DETERMINISTIC_ONLY";
+   return "NORMAL";
+}
+
+void EnsureModelHealthHeader()
+{
+   bool exists=FileIsExist(InpModelHealthFile,FILE_COMMON);
+   int h=FileOpen(InpModelHealthFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","mode","requests","failures","schema_failures","stale","provenance_failures",
+         "contradictions","latency_ewma_ms","last_latency_ms","clock_offset_seconds","clock_drift_seconds","note");
+   FileClose(h);
+}
+
+long CurrentServerGMTOffsetSeconds()
+{
+   datetime gmt=TimeGMT();
+   datetime srv=TimeTradeServer();
+   if(gmt<=0 || srv<=0) return 0;
+   return (long)srv-(long)gmt;
+}
+
+bool ClockDriftAllows(string &why)
+{
+   why="";
+   if(!InpUseClockDriftProtection){ why="clock-drift protection disabled"; return true; }
+   long nowOffset=CurrentServerGMTOffsetSeconds();
+   if(nowOffset==0){ why="clock offset unavailable"; return false; }
+   string key=SysKey("CLOCK_OFFSET_BASE");
+   long base=(long)GVRead(key,0);
+   if(base==0)
+   {
+      GVWrite(key,(double)nowOffset);
+      GVWrite(SysKey("CLOCK_OFFSET_UPDATED"),(double)TimeTradeServer());
+      why=StringFormat("clock baseline established at %+d seconds",(int)nowOffset);
+      return true;
+   }
+   long delta=nowOffset-base;
+   long absDelta=(long)MathAbs((double)delta);
+   if(absDelta<=MathMax(5,InpClockOffsetDriftToleranceSeconds))
+   {
+      why=StringFormat("clock offset %+d sec; drift %d sec",(int)nowOffset,(int)delta);
+      return true;
+   }
+   bool dst=(InpAllowOneHourDSTOffsetShift && MathAbs((double)absDelta-3600.0)<=MathMax(30,InpClockOffsetDriftToleranceSeconds));
+   if(dst)
+   {
+      GVWrite(key,(double)nowOffset);
+      GVWrite(SysKey("CLOCK_OFFSET_UPDATED"),(double)TimeTradeServer());
+      why=StringFormat("one-hour broker/DST offset shift accepted and baseline refreshed (%+d sec)",(int)nowOffset);
+      return true;
+   }
+   why=StringFormat("CLOCK DRIFT BLOCK: broker-server/GMT offset changed by %d sec from baseline %+d to %+d",
+                    (int)delta,(int)base,(int)nowOffset);
+   return false;
+}
+
+int CurrentModelTrustMode(string &detail)
+{
+   double req=GVRead(SysKey("MODEL_REQ"),0);
+   double fail=GVRead(SysKey("MODEL_FAIL"),0);
+   double schema=GVRead(SysKey("MODEL_SCHEMA_FAIL"),0);
+   double stale=GVRead(SysKey("MODEL_STALE"),0);
+   double prov=GVRead(SysKey("MODEL_PROV_FAIL"),0);
+   double contradictions=GVRead(SysKey("MODEL_CONTRADICTION"),0);
+   double bad=fail+schema+stale+prov+contradictions;
+   double rate=(req>0?bad/req:0);
+   int mode=MODEL_TRUST_NORMAL;
+   if(InpUseModelDegradationMonitor && req>=MathMax(1,InpModelHealthMinSamples))
+   {
+      if(rate>=InpModelDeterministicFailureRate) mode=MODEL_TRUST_DETERMINISTIC_ONLY;
+      else if(rate>=InpModelReducedTrustFailureRate) mode=MODEL_TRUST_REDUCED;
+   }
+   detail=StringFormat("model health %s | requests %.0f bad %.0f rate %.1f%% | fail %.0f schema %.0f stale %.0f provenance %.0f disagreement %.0f",
+      ModelTrustModeName(mode),req,bad,rate*100.0,fail,schema,stale,prov,contradictions);
+   return mode;
+}
+
+bool DeterministicEmergencyStrategyAllowed(const string sym,StrategyClass c,string &why)
+{
+   why="";
+   if(!InpAllowDeterministicEmergencyMode)
+   { why="deterministic-only emergency mode disabled"; return false; }
+
+   bool allowed=(c==STRATEGY_TREND_CONTINUATION ||
+                 c==STRATEGY_RETRACEMENT_ENTRY ||
+                 c==STRATEGY_RANGE_TRADE ||
+                 c==STRATEGY_MEAN_REVERSION);
+   if(!allowed)
+   {
+      why="strategy requires live model/news trust in deterministic-only mode";
+      return false;
+   }
+   if(HighImpactEventWithin(sym,MathMax(60,InpStrategyNewsContextMinutes)))
+   {
+      why="high-impact event proximity blocks deterministic-only execution";
+      return false;
+   }
+   why="strategy permitted by deterministic-only emergency policy away from high-impact events";
+   return true;
+}
+
+bool DeterministicEmergencyExecutionActive(const string sym,int strategyValue,string &why)
+{
+   why="";
+   StrategyClass c=(StrategyClass)strategyValue;
+   string health="";
+   int mode=CurrentModelTrustMode(health);
+   if(mode!=MODEL_TRUST_DETERMINISTIC_ONLY)
+   { why=health+" | deterministic-only mode not active"; return false; }
+   string det="";
+   if(!DeterministicEmergencyStrategyAllowed(sym,c,det))
+   { why=health+" | "+det; return false; }
+   why=health+" | "+det;
+   return true;
+}
+
+bool ModelClockExecutionAllows(const TradeSetup &s,StrategyClass c,string &why)
+{
+   string clock="";
+   if(!ClockDriftAllows(clock)){ why=clock; return false; }
+
+   string health="";
+   int mode=CurrentModelTrustMode(health);
+   if(mode==MODEL_TRUST_DETERMINISTIC_ONLY)
+   {
+      string det="";
+      if(!DeterministicEmergencyStrategyAllowed(s.symbol,c,det))
+      { why=clock+" | "+health+" | "+det; return false; }
+      why=clock+" | "+health+" | "+det;
+      return true;
+   }
+   why=clock+" | "+health;
+   return true;
+}
+
+double ModelTrustRiskMultiplier()
+{
+   string d="";
+   int mode=CurrentModelTrustMode(d);
+   if(mode==MODEL_TRUST_REDUCED) return MathMax(0.10,MathMin(1.0,InpModelReducedTrustRiskMultiplier));
+   if(mode==MODEL_TRUST_DETERMINISTIC_ONLY) return MathMax(0.0,MathMin(1.0,InpModelDeterministicRiskMultiplier));
+   return 1.0;
+}
+
+void WriteModelHealthSnapshot(const string note)
+{
+   EnsureModelHealthHeader();
+   int h=FileOpen(InpModelHealthFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   string detail=""; int mode=CurrentModelTrustMode(detail);
+   long offset=CurrentServerGMTOffsetSeconds();
+   long base=(long)GVRead(SysKey("CLOCK_OFFSET_BASE"),offset);
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"model_health_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),ModelTrustModeName(mode),
+      DoubleToString(GVRead(SysKey("MODEL_REQ"),0),0),DoubleToString(GVRead(SysKey("MODEL_FAIL"),0),0),
+      DoubleToString(GVRead(SysKey("MODEL_SCHEMA_FAIL"),0),0),DoubleToString(GVRead(SysKey("MODEL_STALE"),0),0),
+      DoubleToString(GVRead(SysKey("MODEL_PROV_FAIL"),0),0),DoubleToString(GVRead(SysKey("MODEL_CONTRADICTION"),0),0),
+      DoubleToString(GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0),0),DoubleToString(GVRead(SysKey("MODEL_LAST_LATENCY_MS"),0),0),
+      (string)offset,(string)(offset-base),note+" | "+detail);
+   FileFlush(h); FileClose(h);
+}
+
+void ModelClockTrustInit()
+{
+   string q=""; ClockDriftAllows(q);
+   WriteModelHealthSnapshot("initialization");
+}
+
+void ModelClockTrustTimer()
+{
+   static datetime last=0;
+   datetime now=TimeTradeServer();
+   if(last==0 || now-last>=300)
+   {
+      string q=""; ClockDriftAllows(q);
+      WriteModelHealthSnapshot("periodic");
+      last=now;
+   }
+}
+// ===== END INLINED GPT_EA_Part40_ModelClockTrust.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part41_PortfolioStressLatency.mqh =====
+// ============================================================================
+// GPT_EA Part 41 - Portfolio scenario stress, gap/margin risk and decision age
+// ============================================================================
+
+input bool   InpUsePortfolioScenarioStress       = true;
+input double InpMaxScenarioStressLossPctEquity   = 4.00;
+input double InpStressIndexShockPct              = 2.00;
+input double InpStressFXShockPct                 = 1.00;
+input double InpStressMetalShockPct              = 2.00;
+input double InpStressEnergyShockPct             = 4.00;
+input double InpStressCryptoShockPct             = 5.00;
+input double InpStressOtherShockPct              = 1.50;
+input bool   InpUseMacroScenarioStress            = true;
+input double InpStressUSDStrengthPct              = 1.00;
+input double InpStressYieldShockBps               = 20.0;
+input double InpStressYieldIndexEffectPct         = 1.50;
+input double InpStressYieldGoldEffectPct          = 1.00;
+input double InpStressYieldCryptoEffectPct        = 2.00;
+input double InpStressEquityRiskOffPct            = 2.00;
+input double InpStressVolatilityIndexDropPct      = 3.00;
+input double InpStressCorrelatedGapMultiplier     = 1.50;
+input bool   InpUseGapRiskSizingGate             = true;
+input double InpMaxGapLossMultipleOfPlannedRisk  = 2.00;
+input bool   InpUseMarginStressGate              = true;
+input double InpMinimumStressedMarginLevelPct    = 250.0;
+input bool   InpUseDecisionHalfLife              = true;
+input bool   InpUseExecutionLatencyBudget        = true;
+input double InpMaxLatencyBudgetFraction         = 0.35;
+
+
+enum PortfolioStressScenario
+{
+   PORT_STRESS_USD_UP=0,
+   PORT_STRESS_YIELDS_UP=1,
+   PORT_STRESS_EQUITY_RISK_OFF=2,
+   PORT_STRESS_GOLD_UP=3,
+   PORT_STRESS_GOLD_DOWN=4,
+   PORT_STRESS_OIL_UP=5,
+   PORT_STRESS_OIL_DOWN=6,
+   PORT_STRESS_VOLATILITY_SPIKE=7,
+   PORT_STRESS_CORRELATED_GAP_DOWN=8,
+   PORT_STRESS_CORRELATED_GAP_UP=9
+};
+
+string PortfolioStressScenarioName(int scenario)
+{
+   switch(scenario)
+   {
+      case PORT_STRESS_USD_UP: return StringFormat("USD +%.2f%%",InpStressUSDStrengthPct);
+      case PORT_STRESS_YIELDS_UP: return StringFormat("YIELDS +%.0f bps",InpStressYieldShockBps);
+      case PORT_STRESS_EQUITY_RISK_OFF: return StringFormat("EQUITY INDICES -%.2f%%",InpStressEquityRiskOffPct);
+      case PORT_STRESS_GOLD_UP: return StringFormat("GOLD +%.2f%%",InpStressMetalShockPct);
+      case PORT_STRESS_GOLD_DOWN: return StringFormat("GOLD -%.2f%%",InpStressMetalShockPct);
+      case PORT_STRESS_OIL_UP: return StringFormat("OIL +%.2f%%",InpStressEnergyShockPct);
+      case PORT_STRESS_OIL_DOWN: return StringFormat("OIL -%.2f%%",InpStressEnergyShockPct);
+      case PORT_STRESS_VOLATILITY_SPIKE: return "VOLATILITY SPIKE";
+      case PORT_STRESS_CORRELATED_GAP_DOWN: return "CORRELATED GAP RISK-OFF";
+      case PORT_STRESS_CORRELATED_GAP_UP: return "CORRELATED GAP RISK-ON";
+   }
+   return "UNKNOWN";
+}
+
+double FXUSDScenarioShockPct(const string sym,double usdStrengthPct)
+{
+   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   if(StringFind(key,"FX:")!=0 || StringLen(key)<9) return 0.0;
+   string pair=StringSubstr(key,3,6);
+   if(StringLen(pair)!=6) return 0.0;
+   string base=StringSubstr(pair,0,3),quote=StringSubstr(pair,3,3);
+   if(base=="USD") return usdStrengthPct;
+   if(quote=="USD") return -usdStrengthPct;
+   return 0.0;
+}
+
+double MacroScenarioShockPct(const string sym,int scenario)
+{
+   string cls=StressAssetClass(sym);
+   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   double gap=MathMax(1.0,InpStressCorrelatedGapMultiplier);
+
+   if(scenario==PORT_STRESS_USD_UP)
+   {
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct);
+      if(cls=="METAL") return -0.75*InpStressUSDStrengthPct;
+      if(cls=="CRYPTO") return -1.50*InpStressUSDStrengthPct;
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_YIELDS_UP)
+   {
+      double scale=MathMax(0.10,InpStressYieldShockBps/20.0);
+      if(cls=="INDEX") return -InpStressYieldIndexEffectPct*scale;
+      if(cls=="METAL") return -InpStressYieldGoldEffectPct*scale;
+      if(cls=="CRYPTO") return -InpStressYieldCryptoEffectPct*scale;
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.40*scale);
+      if(cls=="ENERGY") return -0.40*scale;
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_EQUITY_RISK_OFF)
+   {
+      if(cls=="INDEX") return -InpStressEquityRiskOffPct;
+      if(cls=="CRYPTO") return -MathMax(InpStressCryptoShockPct,InpStressEquityRiskOffPct*1.75);
+      if(cls=="ENERGY") return -MathMax(2.0,InpStressEquityRiskOffPct);
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.00:0.50);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.50);
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_GOLD_UP)
+      return (StringFind(key,"METAL:XAU")==0?MathAbs(InpStressMetalShockPct):0.0);
+   if(scenario==PORT_STRESS_GOLD_DOWN)
+      return (StringFind(key,"METAL:XAU")==0?-MathAbs(InpStressMetalShockPct):0.0);
+   if(scenario==PORT_STRESS_OIL_UP)
+      return (cls=="ENERGY"?MathAbs(InpStressEnergyShockPct):0.0);
+   if(scenario==PORT_STRESS_OIL_DOWN)
+      return (cls=="ENERGY"?-MathAbs(InpStressEnergyShockPct):0.0);
+
+   if(scenario==PORT_STRESS_VOLATILITY_SPIKE)
+   {
+      string u=sym; StringToUpper(u);
+      if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY")>=0) return 40.0;
+      if(cls=="INDEX") return -MathAbs(InpStressVolatilityIndexDropPct);
+      if(cls=="CRYPTO") return -MathMax(5.0,InpStressCryptoShockPct);
+      if(cls=="ENERGY") return -MathMax(3.0,InpStressEnergyShockPct*0.75);
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.50:0.75);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,0.75);
+      return 0.0;
+   }
+
+   if(scenario==PORT_STRESS_CORRELATED_GAP_DOWN)
+   {
+      if(cls=="INDEX") return -InpStressIndexShockPct*gap;
+      if(cls=="CRYPTO") return -InpStressCryptoShockPct*gap;
+      if(cls=="ENERGY") return -InpStressEnergyShockPct*gap;
+      if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?InpStressMetalShockPct:0.5*InpStressMetalShockPct);
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct*gap);
+      return -InpStressOtherShockPct*gap;
+   }
+
+   if(scenario==PORT_STRESS_CORRELATED_GAP_UP)
+   {
+      if(cls=="INDEX") return InpStressIndexShockPct*gap;
+      if(cls=="CRYPTO") return InpStressCryptoShockPct*gap;
+      if(cls=="ENERGY") return InpStressEnergyShockPct*gap;
+      if(cls=="METAL") return -InpStressMetalShockPct;
+      if(cls=="FX") return FXUSDScenarioShockPct(sym,-InpStressUSDStrengthPct*gap);
+      return InpStressOtherShockPct*gap;
+   }
+   return 0.0;
+}
+
+double ScenarioPositionPnLMoney(ulong ticket,int scenario)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return 0.0;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double shock=MacroScenarioShockPct(sym,scenario);
+   if(MathAbs(shock)<0.000001) return 0.0;
+   long type=PositionGetInteger(POSITION_TYPE);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   double stressed=entry*(1.0+shock/100.0);
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(type==POSITION_TYPE_BUY?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,sym,vol,entry,stressed,pnl)) return 0.0;
+   return pnl;
+}
+
+double ScenarioProposedPnLMoney(const TradeSetup &s,double lots,int scenario)
+{
+   double shock=MacroScenarioShockPct(s.symbol,scenario);
+   if(MathAbs(shock)<0.000001) return 0.0;
+   double stressed=s.preferred*(1.0+shock/100.0);
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(s.bullish?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,s.symbol,lots,s.preferred,stressed,pnl)) return 0.0;
+   return pnl;
+}
+
+double WorstMacroScenarioPortfolioLoss(const TradeSetup &s,double lots,string &worstName)
+{
+   worstName="none";
+   if(!InpUseMacroScenarioStress) return 0.0;
+   double worst=0.0;
+   for(int scenario=PORT_STRESS_USD_UP;scenario<=PORT_STRESS_CORRELATED_GAP_UP;scenario++)
+   {
+      double pnl=ScenarioProposedPnLMoney(s,lots,scenario);
+      for(int i=PositionsTotal()-1;i>=0;i--)
+      {
+         ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+         if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+         pnl+=ScenarioPositionPnLMoney(tk,scenario);
+      }
+      double loss=MathMax(0.0,-pnl);
+      if(loss>worst)
+      {
+         worst=loss;
+         worstName=PortfolioStressScenarioName(scenario);
+      }
+   }
+   return worst;
+}
+
+double WorstMacroScenarioProposedLoss(const TradeSetup &s,double lots,string &worstName)
+{
+   worstName="none";
+   if(!InpUseMacroScenarioStress) return 0.0;
+   double worst=0.0;
+   for(int scenario=PORT_STRESS_USD_UP;scenario<=PORT_STRESS_CORRELATED_GAP_UP;scenario++)
+   {
+      double loss=MathMax(0.0,-ScenarioProposedPnLMoney(s,lots,scenario));
+      if(loss>worst){ worst=loss; worstName=PortfolioStressScenarioName(scenario); }
+   }
+   return worst;
+}
+
+string StressAssetClass(const string sym)
+{
+   string u=sym+" "+SymbolInfoString(sym,SYMBOL_DESCRIPTION)+" "+SymbolInfoString(sym,SYMBOL_PATH);
+   StringToUpper(u);
+   if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0 || StringFind(u,"XAG")>=0 || StringFind(u,"SILVER")>=0) return "METAL";
+   if(StringFind(u,"WTI")>=0 || StringFind(u,"BRENT")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"UKOIL")>=0) return "ENERGY";
+   if(StringFind(u,"BTC")>=0 || StringFind(u,"ETH")>=0 || StringFind(u,"CRYPTO")>=0) return "CRYPTO";
+   if(StringFind(u,"US100")>=0 || StringFind(u,"NASDAQ")>=0 || StringFind(u,"NAS100")>=0 ||
+      StringFind(u,"US500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P")>=0 ||
+      StringFind(u,"US30")>=0 || StringFind(u,"DOW")>=0 || StringFind(u,"GER40")>=0 ||
+      StringFind(u,"DAX")>=0 || StringFind(u,"UK100")>=0 || StringFind(u,"FTSE")>=0 ||
+      StringFind(u,"JP225")>=0 || StringFind(u,"NIKKEI")>=0) return "INDEX";
+   string ccys=RelatedCurrencies(sym);
+   if(ccys!="") return "FX";
+   return "OTHER";
+}
+
+double StressShockPct(const string sym)
+{
+   string cls=StressAssetClass(sym);
+   if(cls=="INDEX") return InpStressIndexShockPct;
+   if(cls=="FX") return InpStressFXShockPct;
+   if(cls=="METAL") return InpStressMetalShockPct;
+   if(cls=="ENERGY") return InpStressEnergyShockPct;
+   if(cls=="CRYPTO") return InpStressCryptoShockPct;
+   return InpStressOtherShockPct;
+}
+
+StrategyClass StressCandidateStrategyForSymbol(const string sym)
+{
+   int c=(int)GVRead(SymKey(sym,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
+   if(c<=0) c=(int)GVRead(SymKey(sym,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   return (StrategyClass)c;
+}
+
+int StrategyDecisionHalfLifeSeconds(StrategyClass c)
+{
+   switch(c)
+   {
+      case STRATEGY_BREAKOUT: return 120;
+      case STRATEGY_BREAKOUT_RETEST: return 300;
+      case STRATEGY_COUNTER_TREND_SCALP: return 180;
+      case STRATEGY_COUNTER_TREND_SWING: return 480;
+      case STRATEGY_POTENTIAL_REVERSAL: return 600;
+      case STRATEGY_RETRACEMENT_ENTRY: return 900;
+      case STRATEGY_RANGE_TRADE: return 600;
+      case STRATEGY_MEAN_REVERSION: return 600;
+      case STRATEGY_TREND_CONTINUATION: return 1200;
+      default: return 300;
+   }
+}
+
+double PositionStressLossMoney(ulong ticket)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return 0;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   long type=PositionGetInteger(POSITION_TYPE);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   double shock=MathMax(0.10,StressShockPct(sym))/100.0;
+   double stressed=(type==POSITION_TYPE_BUY?entry*(1.0-shock):entry*(1.0+shock));
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(type==POSITION_TYPE_BUY?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,sym,vol,entry,stressed,pnl)) return 0;
+   return MathMax(0.0,-pnl);
+}
+
+double ProposedStressLossMoney(const TradeSetup &s,double lots)
+{
+   double shock=MathMax(0.10,StressShockPct(s.symbol))/100.0;
+   double entry=s.preferred;
+   double stressed=(s.bullish?entry*(1.0-shock):entry*(1.0+shock));
+   double pnl=0;
+   ENUM_ORDER_TYPE ot=(s.bullish?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcProfit(ot,s.symbol,lots,entry,stressed,pnl)) return 0;
+   return MathMax(0.0,-pnl);
+}
+
+double CurrentPortfolioScenarioStressLoss()
+{
+   double loss=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0) continue;
+      loss+=PositionStressLossMoney(tk);
+   }
+   return loss;
+}
+
+bool GapRiskAllows(const TradeSetup &s,double lots,string &why)
+{
+   why="";
+   if(!InpUseGapRiskSizingGate){ why="gap-risk gate disabled"; return true; }
+   double planned=ProposedRiskMoney(s,lots);
+   if(planned<=0){ why="planned stop risk unavailable"; return false; }
+   double gap=ProposedStressLossMoney(s,lots);
+   string macroName="";
+   double macro=WorstMacroScenarioProposedLoss(s,lots,macroName);
+   if(macro>gap) gap=macro;
+   double multiple=gap/planned;
+   why=StringFormat("gap/scenario loss %.2f vs planned %.2f = %.2fx | worst macro %s %.2f",
+                    gap,planned,multiple,macroName,macro);
+   return multiple<=MathMax(1.0,InpMaxGapLossMultipleOfPlannedRisk);
+}
+
+bool MarginStressAllows(const TradeSetup &s,double lots,double totalStressLoss,string &why)
+{
+   why="";
+   if(!InpUseMarginStressGate){ why="margin stress disabled"; return true; }
+   MqlTick t={}; if(!GetTickSafe(s.symbol,t)){ why="no fresh tick for margin stress"; return false; }
+   double px=(s.bullish?t.ask:t.bid),newMargin=0;
+   ENUM_ORDER_TYPE ot=(s.bullish?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   if(!OrderCalcMargin(ot,s.symbol,lots,px,newMargin)){ why="OrderCalcMargin failed in stress test"; return false; }
+   double equity=AccountInfoDouble(ACCOUNT_EQUITY);
+   double margin=AccountInfoDouble(ACCOUNT_MARGIN);
+   double portfolioStress=MathMax(0.0,totalStressLoss);
+   double stressedEquity=MathMax(0.0,equity-portfolioStress);
+   double stressedMargin=margin+newMargin;
+   double level=(stressedMargin>0?stressedEquity/stressedMargin*100.0:99999.0);
+   why=StringFormat("stressed margin level %.1f%% | stress loss %.2f | projected margin %.2f",
+                    level,portfolioStress,stressedMargin);
+   return level>=MathMax(100.0,InpMinimumStressedMarginLevelPct);
+}
+
+bool DecisionAgeLatencyAllows(const TradeSetup &s,StrategyClass c,string &why)
+{
+   why="";
+   int halfLife=StrategyDecisionHalfLifeSeconds(c);
+   datetime candidate=(datetime)GVRead(SymKey(s.symbol,"CAND_TIME"),0);
+   datetime now=TimeTradeServer();
+   int age=(candidate>0?(int)MathMax(0,(long)(now-candidate)):999999);
+   if(InpUseDecisionHalfLife && (candidate<=0 || age>halfLife))
+   {
+      why=StringFormat("decision half-life expired: age %d sec > %d sec for %s",age,halfLife,StrategyClassName(c));
+      return false;
+   }
+   double latency=GVRead(SymKey(s.symbol,"EXEC_LATENCY_EWMA_MS"),0);
+   double budgetMs=halfLife*1000.0*MathMax(0.05,MathMin(0.90,InpMaxLatencyBudgetFraction));
+   if(InpUseExecutionLatencyBudget && latency>0 && latency>budgetMs)
+   {
+      why=StringFormat("learned execution latency %.0f ms exceeds %.0f ms decision budget",latency,budgetMs);
+      return false;
+   }
+   why=StringFormat("decision age %d/%d sec | learned latency %.0f/%.0f ms",age,halfLife,latency,budgetMs);
+   return true;
+}
+
+bool PortfolioStressLatencyAllows(const TradeSetup &s,double lots,string &why)
+{
+   why="";
+   StrategyClass c=StressCandidateStrategyForSymbol(s.symbol);
+   string age="";
+   if(!DecisionAgeLatencyAllows(s,c,age)){ why=age; return false; }
+
+   double proposedStress=ProposedStressLossMoney(s,lots);
+   double assetClassStress=CurrentPortfolioScenarioStressLoss()+proposedStress;
+   string worstMacro="";
+   double macroStress=WorstMacroScenarioPortfolioLoss(s,lots,worstMacro);
+   double total=MathMax(assetClassStress,macroStress);
+   double equity=AccountInfoDouble(ACCOUNT_EQUITY);
+   double pct=(equity>0?total/equity*100.0:999.0);
+   if(InpUsePortfolioScenarioStress && pct>InpMaxScenarioStressLossPctEquity)
+   {
+      why=StringFormat("scenario-stress BLOCK %.2f%% equity > %.2f%% | asset adverse %.2f | worst macro %s %.2f | %s",
+                       pct,InpMaxScenarioStressLossPctEquity,assetClassStress,worstMacro,macroStress,age);
+      return false;
+   }
+
+   string gap="";
+   if(!GapRiskAllows(s,lots,gap)){ why="gap risk BLOCK: "+gap+" | "+age; return false; }
+   string margin="";
+   if(!MarginStressAllows(s,lots,total,margin)){ why="margin stress BLOCK: "+margin+" | "+age; return false; }
+
+   why=StringFormat("scenario stress %.2f%% equity PASS | asset adverse %.2f | worst macro %s %.2f | %s | %s | %s",
+                    pct,assetClassStress,worstMacro,macroStress,gap,margin,age);
+   return true;
+}
+// ===== END INLINED GPT_EA_Part41_PortfolioStressLatency.mqh =====
 
 // Adaptive execution, portfolio risk, integrity/quarantine, shadow validation, lifecycle,
 // exactly-once reconciliation, causal analytics, demo-soak evidence and dashboard stack.
-#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
-#include "GPT_EA_Part39_DataIntegrityQuarantine.mqh"
-#include "GPT_EA_Part31_ExecutionLearning.mqh"
-#include "GPT_EA_Part31A_RegimeSizing.mqh"
-#include "GPT_EA_Part31B_ExecutionFinalizer.mqh"
+// ===== BEGIN INLINED GPT_EA_Part30_AdaptiveRiskPortfolio.mqh =====
+// ============================================================================
+// GPT_EA Part 30 - Adaptive portfolio risk, correlation and independent supervisor
+// ============================================================================
+// This module is deliberately deterministic. GPT can never override these gates.
+
+input bool   InpUseAdaptivePortfolioEngine          = true;
+input bool   InpUseRollingCorrelationRisk           = true;
+input int    InpCorrelationLookbackM15              = 96;
+input double InpCorrelationRiskThreshold            = 0.70;
+input double InpMaxCorrelationWeightedRiskPercent   = 2.25;
+input double InpMaxMacroFactorRiskPercent           = 2.25;
+
+input bool   InpUsePerStrategyRiskBudgets           = true;
+input double InpTrendDailyRiskBudgetPct              = 2.00;
+input double InpTrendWeeklyRiskBudgetPct             = 5.00;
+input double InpRetracementDailyRiskBudgetPct        = 2.00;
+input double InpRetracementWeeklyRiskBudgetPct       = 5.00;
+input double InpCounterScalpDailyRiskBudgetPct       = 0.75;
+input double InpCounterScalpWeeklyRiskBudgetPct      = 2.00;
+input double InpCounterSwingDailyRiskBudgetPct       = 1.00;
+input double InpCounterSwingWeeklyRiskBudgetPct      = 2.50;
+input double InpReversalDailyRiskBudgetPct           = 1.00;
+input double InpReversalWeeklyRiskBudgetPct          = 2.50;
+input double InpBreakoutDailyRiskBudgetPct           = 1.50;
+input double InpBreakoutWeeklyRiskBudgetPct          = 4.00;
+input double InpBreakoutRetestDailyRiskBudgetPct     = 2.00;
+input double InpBreakoutRetestWeeklyRiskBudgetPct    = 5.00;
+input double InpRangeDailyRiskBudgetPct              = 1.00;
+input double InpRangeWeeklyRiskBudgetPct             = 3.00;
+input double InpMeanReversionDailyRiskBudgetPct      = 1.00;
+input double InpMeanReversionWeeklyRiskBudgetPct     = 3.00;
+
+input bool   InpUseDynamicQualitySizing              = true;
+input double InpMinAdaptiveRiskMultiplier            = 0.25;
+input double InpMaxAdaptiveRiskMultiplier            = 1.00;
+input double InpDrawdownRiskReductionStartPct        = 3.00;
+input double InpDrawdownRiskMinimumAtPct             = 7.00;
+
+input bool   InpUseMarketConditionKillSwitch         = true;
+input int    InpAbnormalMarketKillScore              = 3;
+input double InpKillSpreadATRFrac                    = 0.20;
+input double InpKillM1RangeM15ATRFrac                = 0.60;
+input double InpKillATRRatio                         = 2.25;
+input double InpKillOpeningRangeRatio                = 2.75;
+input int    InpKillQuoteAgeSeconds                  = 10;
+
+input bool   InpUseBrokerHealthGate                  = true;
+input double InpBrokerHealthMinimum                  = 55.0;
+input bool   InpUseIndependentRiskSupervisor         = true;
+input double InpDrawdownAccelerationBlockPct         = 2.00;
+input int    InpDrawdownAccelerationWindowMinutes    = 60;
+
+// Strategy health modes written by Part31 and enforced here.
+enum AdaptiveStrategyMode
+{
+   ADAPTIVE_MODE_ACTIVE=0,
+   ADAPTIVE_MODE_REDUCED_RISK=1,
+   ADAPTIVE_MODE_SHADOW=2,
+   ADAPTIVE_MODE_DISABLED=3
+};
+
+string AdaptiveStrategyModeName(int mode)
+{
+   if(mode==ADAPTIVE_MODE_REDUCED_RISK) return "REDUCED_RISK";
+   if(mode==ADAPTIVE_MODE_SHADOW) return "SHADOW";
+   if(mode==ADAPTIVE_MODE_DISABLED) return "DISABLED";
+   return "ACTIVE";
+}
+
+StrategyClass CandidateStrategyForSymbol(const string sym)
+{
+   int c=(int)GVRead(SymKey(sym,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
+   if(c<=0) c=(int)GVRead(SymKey(sym,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   return (StrategyClass)c;
+}
+
+void StrategyRiskBudgetCaps(StrategyClass c,double &daily,double &weekly)
+{
+   daily=InpTrendDailyRiskBudgetPct; weekly=InpTrendWeeklyRiskBudgetPct;
+   switch(c)
+   {
+      case STRATEGY_RETRACEMENT_ENTRY: daily=InpRetracementDailyRiskBudgetPct; weekly=InpRetracementWeeklyRiskBudgetPct; break;
+      case STRATEGY_COUNTER_TREND_SCALP: daily=InpCounterScalpDailyRiskBudgetPct; weekly=InpCounterScalpWeeklyRiskBudgetPct; break;
+      case STRATEGY_COUNTER_TREND_SWING: daily=InpCounterSwingDailyRiskBudgetPct; weekly=InpCounterSwingWeeklyRiskBudgetPct; break;
+      case STRATEGY_POTENTIAL_REVERSAL: daily=InpReversalDailyRiskBudgetPct; weekly=InpReversalWeeklyRiskBudgetPct; break;
+      case STRATEGY_BREAKOUT: daily=InpBreakoutDailyRiskBudgetPct; weekly=InpBreakoutWeeklyRiskBudgetPct; break;
+      case STRATEGY_BREAKOUT_RETEST: daily=InpBreakoutRetestDailyRiskBudgetPct; weekly=InpBreakoutRetestWeeklyRiskBudgetPct; break;
+      case STRATEGY_RANGE_TRADE: daily=InpRangeDailyRiskBudgetPct; weekly=InpRangeWeeklyRiskBudgetPct; break;
+      case STRATEGY_MEAN_REVERSION: daily=InpMeanReversionDailyRiskBudgetPct; weekly=InpMeanReversionWeeklyRiskBudgetPct; break;
+      default: break;
+   }
+}
+
+datetime StartOfTradingDay()
+{
+   MqlDateTime t={}; TimeToStruct(TimeTradeServer(),t);
+   t.hour=0; t.min=0; t.sec=0;
+   return StructToTime(t);
+}
+
+datetime StartOfTradingWeek()
+{
+   datetime d=StartOfTradingDay();
+   MqlDateTime t={}; TimeToStruct(d,t);
+   int back=(t.day_of_week==0?6:t.day_of_week-1); // Monday start
+   return d-back*86400;
+}
+
+double StrategyOpenRiskMoney(StrategyClass c)
+{
+   double sum=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      if((int)GVRead(PosKey(pid,"STRATEGY"),0)!=(int)c) continue;
+      double r=PositionRiskMoney(tk);
+      if(r>1.0e90) return r;
+      sum+=r;
+   }
+   return sum;
+}
+
+double StrategyRealizedLossMoneySince(StrategyClass c,datetime from)
+{
+   datetime now=TimeTradeServer();
+   if(from<=0 || !HistorySelect(from,now)) return 0;
+   double loss=0;
+   int n=HistoryDealsTotal();
+   for(int i=0;i<n;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0) continue;
+      if((long)HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if((int)GVRead(PosKey(pid,"STRATEGY"),0)!=(int)c) continue;
+      double p=HistoryDealGetDouble(d,DEAL_PROFIT)+HistoryDealGetDouble(d,DEAL_COMMISSION)+HistoryDealGetDouble(d,DEAL_SWAP);
+      if(p<0) loss+=-p;
+   }
+   return loss;
+}
+
+double StrategyBudgetAvailableMoney(StrategyClass c,bool weekly,string &detail)
+{
+   detail="";
+   if(!InpUsePerStrategyRiskBudgets || c==STRATEGY_NO_TRADE) return 1.0e100;
+   double capital=(InpUseEquity?AccountInfoDouble(ACCOUNT_EQUITY):AccountInfoDouble(ACCOUNT_BALANCE));
+   if(capital<=0) return 0;
+   double dailyCap=0,weeklyCap=0; StrategyRiskBudgetCaps(c,dailyCap,weeklyCap);
+   double pct=(weekly?weeklyCap:dailyCap);
+   if(pct<=0) return 0;
+   datetime from=(weekly?StartOfTradingWeek():StartOfTradingDay());
+   double consumed=StrategyOpenRiskMoney(c)+StrategyRealizedLossMoneySince(c,from);
+   double capMoney=capital*pct/100.0;
+   double avail=MathMax(0.0,capMoney-consumed);
+   detail=StringFormat("%s %s budget %.2f%% | consumed %.2f | available %.2f",
+      StrategyClassName(c),weekly?"weekly":"daily",pct,consumed,avail);
+   return avail;
+}
+
+bool StrategyRiskBudgetAllows(StrategyClass c,double proposedMoney,string &why)
+{
+   why="Strategy risk budgets disabled.";
+   if(!InpUsePerStrategyRiskBudgets || c==STRATEGY_NO_TRADE) return true;
+   string d="",w="";
+   double da=StrategyBudgetAvailableMoney(c,false,d);
+   double wa=StrategyBudgetAvailableMoney(c,true,w);
+   double avail=MathMin(da,wa);
+   why=d+" | "+w+StringFormat(" | proposed %.2f",proposedMoney);
+   return proposedMoney<=avail+0.01;
+}
+
+bool ReturnSeriesM15(const string sym,int lookback,double &r[])
+{
+   int bars=MathMax(24,lookback)+1;
+   double c[]; ArraySetAsSeries(c,true);
+   int n=CopyClose(sym,PERIOD_M15,1,bars,c);
+   if(n<25) return false;
+   int m=n-1; ArrayResize(r,m);
+   for(int i=0;i<m;i++) r[i]=(c[i+1]!=0?(c[i]-c[i+1])/c[i+1]:0);
+   return true;
+}
+
+double RollingM15Correlation(const string a,const string b)
+{
+   if(a==b) return 1.0;
+   double x[],y[];
+   if(!ReturnSeriesM15(a,InpCorrelationLookbackM15,x) || !ReturnSeriesM15(b,InpCorrelationLookbackM15,y)) return 0;
+   int n=MathMin(ArraySize(x),ArraySize(y)); if(n<20) return 0;
+   double sx=0,sy=0; for(int i=0;i<n;i++){ sx+=x[i]; sy+=y[i]; }
+   double mx=sx/n,my=sy/n,num=0,dx=0,dy=0;
+   for(int i=0;i<n;i++)
+   {
+      double ax=x[i]-mx,ay=y[i]-my;
+      num+=ax*ay; dx+=ax*ax; dy+=ay*ay;
+   }
+   if(dx<=0 || dy<=0) return 0;
+   return MathMax(-1.0,MathMin(1.0,num/MathSqrt(dx*dy)));
+}
+
+double DirectionSign(bool bull){ return bull?1.0:-1.0; }
+
+double CorrelationWeightedOpenRiskMoney(const TradeSetup &s)
+{
+   if(!InpUseRollingCorrelationRisk) return 0;
+   double sum=0,psign=DirectionSign(s.bullish);
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      string os=PositionGetString(POSITION_SYMBOL);
+      bool obull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+      double corr=RollingM15Correlation(s.symbol,os);
+      double aligned=corr*psign*DirectionSign(obull);
+      if(aligned<InpCorrelationRiskThreshold) continue;
+      double r=PositionRiskMoney(tk); if(r>1.0e90) return r;
+      sum+=r*MathMax(0.0,MathMin(1.0,aligned));
+   }
+   return sum;
+}
+
+void MacroFactorBetas(const string sym,bool bull,double &usd,double &riskOn)
+{
+   usd=0; riskOn=0;
+   string u=sym; StringToUpper(u);
+   double dir=DirectionSign(bull);
+   if(StringFind(u,"XAU")>=0 || StringFind(u,"XAG")>=0){ usd=-0.75*dir; riskOn=-0.20*dir; return; }
+   if(StringFind(u,"US100")>=0 || StringFind(u,"NAS")>=0 || StringFind(u,"USTEC")>=0 ||
+      StringFind(u,"US500")>=0 || StringFind(u,"SPX")>=0 || StringFind(u,"US30")>=0 ||
+      StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX")>=0)
+   { riskOn=1.0*dir; usd=-0.15*dir; return; }
+   if(StringFind(u,"BTC")>=0 || StringFind(u,"ETH")>=0){ riskOn=0.80*dir; usd=-0.30*dir; return; }
+   if(StringFind(u,"WTI")>=0 || StringFind(u,"BRENT")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"UKOIL")>=0)
+   { riskOn=0.45*dir; usd=-0.25*dir; return; }
+
+   // Major FX USD leg approximation. Suffixes are allowed because we search the canonical six-letter sequence.
+   string majors[7]={"EURUSD","GBPUSD","AUDUSD","NZDUSD","USDJPY","USDCHF","USDCAD"};
+   for(int i=0;i<7;i++) if(StringFind(u,majors[i])>=0)
+   {
+      bool usdBase=(StringFind(majors[i],"USD")==0);
+      usd=(usdBase?1.0:-1.0)*dir;
+      riskOn=(majors[i]=="AUDUSD" || majors[i]=="NZDUSD"?0.35*dir:0.0);
+      return;
+   }
+}
+
+void CurrentMacroFactorRisk(double &usdMoney,double &riskMoney)
+{
+   usdMoney=0; riskMoney=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      double pr=PositionRiskMoney(tk); if(pr<=0 || pr>1.0e90) continue;
+      string sym=PositionGetString(POSITION_SYMBOL);
+      bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+      double u=0,r=0; MacroFactorBetas(sym,bull,u,r);
+      usdMoney+=u*pr; riskMoney+=r*pr;
+   }
+}
+
+bool AdvancedPortfolioRiskAllows(const TradeSetup &s,double lots,string &why)
+{
+   string base="";
+   if(!PortfolioRiskAllows(s,lots,base)){ why=base; return false; }
+   if(!InpUseAdaptivePortfolioEngine){ why=base+" | adaptive portfolio layer disabled."; return true; }
+   double eq=AccountInfoDouble(ACCOUNT_EQUITY); if(eq<=0){ why="Account equity unavailable."; return false; }
+   double proposed=ProposedRiskMoney(s,lots);
+
+   double weighted=CorrelationWeightedOpenRiskMoney(s);
+   if(weighted>1.0e90){ why="Correlation layer found unprotected position."; return false; }
+   double weightedPct=(weighted+proposed)/eq*100.0;
+   if(InpUseRollingCorrelationRisk && InpMaxCorrelationWeightedRiskPercent>0 && weightedPct>InpMaxCorrelationWeightedRiskPercent)
+   {
+      why=StringFormat("Correlation-weighted risk %.2f%% > %.2f%% cap. | %s",weightedPct,InpMaxCorrelationWeightedRiskPercent,base);
+      return false;
+   }
+
+   double usd=0,risk=0,pu=0,pr=0; CurrentMacroFactorRisk(usd,risk); MacroFactorBetas(s.symbol,s.bullish,pu,pr);
+   double usdPct=MathAbs(usd+pu*proposed)/eq*100.0;
+   double riskPct=MathAbs(risk+pr*proposed)/eq*100.0;
+   if(InpMaxMacroFactorRiskPercent>0 && MathMax(usdPct,riskPct)>InpMaxMacroFactorRiskPercent)
+   {
+      why=StringFormat("Macro factor concentration %.2f%% (USD %.2f%% / risk-on %.2f%%) > %.2f%% cap.",
+                       MathMax(usdPct,riskPct),usdPct,riskPct,InpMaxMacroFactorRiskPercent);
+      return false;
+   }
+   why=StringFormat("%s | correlation-weighted %.2f%% | macro USD %.2f%% risk-on %.2f%%",base,weightedPct,usdPct,riskPct);
+   return true;
+}
+
+int AbnormalMarketConditionScore(const string sym,string &detail)
+{
+   int score=0; string d="";
+   MqlTick t={}; double atr5=0,atr15=0;
+   if(GetTickSafe(sym,t) && ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr5) && atr5>0)
+   {
+      double spread=(t.ask-t.bid)/atr5;
+      if(spread>=InpKillSpreadATRFrac){ score++; d+="spread/ATR; "; }
+   }
+   ATRValue(sym,PERIOD_M15,InpATRPeriod,1,atr15);
+   MqlRates m1[]; ArraySetAsSeries(m1,true);
+   if(atr15>0 && CopyRates(sym,PERIOD_M1,1,2,m1)>=1)
+   {
+      double r=m1[0].high-m1[0].low;
+      if(r/atr15>=InpKillM1RangeM15ATRFrac){ score++; d+="violent-M1; "; }
+   }
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   if(x.atrRatio>=InpKillATRRatio){ score++; d+="ATR-regime; "; }
+   if(x.openingRangeRatio>=InpKillOpeningRangeRatio){ score++; d+="opening-range; "; }
+   if(StopQuoteAgeSeconds(sym)>InpKillQuoteAgeSeconds){ score++; d+="stale-quote; "; }
+   string y=""; if(InpUseYieldShockFilter && YieldShock(y)){ score++; d+="yield-shock; "; }
+   detail=StringFormat("abnormal-market score %d/%d [%s]",score,InpAbnormalMarketKillScore,d);
+   return score;
+}
+
+double BrokerHealthScore(const string sym,string &detail)
+{
+   double score=100.0;
+   int age=StopQuoteAgeSeconds(sym);
+   if(age>InpKillQuoteAgeSeconds) score-=25;
+   double atr=0; MqlTick t={};
+   if(GetTickSafe(sym,t) && ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) && atr>0)
+   {
+      double sf=(t.ask-t.bid)/atr;
+      if(sf>InpMaxSpreadATRFrac) score-=MathMin(25.0,100.0*(sf-InpMaxSpreadATRFrac));
+   }
+   double attempts=GVRead(SymKey(sym,"EXEC_ATTEMPTS"),0),fails=GVRead(SymKey(sym,"EXEC_FAILS"),0);
+   if(attempts>=5) score-=MathMin(25.0,(fails/attempts)*50.0);
+   double slip=GVRead(SymKey(sym,"EXEC_SLIP_EWMA_PTS"),0);
+   double spreadPts=0,pt=PointFor(sym); if(pt>0 && t.ask>t.bid) spreadPts=(t.ask-t.bid)/pt;
+   if(spreadPts>0 && slip>2.0*spreadPts) score-=15;
+   int activeStopFails=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic || PositionGetString(POSITION_SYMBOL)!=sym) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      activeStopFails+=StopFailureCount(pid);
+   }
+   score-=MathMin(20.0,activeStopFails*3.0);
+   score=MathMax(0.0,MathMin(100.0,score));
+   detail=StringFormat("broker health %.1f/100 | quote %ds | attempts %.0f fails %.0f | slipEWMA %.1f pts | active stop failures %d",
+                       score,age,attempts,fails,slip,activeStopFails);
+   return score;
+}
+
+void RefreshDrawdownAccelerationBaseline()
+{
+   datetime now=TimeTradeServer();
+   datetime saved=(datetime)GVRead(SysKey("DD_ACCEL_TIME"),0);
+   double current=EquityDrawdownPercent();
+   int window=MathMax(5,InpDrawdownAccelerationWindowMinutes)*60;
+   if(saved<=0 || now-saved>=window)
+   {
+      GVWrite(SysKey("DD_ACCEL_TIME"),(double)now);
+      GVWrite(SysKey("DD_ACCEL_BASE"),current);
+   }
+}
+
+bool DrawdownAccelerationBlocked(string &why)
+{
+   RefreshDrawdownAccelerationBaseline();
+   double base=GVRead(SysKey("DD_ACCEL_BASE"),EquityDrawdownPercent());
+   double now=EquityDrawdownPercent();
+   double delta=now-base;
+   if(InpDrawdownAccelerationBlockPct>0 && delta>=InpDrawdownAccelerationBlockPct)
+   {
+      why=StringFormat("Drawdown accelerated %.2f percentage points within supervisor window (%.2f -> %.2f).",delta,base,now);
+      return true;
+   }
+   why=StringFormat("Drawdown acceleration %.2fpp within supervisor window.",delta);
+   return false;
+}
+
+int StrategyHealthMode(StrategyClass c)
+{
+   if(c==STRATEGY_NO_TRADE) return ADAPTIVE_MODE_DISABLED;
+   return (int)GVRead(SysKey(StringFormat("HEALTH_MODE_%d",(int)c)),ADAPTIVE_MODE_ACTIVE);
+}
+
+double StrategyHealthRiskMultiplier(StrategyClass c)
+{
+   int mode=StrategyHealthMode(c);
+   if(mode==ADAPTIVE_MODE_REDUCED_RISK) return 0.50;
+   if(mode==ADAPTIVE_MODE_SHADOW || mode==ADAPTIVE_MODE_DISABLED) return 0.0;
+   return MathMax(0.25,MathMin(1.0,GVRead(SysKey(StringFormat("HEALTH_RISK_MULT_%d",(int)c)),1.0)));
+}
+
+bool IndependentRiskSupervisorAllows(const TradeSetup &s,string &why)
+{
+   if(!InpUseIndependentRiskSupervisor){ why="Independent risk supervisor disabled."; return true; }
+   string base=""; if(RiskKillSwitchActive(base)){ why="Account kill switch: "+base; return false; }
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   int mode=StrategyHealthMode(c);
+   if(mode==ADAPTIVE_MODE_SHADOW || mode==ADAPTIVE_MODE_DISABLED)
+   { why=StrategyClassName(c)+" is "+AdaptiveStrategyModeName(mode)+"; live exposure prohibited."; return false; }
+
+   if(InpUseMarketConditionKillSwitch)
+   {
+      string abnormal=""; int score=AbnormalMarketConditionScore(s.symbol,abnormal);
+      if(score>=MathMax(1,InpAbnormalMarketKillScore)){ why="Market-condition kill switch: "+abnormal; return false; }
+   }
+   if(InpUseBrokerHealthGate)
+   {
+      string bh=""; double h=BrokerHealthScore(s.symbol,bh);
+      if(h<InpBrokerHealthMinimum){ why="Broker-health gate: "+bh; return false; }
+   }
+   string dd=""; if(DrawdownAccelerationBlocked(dd)){ why="Independent supervisor: "+dd; return false; }
+   why="Independent supervisor PASS.";
+   return true;
+}
+
+double AdaptiveRiskMultiplier(const TradeSetup &s,string &detail)
+{
+   if(!InpUseDynamicQualitySizing){ detail="Dynamic quality sizing disabled."; return 1.0; }
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   double conf=MathMax(0.0,MathMin(100.0,(double)s.confidence));
+   double confF=MathMax(0.40,MathMin(1.0,0.40+(conf-50.0)*0.012));
+   double healthF=StrategyHealthRiskMultiplier(c);
+   string bh=""; double broker=BrokerHealthScore(s.symbol,bh);
+   double brokerF=MathMax(0.50,MathMin(1.0,(broker-35.0)/65.0));
+   double dd=EquityDrawdownPercent(),ddF=1.0;
+   if(dd>InpDrawdownRiskReductionStartPct)
+   {
+      double den=MathMax(0.25,InpDrawdownRiskMinimumAtPct-InpDrawdownRiskReductionStartPct);
+      ddF=1.0-0.65*MathMin(1.0,(dd-InpDrawdownRiskReductionStartPct)/den);
+   }
+   double histF=1.0;
+   if(c!=STRATEGY_NO_TRADE)
+   {
+      double n=0,wr=0,avg=0,pf=0,maxdd=0,ml=0;
+      StrategyBucketMetrics(SysKey(StringFormat("STRAT_%d",(int)c)),n,wr,avg,pf,maxdd,ml);
+      if(n>=8 && (avg<0 || pf<1.0)) histF=0.65;
+      else if(n>=15 && avg>=0.15 && pf>=1.25) histF=1.0;
+      else if(n>=8) histF=0.85;
+   }
+   double eventF=HighImpactEventWithin(s.symbol,InpStrategyNewsContextMinutes)?0.60:1.0;
+   double modelF=ModelTrustRiskMultiplier();
+   double f=confF*healthF*brokerF*ddF*histF*eventF*modelF;
+   f=MathMax(InpMinAdaptiveRiskMultiplier,MathMin(InpMaxAdaptiveRiskMultiplier,f));
+   if(healthF<=0 || modelF<=0) f=0;
+   detail=StringFormat("adaptive risk x%.2f | conf %.2f health %.2f broker %.2f DD %.2f history %.2f event %.2f model %.2f",
+                       f,confF,healthF,brokerF,ddF,histF,eventF,modelF);
+   return f;
+}
+
+double AdaptiveLotSizeForRisk(const TradeSetup &s,double &riskMoney,double &oneLotLoss)
+{
+   riskMoney=0; oneLotLoss=0;
+   double capital=(InpUseEquity?AccountInfoDouble(ACCOUNT_EQUITY):AccountInfoDouble(ACCOUNT_BALANCE));
+   if(capital<=0) return 0;
+   string q=""; double mult=AdaptiveRiskMultiplier(s,q);
+   if(mult<=0) return 0;
+   double desired=capital*InpRiskPercent/100.0*mult;
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   if(InpUsePerStrategyRiskBudgets && c!=STRATEGY_NO_TRADE)
+   {
+      string d="",w="";
+      desired=MathMin(desired,MathMin(StrategyBudgetAvailableMoney(c,false,d),StrategyBudgetAvailableMoney(c,true,w)));
+   }
+   if(desired<=0) return 0;
+   ENUM_ORDER_TYPE ot=(s.bullish?ORDER_TYPE_BUY:ORDER_TYPE_SELL);
+   double loss=0;
+   if(!OrderCalcProfit(ot,s.symbol,1.0,s.preferred,s.sl,loss)) return 0;
+   oneLotLoss=MathAbs(loss); if(oneLotLoss<=0) return 0;
+   double lots=NormalizeVolumeDown(s.symbol,desired/oneLotLoss);
+   if(lots<=0) return 0;
+   riskMoney=lots*oneLotLoss; // actual normalized risk, not pre-rounding target.
+   return lots;
+}
+
+bool AdaptivePreEntryAllows(const TradeSetup &s,double lots,string &why)
+{
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string modelClock="";
+   if(!ModelClockExecutionAllows(s,c,modelClock)){ why="Model/clock trust: "+modelClock; return false; }
+
+   string sup=""; if(!IndependentRiskSupervisorAllows(s,sup)){ why=sup; return false; }
+   double proposed=ProposedRiskMoney(s,lots);
+   string budget=""; if(!StrategyRiskBudgetAllows(c,proposed,budget)){ why="Strategy budget: "+budget; return false; }
+   string portfolio=""; if(!AdvancedPortfolioRiskAllows(s,lots,portfolio)){ why="Adaptive portfolio: "+portfolio; return false; }
+   string stress=""; if(!PortfolioStressLatencyAllows(s,lots,stress)){ why="Scenario/latency supervisor: "+stress; return false; }
+   why=modelClock+" | "+sup+" | "+budget+" | "+portfolio+" | "+stress;
+   return true;
+}
+
+string AdaptiveRiskSummary(const TradeSetup &s)
+{
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string mult="",bh="",ab="",dd="";
+   double f=AdaptiveRiskMultiplier(s,mult);
+   double h=BrokerHealthScore(s.symbol,bh);
+   int a=AbnormalMarketConditionScore(s.symbol,ab);
+   bool ddb=DrawdownAccelerationBlocked(dd);
+   double daily=0,weekly=0; string d="",w="";
+   daily=StrategyBudgetAvailableMoney(c,false,d); weekly=StrategyBudgetAvailableMoney(c,true,w);
+   return StringFormat("Adaptive risk: %s | mode %s | risk multiplier %.2f | broker health %.1f | abnormal score %d | DD acceleration %s | daily/weekly available %.2f/%.2f",
+      StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),f,h,a,ddb?"BLOCK":"OK",daily,weekly);
+}
+
+void AdaptiveRiskSupervisorInit()
+{
+   RefreshDrawdownAccelerationBaseline();
+   Print("GPT_EA adaptive portfolio/risk supervisor initialized.");
+}
+
+void AdaptiveRiskSupervisorTimer()
+{
+   RefreshDrawdownAccelerationBaseline();
+}
+// ===== END INLINED GPT_EA_Part30_AdaptiveRiskPortfolio.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part39_DataIntegrityQuarantine.mqh =====
+// ============================================================================
+// GPT_EA Part 39 - Data integrity versioning, strategy registry and quarantine
+// ============================================================================
+// Prevents analytics from mixing materially different strategy/config/runtime
+// generations and keeps operationally corrupted samples out of learning.
+
+input bool   InpUseDataIntegrityVersioning      = true;
+input bool   InpUseLearningQuarantine           = true;
+input string InpDataIntegrityFile               = "GPT_EA_DataIntegrity.csv";
+input string InpLearningQuarantineFile          = "GPT_EA_QuarantinedLearning.csv";
+input string InpStrategyConfigRegistryFile       = "GPT_EA_StrategyConfigRegistry.csv";
+input string InpStrategyEngineVersion           = "strategy_engine_r6_hardening_1";
+input string InpModelPolicyVersion              = "model_policy_r6_hardening_1";
+input bool   InpQuarantineManualIntervention    = true;
+input bool   InpQuarantineBrokerAnomaly         = true;
+input bool   InpQuarantineConnectionAnomaly     = true;
+input bool   InpQuarantineChaosSamples          = true;
+input bool   InpQuarantineStorageFailure        = true;
+input bool   InpResetLearningOnGenerationChange  = true;
+
+int IntegrityTextHash(const string text)
+{
+   long h=2166136261;
+   for(int i=0;i<StringLen(text);i++)
+   {
+      h=(h ^ StringGetCharacter(text,i))*16777619;
+      h%=2147483647;
+   }
+   if(h<0) h=-h;
+   return (int)h;
+}
+
+string StrategyConfigVersion(StrategyClass c)
+{
+   switch(c)
+   {
+      case STRATEGY_TREND_CONTINUATION: return "trend-v1";
+      case STRATEGY_RETRACEMENT_ENTRY: return "retracement-v1";
+      case STRATEGY_COUNTER_TREND_SCALP: return "counter-scalp-v1";
+      case STRATEGY_COUNTER_TREND_SWING: return "counter-swing-v1";
+      case STRATEGY_POTENTIAL_REVERSAL: return "reversal-v1";
+      case STRATEGY_BREAKOUT: return "breakout-v2-direct";
+      case STRATEGY_BREAKOUT_RETEST: return "breakout-retest-v1";
+      case STRATEGY_RANGE_TRADE: return "range-v1";
+      case STRATEGY_MEAN_REVERSION: return "mean-reversion-v1";
+      default: return "no-strategy";
+   }
+}
+
+string CurrentSensitiveConfigText()
+{
+   string cfg=StringFormat(
+      "risk=%.4f|eq=%d|approval=%d|exec=%d|maxpos=%d|minconf=%d|minrr=%.4f|spread=%.4f|slip=%d|"
+      "fast=%d|slow=%d|rsi=%d|atr=%d|swing=%d|pbexp=%d|brexp=%d|tp1=%.2f|be=%d|"
+      "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
+      "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
+      "trail=%.3f|lock1=%.3f:%.3f|lock2=%.3f:%.3f|api_mode=%d|proxy=%s|https=%d|"
+      "model=%s|policy=%s|symbols=%s",
+      InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
+      InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
+      InpFastEMA,InpSlowEMA,InpRSIPeriod,InpATRPeriod,InpSwingBars,InpPullbackExpiryM15,InpBreakoutExpiryM15,
+      InpPartialAtTP1Percent,InpMoveSLToBEAfterTP1?1:0,
+      InpUseEconomicCalendar?1:0,InpNewsBlockBeforeMinutes,InpNewsBlockAfterMinutes,
+      InpUseYieldShockFilter?1:0,InpAllowDirectBreakoutExecution?1:0,InpDirectBreakoutMinVolumeRatio,
+      InpDirectBreakoutMinADX,InpDirectBreakoutZoneATR,
+      InpUseAdaptivePortfolioEngine?1:0,InpCorrelationRiskThreshold,InpMaxCorrelationWeightedRiskPercent,
+      InpMaxMacroFactorRiskPercent,InpUseDynamicQualitySizing?1:0,InpMinAdaptiveRiskMultiplier,InpMaxAdaptiveRiskMultiplier,
+      InpTrailStartR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
+      (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
+      InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
+
+   cfg+=StringFormat(
+      "|clock=%d:%d:%d|modelhealth=%d:%d:%.4f:%.4f:%.3f:%.3f:det%d|"
+      "stress=%d:%.3f:idx%.3f:fx%.3f:metal%.3f:energy%.3f:crypto%.3f:other%.3f|"
+      "macro=%d:usd%.3f:yld%.1f:yidx%.3f:ygold%.3f:ycrypto%.3f:riskoff%.3f:vol%.3f:gap%.3f|"
+      "gapgate=%d:%.3f|margingate=%d:%.1f|halflife=%d|latency=%d:%.3f|"
+      "webfresh=%d:%d:%d:primary%d:risk%d:%d|"
+      "quarantine=%d:%d:%d:%d:%d:reset%d|chaos=%d:%d:%d",
+      InpUseClockDriftProtection?1:0,InpClockOffsetDriftToleranceSeconds,InpAllowOneHourDSTOffsetShift?1:0,
+      InpUseModelDegradationMonitor?1:0,InpModelHealthMinSamples,InpModelReducedTrustFailureRate,
+      InpModelDeterministicFailureRate,InpModelReducedTrustRiskMultiplier,InpModelDeterministicRiskMultiplier,
+      InpAllowDeterministicEmergencyMode?1:0,
+      InpUsePortfolioScenarioStress?1:0,InpMaxScenarioStressLossPctEquity,InpStressIndexShockPct,InpStressFXShockPct,
+      InpStressMetalShockPct,InpStressEnergyShockPct,InpStressCryptoShockPct,InpStressOtherShockPct,
+      InpUseMacroScenarioStress?1:0,InpStressUSDStrengthPct,InpStressYieldShockBps,InpStressYieldIndexEffectPct,
+      InpStressYieldGoldEffectPct,InpStressYieldCryptoEffectPct,InpStressEquityRiskOffPct,
+      InpStressVolatilityIndexDropPct,InpStressCorrelatedGapMultiplier,
+      InpUseGapRiskSizingGate?1:0,InpMaxGapLossMultipleOfPlannedRisk,
+      InpUseMarginStressGate?1:0,InpMinimumStressedMarginLevelPct,
+      InpUseDecisionHalfLife?1:0,InpUseExecutionLatencyBudget?1:0,InpMaxLatencyBudgetFraction,
+      InpWebIntelMaxAsOfAgeMinutes,InpWebIntelMaxFutureSkewSeconds,InpWebIntelMinAnnotationURLs,
+      InpRequirePrimarySourceForHighRisk?1:0,InpWebIntelRiskWatchScore,InpWebIntelRiskBlockScore,
+      InpQuarantineManualIntervention?1:0,InpQuarantineBrokerAnomaly?1:0,InpQuarantineConnectionAnomaly?1:0,
+      InpQuarantineChaosSamples?1:0,InpQuarantineStorageFailure?1:0,InpResetLearningOnGenerationChange?1:0,
+      InpEnableChaosFaultInjection?1:0,InpChaosFaultScenario,InpChaosOneShot?1:0);
+
+   cfg+=StringFormat(
+      "|openai=%d:model%s:endpoint%s:timeout%d:hc%d|aiveto=%d:blockunavail%d|"
+      "web=%d:hconly%d:blockunavail%d:blockverdict%d:refresh%d|"
+      "structured=%d:failclosed%d:reqsources%d:circuit%d:cache%d|"
+      "deep=%d:model%s:effort%s:max%d|"
+      "confluence=%d:min%d:htf%d:adx%.2f:sweep%d:fvg%d:vol%d:minvol%.3f:maxdist%.3f",
+      InpUseOpenAI?1:0,InpOpenAIModel,InpOpenAIEndpoint,InpOpenAITimeoutMs,InpAIReviewHighConfidenceOnly?1:0,
+      InpAICanVetoTrade?1:0,InpBlockIfAIUnavailable?1:0,
+      InpUseLiveWebIntelligence?1:0,InpWebIntelHighConfidenceOnly?1:0,InpBlockIfWebIntelUnavailable?1:0,
+      InpBlockOnWebIntelVerdictBLOCK?1:0,InpWebIntelRefreshMinutes,
+      InpUseStructuredWebIntel?1:0,InpFailClosedHighConfidenceNews?1:0,InpRequireWebIntelSources?1:0,
+      InpWebIntelFailureCircuitThreshold,InpWebIntelMaxCacheAgeMinutes,
+      InpUseDeepGPTReviewModel?1:0,InpDeepGPTReviewModel,InpDeepGPTReasoningEffort,InpDeepGPTMaxOutputTokens,
+      InpUseAdvancedConfluence?1:0,InpMinAdvancedConfluence,InpRequireHTFMajority?1:0,InpMinADX,
+      InpUseLiquiditySweep?1:0,InpUseFairValueGap?1:0,InpUseVolumeImpulse?1:0,InpMinVolumeRatio,InpMaxEntryDistanceATR);
+
+   cfg+=LateResilienceConfigText();
+   return cfg;
+}
+
+string CurrentConfigFingerprint()
+{
+   return StringFormat("%08X",IntegrityTextHash(CurrentSensitiveConfigText()));
+}
+
+string SymbolContractFingerprint(const string sym)
+{
+   string raw=StringFormat("%s|%d|%.10f|%.10f|%.4f|%.4f|%.4f|%.4f|%d|%d|%I64d",
+      sym,(int)SymbolInfoInteger(sym,SYMBOL_DIGITS),SymbolInfoDouble(sym,SYMBOL_POINT),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE),SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_VALUE),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_CONTRACT_SIZE),SymbolInfoDouble(sym,SYMBOL_VOLUME_MIN),
+      SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),(int)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL),
+      (int)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL),SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE));
+   return StringFormat("%08X",IntegrityTextHash(raw));
+}
+
+void EnsureDataIntegrityHeader()
+{
+   if(!InpUseDataIntegrityVersioning) return;
+   bool exists=FileIsExist(InpDataIntegrityFile,FILE_COMMON);
+   int h=FileOpen(InpDataIntegrityFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","event","release_id","strategy_engine","model_policy",
+         "config_fingerprint","symbol","symbol_fingerprint","strategy","strategy_config","position_id","note");
+   FileClose(h);
+}
+
+void WriteDataIntegrityRow(const string eventName,const string sym,StrategyClass c,ulong pid,const string note)
+{
+   if(!InpUseDataIntegrityVersioning) return;
+   EnsureDataIntegrityHeader();
+   int h=FileOpen(InpDataIntegrityFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"data_integrity_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      sym,(sym!=""?SymbolContractFingerprint(sym):""),StrategyClassName(c),StrategyConfigVersion(c),(string)pid,note);
+   FileFlush(h); FileClose(h);
+}
+
+void EnsureLearningQuarantineHeader()
+{
+   if(!InpUseLearningQuarantine) return;
+   bool exists=FileIsExist(InpLearningQuarantineFile,FILE_COMMON);
+   int h=FileOpen(InpLearningQuarantineFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","position_id","symbol","strategy","release_id","config_fingerprint",
+         "symbol_fingerprint","reason","manual","broker_anomaly","connection_anomaly","chaos","storage");
+   FileClose(h);
+}
+
+void MarkLearningQuarantine(ulong pid,const string sym,const string reason)
+{
+   if(pid==0) return;
+   GVWrite(PosKey(pid,"LEARN_QUARANTINE"),1);
+   GVWrite(PosKey(pid,"LEARN_QUARANTINE_HASH"),IntegrityTextHash(reason));
+   WriteDataIntegrityRow("QUARANTINE",sym,(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0),pid,reason);
+   if(!InpUseLearningQuarantine) return;
+   EnsureLearningQuarantineHeader();
+   int h=FileOpen(InpLearningQuarantineFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0);
+   FileWrite(h,"learning_quarantine_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),(string)pid,sym,
+      StrategyClassName(c),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),reason,
+      GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)>0.5?"1":"0",
+      GVRead(PosKey(pid,"BROKER_ANOMALY"),0)>0.5?"1":"0",
+      GVRead(PosKey(pid,"CONNECTION_ANOMALY"),0)>0.5?"1":"0",
+      GVRead(PosKey(pid,"CHAOS_SAMPLE"),0)>0.5?"1":"0",
+      GVRead(PosKey(pid,"STORAGE_ANOMALY"),0)>0.5?"1":"0");
+   FileFlush(h); FileClose(h);
+}
+
+bool LearningSampleShouldQuarantine(ulong pid,const string sym,string &why)
+{
+   why="";
+   if(!InpUseLearningQuarantine) return false;
+   if(GVRead(PosKey(pid,"LEARN_QUARANTINE"),0)>0.5){ why="previously quarantined"; return true; }
+   if(InpQuarantineManualIntervention && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)>0.5)
+   { why="manual/mobile/web intervention"; return true; }
+   if(InpQuarantineBrokerAnomaly && GVRead(PosKey(pid,"BROKER_ANOMALY"),0)>0.5)
+   { why="broker/execution anomaly"; return true; }
+   if(InpQuarantineConnectionAnomaly && GVRead(PosKey(pid,"CONNECTION_ANOMALY"),0)>0.5)
+   { why="connection/quote anomaly"; return true; }
+   if(InpQuarantineChaosSamples && GVRead(PosKey(pid,"CHAOS_SAMPLE"),0)>0.5)
+   { why="fault-injection sample"; return true; }
+   if(InpQuarantineStorageFailure && GVRead(PosKey(pid,"STORAGE_ANOMALY"),0)>0.5)
+   { why="critical storage anomaly"; return true; }
+
+   double storedCfg=GVRead(PosKey(pid,"CONFIG_HASH"),0);
+   if(storedCfg>0 && (int)storedCfg!=IntegrityTextHash(CurrentSensitiveConfigText()))
+   { why="configuration generation mismatch"; return true; }
+
+   double storedSym=GVRead(PosKey(pid,"SYMBOL_HASH"),0);
+   if(storedSym>0 && sym!="" && (int)storedSym!=IntegrityTextHash(
+      StringFormat("%s|%d|%.10f|%.10f|%.4f|%.4f|%.4f|%.4f|%d|%d|%I64d",
+      sym,(int)SymbolInfoInteger(sym,SYMBOL_DIGITS),SymbolInfoDouble(sym,SYMBOL_POINT),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE),SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_VALUE),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_CONTRACT_SIZE),SymbolInfoDouble(sym,SYMBOL_VOLUME_MIN),
+      SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),(int)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL),
+      (int)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL),SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE))))
+   { why="symbol-contract generation mismatch"; return true; }
+   return false;
+}
+
+void AttachIntegrityMetadataToPosition(ulong ticket)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),CandidateStrategyForSymbol(sym));
+   GVWrite(PosKey(pid,"CONFIG_HASH"),IntegrityTextHash(CurrentSensitiveConfigText()));
+   string raw=StringFormat("%s|%d|%.10f|%.10f|%.4f|%.4f|%.4f|%.4f|%d|%d|%I64d",
+      sym,(int)SymbolInfoInteger(sym,SYMBOL_DIGITS),SymbolInfoDouble(sym,SYMBOL_POINT),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE),SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_VALUE),
+      SymbolInfoDouble(sym,SYMBOL_TRADE_CONTRACT_SIZE),SymbolInfoDouble(sym,SYMBOL_VOLUME_MIN),
+      SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),(int)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL),
+      (int)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL),SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE));
+   GVWrite(PosKey(pid,"SYMBOL_HASH"),IntegrityTextHash(raw));
+   GVWrite(PosKey(pid,"STRATEGY_CFG_HASH"),IntegrityTextHash(StrategyConfigVersion(c)));
+   GVWrite(PosKey(pid,"MODEL_POLICY_HASH"),IntegrityTextHash(InpModelPolicyVersion));
+   WriteDataIntegrityRow("POSITION_BIND",sym,c,pid,"position bound to current data/config generation");
+}
+
+string StrategyConfigDescription(StrategyClass c)
+{
+   switch(c)
+   {
+      case STRATEGY_TREND_CONTINUATION:
+         return StringFormat("min_score=%d;trend_daily=%.2f;trend_weekly=%.2f",InpMinStrategyScore,InpTrendDailyRiskBudgetPct,InpTrendWeeklyRiskBudgetPct);
+      case STRATEGY_RETRACEMENT_ENTRY:
+         return StringFormat("min_score=%d;expiry=%d;daily=%.2f;weekly=%.2f",InpMinStrategyScore,InpPullbackExpiryM15,InpRetracementDailyRiskBudgetPct,InpRetracementWeeklyRiskBudgetPct);
+      case STRATEGY_COUNTER_TREND_SCALP:
+         return StringFormat("min_ct=%d;daily=%.2f;weekly=%.2f",InpMinCounterTrendScore,InpCounterScalpDailyRiskBudgetPct,InpCounterScalpWeeklyRiskBudgetPct);
+      case STRATEGY_COUNTER_TREND_SWING:
+         return StringFormat("min_ct=%d;daily=%.2f;weekly=%.2f",InpMinCounterTrendScore,InpCounterSwingDailyRiskBudgetPct,InpCounterSwingWeeklyRiskBudgetPct);
+      case STRATEGY_POTENTIAL_REVERSAL:
+         return StringFormat("min_score=%d;daily=%.2f;weekly=%.2f",InpMinStrategyScore,InpReversalDailyRiskBudgetPct,InpReversalWeeklyRiskBudgetPct);
+      case STRATEGY_BREAKOUT:
+         return StringFormat("direct=%d;vol=%.2f;adx=%.1f;zone=%.2f;daily=%.2f;weekly=%.2f",
+            InpAllowDirectBreakoutExecution?1:0,InpDirectBreakoutMinVolumeRatio,InpDirectBreakoutMinADX,InpDirectBreakoutZoneATR,
+            InpBreakoutDailyRiskBudgetPct,InpBreakoutWeeklyRiskBudgetPct);
+      case STRATEGY_BREAKOUT_RETEST:
+         return StringFormat("buffer=%.2f;retest=%.2f;expiry=%d;daily=%.2f;weekly=%.2f",
+            InpBreakoutBufferATR,InpRetestHalfWidthATR,InpBreakoutExpiryM15,InpBreakoutRetestDailyRiskBudgetPct,InpBreakoutRetestWeeklyRiskBudgetPct);
+      case STRATEGY_RANGE_TRADE:
+         return StringFormat("enabled=%d;daily=%.2f;weekly=%.2f",InpAllowRangeTrades?1:0,InpRangeDailyRiskBudgetPct,InpRangeWeeklyRiskBudgetPct);
+      case STRATEGY_MEAN_REVERSION:
+         return StringFormat("enabled=%d;daily=%.2f;weekly=%.2f",InpAllowMeanReversion?1:0,InpMeanReversionDailyRiskBudgetPct,InpMeanReversionWeeklyRiskBudgetPct);
+      default: return "none";
+   }
+}
+
+void WriteStrategyConfigRegistry()
+{
+   bool exists=FileIsExist(InpStrategyConfigRegistryFile,FILE_COMMON);
+   int h=FileOpen(InpStrategyConfigRegistryFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","release_id","strategy_engine","model_policy","config_fingerprint",
+         "strategy","strategy_config_version","configuration");
+   FileSeek(h,0,SEEK_END);
+   for(int ci=1;ci<=9;ci++)
+   {
+      StrategyClass c=(StrategyClass)ci;
+      FileWrite(h,"strategy_config_registry_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),
+         GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+         StrategyClassName(c),StrategyConfigVersion(c),StrategyConfigDescription(c));
+   }
+   FileFlush(h); FileClose(h);
+}
+
+bool IsLearningAggregateGlobal(const string name)
+{
+   string prefix=SysKey("");
+   if(StringFind(name,prefix)!=0) return false;
+   string suffix=StringSubstr(name,StringLen(prefix));
+   string families[]={
+      "STRAT_","CAL_CONF_","EXEC_STRAT_","EXEC_SESSION_","EXPIRY_",
+      "EVENT_","HEALTH_RECENT_","CC_","SHADOW_","REGIME_","MODEL_"
+   };
+   for(int i=0;i<ArraySize(families);i++)
+      if(StringFind(suffix,families[i])==0) return true;
+   return false;
+}
+
+int ResetLearningAggregateGeneration()
+{
+   int removed=0;
+   for(int i=GlobalVariablesTotal()-1;i>=0;i--)
+   {
+      string name=GlobalVariableName(i);
+      if(!IsLearningAggregateGlobal(name)) continue;
+      if(GlobalVariableDel(name)) removed++;
+   }
+   return removed;
+}
+
+void EnsureLearningGeneration()
+{
+   int current=IntegrityTextHash(CurrentSensitiveConfigText());
+   string key=SysKey("DATA_GENERATION_HASH");
+   int stored=(int)GVRead(key,0);
+   if(stored==0)
+   {
+      GVWrite(key,current);
+      GVWrite(SysKey("LEARNING_GENERATION_EPOCH"),1);
+      GlobalVariablesFlush();
+      return;
+   }
+   if(stored==current) return;
+
+   int removed=0;
+   if(InpResetLearningOnGenerationChange)
+      removed=ResetLearningAggregateGeneration();
+
+   double epoch=GVRead(SysKey("LEARNING_GENERATION_EPOCH"),0)+1;
+   GVWrite(SysKey("DATA_GENERATION_HASH"),current);
+   GVWrite(SysKey("LEARNING_GENERATION_EPOCH"),epoch);
+   GVWrite(SysKey("LEARNING_GENERATION_RESET_TIME"),(double)TimeTradeServer());
+   GlobalVariablesFlush();
+
+   WriteDataIntegrityRow("LEARNING_GENERATION_RESET","",STRATEGY_NO_TRADE,0,
+      StringFormat("material configuration generation changed %08X -> %08X; cleared %d aggregate learning globals; epoch %.0f",
+                   stored,current,removed,epoch));
+}
+
+void DataIntegrityInit()
+{
+   EnsureDataIntegrityHeader();
+   EnsureLearningQuarantineHeader();
+   EnsureLearningGeneration();
+   WriteStrategyConfigRegistry();
+   WriteDataIntegrityRow("INIT","",STRATEGY_NO_TRADE,0,"EA data-integrity generation initialized");
+}
+
+void DataIntegrityTimer()
+{
+   // Metadata is bound at entry; quarantine is evaluated when trades close.
+}
+
+void DataIntegrityShutdown()
+{
+   WriteDataIntegrityRow("SHUTDOWN","",STRATEGY_NO_TRADE,0,"EA data-integrity generation shutdown");
+}
+// ===== END INLINED GPT_EA_Part39_DataIntegrityQuarantine.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part31_ExecutionLearning.mqh =====
+// ============================================================================
+// GPT_EA Part 31 - Execution-quality learning, calibration and strategy health
+// ============================================================================
+
+input bool   InpUseExecutionQualityLearning       = true;
+input string InpExecutionLearningFile             = "GPT_EA_ExecutionLearningV2.csv";
+input double InpExecutionEwmaAlpha                = 0.20;
+input int    InpExecutionForecastMinSamples       = 5;
+input double InpExecutionForecastRRBuffer         = 0.05;
+
+input bool   InpUseConfidenceCalibration          = true;
+input int    InpConfidenceCalibrationMinSamples   = 8;
+input double InpConfidenceCalibrationPriorTrades  = 20.0;
+input int    InpMinCalibratedConfidence           = 62;
+
+input bool   InpUseStrategyDegradationDetector    = true;
+input int    InpDegradationRecentTrades           = 12;
+input int    InpDegradationMinTrades              = 8;
+input double InpReducedRiskRecentAvgR             = 0.00;
+input double InpReducedRiskRecentPF               = 0.90;
+input double InpShadowRecentAvgR                  = -0.15;
+input double InpShadowRecentPF                    = 0.75;
+input double InpDisableRecentAvgR                 = -0.50;
+input double InpDisableRecentPF                   = 0.50;
+
+input bool   InpUseEventSpecificBehavior          = true;
+input int    InpEventBehaviorWindowMinutes        = 60;
+input int    InpEventBehaviorMinSamples           = 6;
+input double InpEventBehaviorMinAvgR              = -0.05;
+input double InpEventBehaviorMinPF                = 0.85;
+input bool   InpBlockNegativeEventBehavior        = true;
+
+input bool   InpUseMAEMFEResearch                 = true;
+input bool   InpUseLearnedCandleExpiry            = true;
+input int    InpLearnedExpiryMinSamples           = 8;
+input double InpLearnedExpiryPercentile           = 0.75;
+input int    InpLearnedExpiryMaxM15               = 12;
+
+input bool   InpUseRegimeTransitionRisk           = true;
+input int    InpRegimeTransitionCautionM15        = 2;
+input double InpRegimeTransitionRiskMultiplier    = 0.60;
+
+// Scheduled event categories used for contextual strategy evidence.
+enum AdaptiveEventClass
+{
+   EVENT_NONE=0,
+   EVENT_CPI=1,
+   EVENT_PPI=2,
+   EVENT_NFP_EMPLOYMENT=3,
+   EVENT_FOMC_FED=4,
+   EVENT_ECB=5,
+   EVENT_BOE=6,
+   EVENT_GDP=7,
+   EVENT_PMI=8,
+   EVENT_RETAIL_SALES=9,
+   EVENT_SPEECH=10,
+   EVENT_OTHER_HIGH_IMPACT=11
+};
+
+string AdaptiveEventName(int c)
+{
+   switch(c)
+   {
+      case EVENT_CPI: return "CPI/INFLATION";
+      case EVENT_PPI: return "PPI";
+      case EVENT_NFP_EMPLOYMENT: return "NFP/EMPLOYMENT";
+      case EVENT_FOMC_FED: return "FOMC/FED";
+      case EVENT_ECB: return "ECB";
+      case EVENT_BOE: return "BOE";
+      case EVENT_GDP: return "GDP";
+      case EVENT_PMI: return "PMI";
+      case EVENT_RETAIL_SALES: return "RETAIL_SALES";
+      case EVENT_SPEECH: return "CENTRAL_BANK_SPEECH";
+      case EVENT_OTHER_HIGH_IMPACT: return "OTHER_HIGH_IMPACT";
+      default: return "NONE";
+   }
+}
+
+int ClassifyEconomicEventName(string name)
+{
+   StringToUpper(name);
+   if(StringFind(name,"CPI")>=0 || StringFind(name,"CONSUMER PRICE")>=0 || StringFind(name,"INFLATION")>=0) return EVENT_CPI;
+   if(StringFind(name,"PPI")>=0 || StringFind(name,"PRODUCER PRICE")>=0) return EVENT_PPI;
+   if(StringFind(name,"NONFARM")>=0 || StringFind(name,"NFP")>=0 || StringFind(name,"PAYROLL")>=0 ||
+      StringFind(name,"EMPLOYMENT")>=0 || StringFind(name,"UNEMPLOYMENT")>=0 || StringFind(name,"JOBLESS")>=0) return EVENT_NFP_EMPLOYMENT;
+   if(StringFind(name,"FOMC")>=0 || StringFind(name,"FEDERAL RESERVE")>=0 || StringFind(name,"FED ")>=0 || StringFind(name,"FED RATE")>=0) return EVENT_FOMC_FED;
+   if(StringFind(name,"ECB")>=0 || StringFind(name,"EUROPEAN CENTRAL BANK")>=0) return EVENT_ECB;
+   if(StringFind(name,"BOE")>=0 || StringFind(name,"BANK OF ENGLAND")>=0) return EVENT_BOE;
+   if(StringFind(name,"GDP")>=0 || StringFind(name,"GROSS DOMESTIC")>=0) return EVENT_GDP;
+   if(StringFind(name,"PMI")>=0 || StringFind(name,"PURCHASING MANAGER")>=0) return EVENT_PMI;
+   if(StringFind(name,"RETAIL SALES")>=0) return EVENT_RETAIL_SALES;
+   if(StringFind(name,"SPEECH")>=0 || StringFind(name,"TESTIMONY")>=0 || StringFind(name,"PRESS CONFERENCE")>=0 || StringFind(name,"REMARKS")>=0) return EVENT_SPEECH;
+   return EVENT_OTHER_HIGH_IMPACT;
+}
+
+int CurrentAdaptiveEventClass(const string sym,string &eventName)
+{
+   eventName="";
+   if(!InpUseEventSpecificBehavior || !InpUseEconomicCalendar || (bool)MQLInfoInteger(MQL_TESTER)) return EVENT_NONE;
+   string ccys=RelatedCurrencies(sym); if(ccys=="") return EVENT_NONE;
+   string a[]; int nc=StringSplit(ccys,',',a);
+   datetime now=TimeTradeServer();
+   int w=MathMax(5,InpEventBehaviorWindowMinutes);
+   datetime from=now-w*60,to=now+w*60;
+   long best=2147483647; int bestClass=EVENT_NONE;
+   for(int c=0;c<nc;c++)
+   {
+      MqlCalendarValue vals[]; int n=CalendarValueHistory(vals,from,to,NULL,a[c]);
+      for(int i=0;i<n;i++)
+      {
+         MqlCalendarEvent ev={}; if(!CalendarEventById(vals[i].event_id,ev)) continue;
+         if(ev.importance!=CALENDAR_IMPORTANCE_HIGH) continue;
+         long dist=(long)MathAbs((double)(vals[i].time-now));
+         if(dist<best)
+         {
+            best=dist; eventName=ev.name; bestClass=ClassifyEconomicEventName(ev.name);
+         }
+      }
+   }
+   return bestClass;
+}
+
+int ConfidenceBucket(int raw)
+{
+   int c=MathMax(0,MathMin(100,raw));
+   return (c/5)*5;
+}
+
+string ConfidenceBucketKey(int raw)
+{
+   return SysKey(StringFormat("CAL_CONF_%d",ConfidenceBucket(raw)));
+}
+
+int CalibratedConfidenceValue(int raw,string &detail)
+{
+   raw=MathMax(0,MathMin(100,raw));
+   if(!InpUseConfidenceCalibration){ detail="confidence calibration disabled"; return raw; }
+   string k=ConfidenceBucketKey(raw);
+   double n=GVRead(k+"_N",0),wins=GVRead(k+"_WIN",0);
+   if(n<InpConfidenceCalibrationMinSamples)
+   {
+      detail=StringFormat("confidence %d%% raw; calibration sample N %.0f developing",raw,n);
+      return raw;
+   }
+   double prior=MathMax(1.0,InpConfidenceCalibrationPriorTrades);
+   double p0=raw/100.0;
+   double p=(wins+prior*p0)/(n+prior);
+   int out=(int)MathRound(MathMax(0.0,MathMin(1.0,p))*100.0);
+   detail=StringFormat("confidence raw %d%% -> calibrated %d%% from N %.0f observed win %.1f%%",raw,out,n,(n>0?wins/n*100.0:0));
+   return out;
+}
+
+void ApplyConfidenceCalibration(TradeSetup &s,string &detail)
+{
+   int raw=s.confidence;
+   int cal=CalibratedConfidenceValue(raw,detail);
+   s.confidence=cal;
+   if(InpUseConfidenceCalibration && cal<InpMinCalibratedConfidence)
+      s.valid=false;
+}
+
+double EWMA(double oldValue,double newValue,double alpha)
+{
+   if(oldValue<=0) return newValue;
+   double a=MathMax(0.01,MathMin(1.0,alpha));
+   return a*newValue+(1.0-a)*oldValue;
+}
+
+int ExecutionSessionCode(const string sym)
+{
+   string s=AccurateSessionBucket();
+   return StrategySessionCode(s);
+}
+
+double ExecutionSlippageForecastPoints(const string sym,StrategyClass c,string &detail)
+{
+   double dynamic=(double)DynamicSlippagePoints(sym);
+   double sn=GVRead(SymKey(sym,"EXEC_N"),0);
+   double s=GVRead(SymKey(sym,"EXEC_SLIP_EWMA_PTS"),0);
+   int ses=ExecutionSessionCode(sym);
+   double cs=GVRead(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",(int)c)),0);
+   double ss=GVRead(SysKey(StringFormat("EXEC_SESSION_%d_SLIP",ses)),0);
+   double learned=0;
+   if(sn>=InpExecutionForecastMinSamples) learned=MathMax(s,MathMax(cs,ss));
+   double out=MathMax(dynamic,learned);
+   detail=StringFormat("slippage forecast %.1f pts | dynamic %.1f | symbol EWMA %.1f N %.0f | strategy %.1f | session %.1f",
+                       out,dynamic,s,sn,cs,ss);
+   return out;
+}
+
+bool ExecutionForecastRRGate(const TradeSetup &s,StrategyClass c,string &why)
+{
+   string f=""; double slipPts=ExecutionSlippageForecastPoints(s.symbol,c,f);
+   MqlTick t={}; if(!GetTickSafe(s.symbol,t)){ why="Execution forecast: no fresh tick."; return false; }
+   double pt=PointFor(s.symbol); if(pt<=0){ why="Execution forecast: invalid point size."; return false; }
+   double spread=MathMax(0.0,t.ask-t.bid),slip=slipPts*pt;
+   double modeled=(s.bullish?s.preferred+spread+slip:s.preferred-spread-slip);
+   double grossRisk=MathAbs(OneLotProfitBetween(s.symbol,s.bullish,modeled,s.sl));
+   double reward=MathAbs(OneLotProfitBetween(s.symbol,s.bullish,modeled,s.tp2));
+   double commission=EstimateCommissionPerLotRoundTurn(s.symbol);
+   double rr=(grossRisk+commission>0?MathMax(0.0,reward-commission)/(grossRisk+commission):0);
+   double floor=(c==STRATEGY_COUNTER_TREND_SCALP?MathMax(1.10,InpMinEffectiveRR-0.30):InpMinEffectiveRR)+InpExecutionForecastRRBuffer;
+   why=StringFormat("execution forecast R:R %.2f vs %.2f floor | %s",rr,floor,f);
+   return rr>=floor;
+}
+
+void RegisterAdaptiveExecutionRequest(const TradeSetup &s,double lots,double riskMoney)
+{
+   if(!InpUseExecutionQualityLearning) return;
+   MqlTick t={}; GetTickSafe(s.symbol,t);
+   double pt=PointFor(s.symbol);
+   GVWrite(SymKey(s.symbol,"EXEC_ATTEMPTS"),GVRead(SymKey(s.symbol,"EXEC_ATTEMPTS"),0)+1);
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_MS"),(double)GetTickCount64());
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"EXEC_EXPECTED"),s.preferred);
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_PX"),s.bullish?t.ask:t.bid);
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_SPREAD_PTS"),(pt>0?(t.ask-t.bid)/pt:0));
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_LOTS"),lots);
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_RISK"),riskMoney);
+   GVWrite(SymKey(s.symbol,"EXEC_REQ_CONF"),s.confidence);
+}
+
+void RegisterAdaptiveExecutionFailure(const string sym,const string reason)
+{
+   if(!InpUseExecutionQualityLearning) return;
+   GVWrite(SymKey(sym,"EXEC_FAILS"),GVRead(SymKey(sym,"EXEC_FAILS"),0)+1);
+   Print(sym,": adaptive execution-learning failure captured - ",reason);
+}
+
+void EnsureExecutionLearningHeader()
+{
+   if(!InpUseExecutionQualityLearning) return;
+   bool exists=FileIsExist(InpExecutionLearningFile,FILE_COMMON);
+   int h=FileOpen(InpExecutionLearningFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","event","broker","server","symbol","position_id","strategy","market_state","session","event_class",
+                   "analysis_time","approval_time","model_latency_ms","sent_time","ack_time","fill_time",
+                   "expected_entry","request_price","fill_price","spread_request_pts","spread_fill_pts","slippage_pts","latency_ms","lots","risk_money",
+                   "raw_confidence","calibrated_confidence","realized_r","mae_r","mfe_r","tp1_m15","commission",
+                   "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","note");
+   FileClose(h);
+}
+
+void WriteExecutionLearningRow(const string eventName,const string sym,ulong pid,const string note,double realizedR=0)
+{
+   if(!InpUseExecutionQualityLearning) return;
+   EnsureExecutionLearningHeader();
+   int h=FileOpen(InpExecutionLearningFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   int cls=(int)GVRead(PosKey(pid,"STRATEGY"),GVRead(SymKey(sym,"PLAN_STRATEGY"),0));
+   int state=(int)GVRead(PosKey(pid,"MARKET_STATE"),GVRead(SymKey(sym,"PLAN_STATE"),0));
+   int ses=(int)GVRead(PosKey(pid,"EXEC_SESSION"),ExecutionSessionCode(sym));
+   int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
+   double commission=GVRead(PosKey(pid,"ACTUAL_COMMISSION"),0);
+   FileWrite(h,"execution_learning_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
+      AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),sym,(string)pid,
+      StrategyClassName((StrategyClass)cls),MarketStateName((MarketStateClass)state),(string)ses,AdaptiveEventName(ev),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_ANALYSIS_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_APPROVAL_TIME"),0),TIME_DATE|TIME_SECONDS),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_MODEL_LATENCY_MS"),0),0),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_SENT_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_ACK_TIME"),0),TIME_DATE|TIME_SECONDS),
+      TimeToString((datetime)GVRead(PosKey(pid,"EXEC_FILL_TIME"),0),TIME_DATE|TIME_SECONDS),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_EXPECTED"),0),DigitsFor(sym)),DoubleToString(GVRead(PosKey(pid,"EXEC_REQUEST_PX"),0),DigitsFor(sym)),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_FILL"),0),DigitsFor(sym)),DoubleToString(GVRead(PosKey(pid,"EXEC_SPREAD_REQ"),0),1),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_SPREAD_FILL"),0),1),DoubleToString(GVRead(PosKey(pid,"EXEC_SLIP_PTS"),0),1),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_LATENCY_MS"),0),0),DoubleToString(GVRead(PosKey(pid,"EXEC_LOTS"),0),2),
+      DoubleToString(GVRead(PosKey(pid,"RISK"),0),2),DoubleToString(GVRead(PosKey(pid,"RAW_CONF"),0),0),
+      DoubleToString(GVRead(PosKey(pid,"CAL_CONF"),0),0),DoubleToString(realizedR,3),
+      DoubleToString(GVRead(PosKey(pid,"MAE_R"),0),3),DoubleToString(GVRead(PosKey(pid,"MFE_R"),0),3),
+      DoubleToString(GVRead(PosKey(pid,"TP1_M15"),0),1),DoubleToString(commission,2),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion((StrategyClass)cls),note);
+   FileFlush(h); FileClose(h);
+}
+
+void PersistAdaptivePlanMetadata(const TradeSetup &s)
+{
+   string cal=""; int calibrated=CalibratedConfidenceValue(s.confidence,cal);
+   string evName=""; int ev=CurrentAdaptiveEventClass(s.symbol,evName);
+   GVWrite(SymKey(s.symbol,"PLAN_RAW_CONF"),s.confidence);
+   GVWrite(SymKey(s.symbol,"PLAN_CAL_CONF"),calibrated);
+   GVWrite(SymKey(s.symbol,"PLAN_EVENT_CLASS"),ev);
+   GVWrite(SymKey(s.symbol,"PLAN_EXEC_SESSION"),ExecutionSessionCode(s.symbol));
+   GVWrite(SymKey(s.symbol,"PLAN_EXPECTED_RR"),RealisticRiskReward(s).rr);
+}
+
+void RegisterAdaptiveExecutionFill(ulong ticket,const TradeSetup &s,double lots,double riskMoney)
+{
+   if(!InpUseExecutionQualityLearning || ticket==0 || !PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double pt=PointFor(sym),fill=PositionGetDouble(POSITION_PRICE_OPEN);
+   MqlTick t={}; GetTickSafe(sym,t);
+   double req=GVRead(SymKey(sym,"EXEC_REQ_PX"),s.preferred);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double slipPts=(pt>0?(bull?fill-req:req-fill)/pt:0);
+   double latency=MathMax(0.0,(double)GetTickCount64()-GVRead(SymKey(sym,"EXEC_REQ_MS"),(double)GetTickCount64()));
+   double spreadFill=(pt>0?(t.ask-t.bid)/pt:0);
+   double spreadReq=GVRead(SymKey(sym,"EXEC_REQ_SPREAD_PTS"),spreadFill);
+   StrategyClass c=CandidateStrategyForSymbol(sym);
+   int ses=ExecutionSessionCode(sym);
+   string evName=""; int ev=CurrentAdaptiveEventClass(sym,evName);
+   string calText=""; int calibrated=CalibratedConfidenceValue(s.confidence,calText);
+
+   GVWrite(PosKey(pid,"ADAPT_META"),1);
+   GVWrite(PosKey(pid,"EXEC_EXPECTED"),s.preferred);
+   GVWrite(PosKey(pid,"EXEC_REQUEST_PX"),req);
+   GVWrite(PosKey(pid,"EXEC_FILL"),fill);
+   GVWrite(PosKey(pid,"EXEC_SPREAD_REQ"),spreadReq);
+   GVWrite(PosKey(pid,"EXEC_SPREAD_FILL"),spreadFill);
+   GVWrite(PosKey(pid,"EXEC_SLIP_PTS"),slipPts);
+   GVWrite(PosKey(pid,"EXEC_LATENCY_MS"),latency);
+   GVWrite(PosKey(pid,"EXEC_LOTS"),lots);
+   GVWrite(PosKey(pid,"RISK"),riskMoney);
+   GVWrite(PosKey(pid,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(sym,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(sym,"CAND_TIME"),0)));
+   GVWrite(PosKey(pid,"EXEC_APPROVAL_TIME"),GVRead(SymKey(sym,"EXEC_APPROVAL_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_MODEL_LATENCY_MS"),GVRead(SymKey(sym,"EXEC_MODEL_LATENCY_MS"),0));
+   GVWrite(PosKey(pid,"EXEC_SENT_TIME"),GVRead(SymKey(sym,"EXEC_SENT_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_ACK_TIME"),GVRead(SymKey(sym,"EXEC_ACK_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_FILL_TIME"),(double)TimeTradeServer());
+   GVWrite(PosKey(pid,"RAW_CONF"),s.confidence);
+   GVWrite(PosKey(pid,"CAL_CONF"),calibrated);
+   GVWrite(PosKey(pid,"EVENT_CLASS"),ev);
+   GVWrite(PosKey(pid,"EXEC_SESSION"),ses);
+   GVWrite(PosKey(pid,"OPEN_TIME"),(double)PositionGetInteger(POSITION_TIME));
+   GVWrite(PosKey(pid,"MAE_R"),0); GVWrite(PosKey(pid,"MFE_R"),0);
+
+   double n=GVRead(SymKey(sym,"EXEC_N"),0)+1; GVWrite(SymKey(sym,"EXEC_N"),n);
+   GVWrite(SymKey(sym,"EXEC_SLIP_EWMA_PTS"),EWMA(GVRead(SymKey(sym,"EXEC_SLIP_EWMA_PTS"),0),MathMax(0.0,slipPts),InpExecutionEwmaAlpha));
+   GVWrite(SymKey(sym,"EXEC_SPREAD_EWMA_PTS"),EWMA(GVRead(SymKey(sym,"EXEC_SPREAD_EWMA_PTS"),0),spreadFill,InpExecutionEwmaAlpha));
+   GVWrite(SymKey(sym,"EXEC_LATENCY_EWMA_MS"),EWMA(GVRead(SymKey(sym,"EXEC_LATENCY_EWMA_MS"),0),latency,InpExecutionEwmaAlpha));
+   GVWrite(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",(int)c)),EWMA(GVRead(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",(int)c)),0),MathMax(0.0,slipPts),InpExecutionEwmaAlpha));
+   GVWrite(SysKey(StringFormat("EXEC_SESSION_%d_SLIP",ses)),EWMA(GVRead(SysKey(StringFormat("EXEC_SESSION_%d_SLIP",ses)),0),MathMax(0.0,slipPts),InpExecutionEwmaAlpha));
+   WriteExecutionLearningRow("FILL",sym,pid,calText,0);
+}
+
+void UpdateOpenMAEMFE()
+{
+   if(!InpUseMAEMFEResearch) return;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      double rNow=0,R=0,entry=0,px=0; bool bull=true;
+      if(!CurrentPositionR(tk,rNow,R,entry,px,bull) || R<=0) continue;
+      if(rNow>GVRead(PosKey(pid,"MFE_R"),0)) GVWrite(PosKey(pid,"MFE_R"),rNow);
+      double mae=MathMax(0.0,-rNow);
+      if(mae>GVRead(PosKey(pid,"MAE_R"),0)) GVWrite(PosKey(pid,"MAE_R"),mae);
+      datetime open=(datetime)GVRead(PosKey(pid,"OPEN_TIME"),PositionGetInteger(POSITION_TIME));
+      if(PositionFlag(pid,tk,"TP1PARTIAL") && GVRead(PosKey(pid,"TP1_M15"),0)<=0)
+      {
+         datetime tp1=(datetime)GVRead(PosKey(pid,"TP1_TIME"),0);
+         if(tp1>0 && open>0) GVWrite(PosKey(pid,"TP1_M15"),MathMax(0.0,(tp1-open)/900.0));
+      }
+   }
+}
+
+void UpdateConfidenceCalibrationBucket(int raw,double R)
+{
+   string k=ConfidenceBucketKey(raw);
+   UpdateStrategyBucket(k,R);
+}
+
+void UpdateExpiryHistogram(StrategyClass c,double tp1M15)
+{
+   if(tp1M15<=0) return;
+   int b=(int)MathCeil(tp1M15); b=MathMax(1,MathMin(InpLearnedExpiryMaxM15,b));
+   string k=SysKey(StringFormat("EXPIRY_%d_B%d",(int)c,b));
+   GVWrite(k,GVRead(k,0)+1);
+   GVWrite(SysKey(StringFormat("EXPIRY_%d_N",(int)c)),GVRead(SysKey(StringFormat("EXPIRY_%d_N",(int)c)),0)+1);
+}
+
+int LearnedStrategyExpiryM15(StrategyClass c,int fallback,string &detail)
+{
+   detail="learned expiry unavailable";
+   if(!InpUseLearnedCandleExpiry || c==STRATEGY_NO_TRADE) return fallback;
+   double n=GVRead(SysKey(StringFormat("EXPIRY_%d_N",(int)c)),0);
+   if(n<InpLearnedExpiryMinSamples)
+   { detail=StringFormat("learned expiry sample %.0f/%d; fallback %d",n,InpLearnedExpiryMinSamples,fallback); return fallback; }
+   double target=n*MathMax(0.50,MathMin(0.95,InpLearnedExpiryPercentile)),cum=0;
+   int chosen=fallback;
+   for(int b=1;b<=InpLearnedExpiryMaxM15;b++)
+   {
+      cum+=GVRead(SysKey(StringFormat("EXPIRY_%d_B%d",(int)c,b)),0);
+      if(cum>=target){ chosen=b; break; }
+   }
+   chosen=MathMax(1,MathMin(InpLearnedExpiryMaxM15,chosen));
+   detail=StringFormat("learned %.0fth percentile expiry %d M15 from N %.0f",InpLearnedExpiryPercentile*100.0,chosen,n);
+   return chosen;
+}
+
+bool EventSpecificBehaviorAllows(const string sym,StrategyClass c,string &why)
+{
+   why="No scheduled event-specific restriction.";
+   if(!InpUseEventSpecificBehavior || c==STRATEGY_NO_TRADE) return true;
+   string eventName=""; int ev=CurrentAdaptiveEventClass(sym,eventName);
+   if(ev==EVENT_NONE) return true;
+   string k=SysKey(StringFormat("EVENT_%d_STRAT_%d",ev,(int)c));
+   double n=0,wr=0,avg=0,pf=0,dd=0,ml=0; StrategyBucketMetrics(k,n,wr,avg,pf,dd,ml);
+   why=StringFormat("%s / %s historical context N %.0f win %.1f%% avg %.2fR PF %.2f",
+                    AdaptiveEventName(ev),StrategyClassName(c),n,wr,avg,pf);
+   if(n<InpEventBehaviorMinSamples){ why+=" | developing sample"; return true; }
+   bool ok=(avg>=InpEventBehaviorMinAvgR && pf>=InpEventBehaviorMinPF);
+   if(!ok && InpBlockNegativeEventBehavior){ why+=" | BLOCK"; return false; }
+   why+=(ok?" | PASS":" | WATCH");
+   return true;
+}
+
+void CollectRecentStrategyRs(StrategyClass c,double &arr[])
+{
+   ArrayResize(arr,0);
+   datetime now=TimeTradeServer(),from=now-MathMax(10,InpStrategyHistoryLookbackDays)*86400;
+   if(!HistorySelect(from,now)) return;
+   ulong pids[]; datetime closes[];
+   int total=HistoryDealsTotal();
+   for(int i=0;i<total;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0 || (long)HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if((int)GVRead(PosKey(pid,"STRATEGY"),0)!=(int)c || PositionIdentifierOpen(pid)) continue;
+      datetime tm=(datetime)HistoryDealGetInteger(d,DEAL_TIME);
+      int at=-1; for(int j=0;j<ArraySize(pids);j++) if(pids[j]==pid){ at=j; break; }
+      if(at<0){ int n=ArraySize(pids); ArrayResize(pids,n+1); ArrayResize(closes,n+1); pids[n]=pid; closes[n]=tm; }
+      else if(tm>closes[at]) closes[at]=tm;
+   }
+   for(int i=0;i<ArraySize(pids)-1;i++) for(int j=i+1;j<ArraySize(pids);j++) if(closes[j]<closes[i])
+   { datetime tt=closes[i]; closes[i]=closes[j]; closes[j]=tt; ulong pp=pids[i]; pids[i]=pids[j]; pids[j]=pp; }
+   int start=MathMax(0,ArraySize(pids)-MathMax(1,InpDegradationRecentTrades));
+   for(int i=start;i<ArraySize(pids);i++)
+   {
+      double risk=GVRead(PosKey(pids[i],"RISK"),0); if(risk<=0) continue;
+      int n=ArraySize(arr); ArrayResize(arr,n+1); arr[n]=StrategyPositionRealized(pids[i])/risk;
+   }
+}
+
+void StrategyRecentMetrics(StrategyClass c,double &n,double &avg,double &pf)
+{
+   double a[]; CollectRecentStrategyRs(c,a); n=ArraySize(a); avg=0; pf=0;
+   double pos=0,neg=0,sum=0;
+   for(int i=0;i<ArraySize(a);i++){ sum+=a[i]; if(a[i]>0) pos+=a[i]; else if(a[i]<0) neg+=-a[i]; }
+   if(n>0) avg=sum/n;
+   pf=(neg>0?pos/neg:(pos>0?99.0:0.0));
+}
+
+void RefreshStrategyHealthModes()
+{
+   if(!InpUseStrategyDegradationDetector) return;
+   for(int ci=1;ci<=9;ci++)
+   {
+      StrategyClass c=(StrategyClass)ci;
+      double n=0,avg=0,pf=0; StrategyRecentMetrics(c,n,avg,pf);
+      int mode=ADAPTIVE_MODE_ACTIVE; double riskMult=1.0;
+      if(n>=InpDegradationMinTrades)
+      {
+         if(avg<=InpDisableRecentAvgR && pf<InpDisableRecentPF){ mode=ADAPTIVE_MODE_DISABLED; riskMult=0; }
+         else if(avg<=InpShadowRecentAvgR || pf<InpShadowRecentPF){ mode=ADAPTIVE_MODE_SHADOW; riskMult=0; }
+         else if(avg<InpReducedRiskRecentAvgR || pf<InpReducedRiskRecentPF){ mode=ADAPTIVE_MODE_REDUCED_RISK; riskMult=0.50; }
+      }
+      GVWrite(SysKey(StringFormat("HEALTH_MODE_%d",ci)),mode);
+      GVWrite(SysKey(StringFormat("HEALTH_RISK_MULT_%d",ci)),riskMult);
+      GVWrite(SysKey(StringFormat("HEALTH_RECENT_N_%d",ci)),n);
+      GVWrite(SysKey(StringFormat("HEALTH_RECENT_AVG_%d",ci)),avg);
+      GVWrite(SysKey(StringFormat("HEALTH_RECENT_PF_%d",ci)),pf);
+   }
+}
+
+void RefreshRegimeTransition(const string sym)
+{
+   if(!InpUseRegimeTransitionRisk) return;
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   int prev=(int)GVRead(SymKey(sym,"REGIME_STATE_PREV"),STATE_UNKNOWN);
+   datetime changed=(datetime)GVRead(SymKey(sym,"REGIME_CHANGED_TIME"),0);
+   if(prev==STATE_UNKNOWN)
+   {
+      GVWrite(SymKey(sym,"REGIME_STATE_PREV"),(int)x.state);
+      GVWrite(SymKey(sym,"REGIME_CHANGED_TIME"),(double)TimeTradeServer());
+      GVWrite(SymKey(sym,"REGIME_RISK_MULT"),1.0);
+      return;
+   }
+   if(prev!=(int)x.state)
+   {
+      GVWrite(SymKey(sym,"REGIME_STATE_PREV"),(int)x.state);
+      GVWrite(SymKey(sym,"REGIME_FROM_STATE"),prev);
+      GVWrite(SymKey(sym,"REGIME_CHANGED_TIME"),(double)TimeTradeServer());
+      GVWrite(SymKey(sym,"REGIME_RISK_MULT"),InpRegimeTransitionRiskMultiplier);
+      return;
+   }
+   int bars=(changed>0?BarsSince(sym,PERIOD_M15,changed):999);
+   GVWrite(SymKey(sym,"REGIME_RISK_MULT"),(bars<=InpRegimeTransitionCautionM15?InpRegimeTransitionRiskMultiplier:1.0));
+}
+
+string RegimeTransitionText(const string sym)
+{
+   int from=(int)GVRead(SymKey(sym,"REGIME_FROM_STATE"),STATE_UNKNOWN);
+   int to=(int)GVRead(SymKey(sym,"REGIME_STATE_PREV"),STATE_UNKNOWN);
+   datetime tm=(datetime)GVRead(SymKey(sym,"REGIME_CHANGED_TIME"),0);
+   double m=GVRead(SymKey(sym,"REGIME_RISK_MULT"),1.0);
+   if(from==STATE_UNKNOWN || tm<=0) return "Regime transition: no established transition history.";
+   return StringFormat("Regime transition: %s -> %s | changed %d M15 bars ago | risk x%.2f",
+      MarketStateName((MarketStateClass)from),MarketStateName((MarketStateClass)to),BarsSince(sym,PERIOD_M15,tm),m);
+}
+
+void FinalizeAdaptiveLearningHistory()
+{
+   datetime now=TimeTradeServer(),from=now-MathMax(10,InpStrategyHistoryLookbackDays)*86400;
+   if(!HistorySelect(from,now)) return;
+   int total=HistoryDealsTotal();
+   for(int i=MathMax(0,total-800);i<total;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0 || (long)HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if(PositionIdentifierOpen(pid) || GVRead(PosKey(pid,"ADAPT_FINAL"),0)>0.5 || GVRead(PosKey(pid,"ADAPT_META"),0)<0.5) continue;
+      int cls=(int)GVRead(PosKey(pid,"STRATEGY"),0); if(cls<=0) continue;
+      double risk=GVRead(PosKey(pid,"RISK"),0); if(risk<=0) continue;
+      double pnl=StrategyPositionRealized(pid),R=pnl/risk;
+      int raw=(int)GVRead(PosKey(pid,"RAW_CONF"),0);
+      int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
+      double tp1=GVRead(PosKey(pid,"TP1_M15"),0);
+      if(raw>0) UpdateConfidenceCalibrationBucket(raw,R);
+      if(ev>0) UpdateStrategyBucket(SysKey(StringFormat("EVENT_%d_STRAT_%d",ev,cls)),R);
+      if(tp1>0) UpdateExpiryHistogram((StrategyClass)cls,tp1);
+      string maeKey=SysKey(StringFormat("MAE_MFE_%d",cls));
+      GVWrite(maeKey+"_N",GVRead(maeKey+"_N",0)+1);
+      GVWrite(maeKey+"_MAE",GVRead(maeKey+"_MAE",0)+GVRead(PosKey(pid,"MAE_R"),0));
+      GVWrite(maeKey+"_MFE",GVRead(maeKey+"_MFE",0)+GVRead(PosKey(pid,"MFE_R"),0));
+
+      double commission=0;
+      if(HistorySelectByPosition(pid))
+      {
+         int nd=HistoryDealsTotal();
+         for(int j=0;j<nd;j++){ ulong dd=HistoryDealGetTicket(j); if(dd>0) commission+=MathAbs(HistoryDealGetDouble(dd,DEAL_COMMISSION)); }
+      }
+      GVWrite(PosKey(pid,"ACTUAL_COMMISSION"),commission);
+      string sym=HistoryDealGetString(d,DEAL_SYMBOL);
+      WriteExecutionLearningRow("CLOSED",sym,pid,"post-trade learning finalized",R);
+      GVWrite(PosKey(pid,"ADAPT_FINAL"),1);
+   }
+}
+
+bool AdaptiveExecutionLearningAllows(const TradeSetup &s,string &why)
+{
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string event=""; if(!EventSpecificBehaviorAllows(s.symbol,c,event)){ why=event; return false; }
+   string rr=""; if(!ExecutionForecastRRGate(s,c,rr)){ why=rr; return false; }
+   why=event+" | "+rr;
+   return true;
+}
+
+string ExecutionLearningSummary(const TradeSetup &s)
+{
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string cf="",sl="",ev="",exp="";
+   int cal=CalibratedConfidenceValue(s.confidence,cf);
+   double forecast=ExecutionSlippageForecastPoints(s.symbol,c,sl);
+   bool eventOK=EventSpecificBehaviorAllows(s.symbol,c,ev);
+   int learned=LearnedStrategyExpiryM15(c,s.expiryM15,exp);
+   string k=SysKey(StringFormat("MAE_MFE_%d",(int)c));
+   double n=GVRead(k+"_N",0),mae=(n>0?GVRead(k+"_MAE",0)/n:0),mfe=(n>0?GVRead(k+"_MFE",0)/n:0);
+   return StringFormat("Execution learning: calibrated confidence %d%% | slip forecast %.1f pts | learned expiry %d M15 | MAE/MFE avg %.2fR/%.2fR N %.0f | event %s | %s",
+      cal,forecast,learned,mae,mfe,n,eventOK?"PASS":"BLOCK",RegimeTransitionText(s.symbol));
+}
+
+void ExecutionLearningInit()
+{
+   EnsureExecutionLearningHeader();
+   RefreshStrategyHealthModes();
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
+   FinalizeAdaptiveLearningHistory();
+   Print("GPT_EA execution-quality learning initialized.");
+}
+
+void ExecutionLearningTimer()
+{
+   UpdateOpenMAEMFE();
+   FinalizeAdaptiveLearningHistory();
+   RefreshStrategyHealthModes();
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
+}
+// ===== END INLINED GPT_EA_Part31_ExecutionLearning.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part31A_RegimeSizing.mqh =====
+// ============================================================================
+// GPT_EA Part 31A - Final adaptive sizing with regime-transition caution
+// ============================================================================
+
+double AdaptiveLotSizeForRiskFinal(const TradeSetup &s,double &riskMoney,double &oneLotLoss)
+{
+   riskMoney=0; oneLotLoss=0;
+   double baseRisk=0,baseOneLot=0;
+   double baseLots=AdaptiveLotSizeForRisk(s,baseRisk,baseOneLot);
+   if(baseLots<=0 || baseOneLot<=0) return 0;
+
+   double transition=MathMax(0.25,MathMin(1.0,GVRead(SymKey(s.symbol,"REGIME_RISK_MULT"),1.0)));
+   double lots=NormalizeVolumeDown(s.symbol,baseLots*transition);
+   if(lots<=0) return 0;
+   oneLotLoss=baseOneLot;
+   riskMoney=lots*oneLotLoss;
+   return lots;
+}
+
+string FinalAdaptiveSizingText(const TradeSetup &s)
+{
+   string q="";
+   double base=AdaptiveRiskMultiplier(s,q);
+   double transition=MathMax(0.25,MathMin(1.0,GVRead(SymKey(s.symbol,"REGIME_RISK_MULT"),1.0)));
+   return StringFormat("final adaptive sizing x%.2f = quality x%.2f * regime-transition x%.2f",base*transition,base,transition);
+}
+// ===== END INLINED GPT_EA_Part31A_RegimeSizing.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part31B_ExecutionFinalizer.mqh =====
+// ============================================================================
+// GPT_EA Part 31B - History-safe adaptive execution finalization
+// ============================================================================
+
+double AdaptivePositionCommission(const ulong pid)
+{
+   double commission=0;
+   if(!HistorySelectByPosition(pid)) return 0;
+   int n=HistoryDealsTotal();
+   for(int i=0;i<n;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0) continue;
+      commission+=MathAbs(HistoryDealGetDouble(d,DEAL_COMMISSION));
+   }
+   return commission;
+}
+
+void FinalizeAdaptiveLearningHistoryR5()
+{
+   datetime now=TimeTradeServer(),from=now-MathMax(10,InpStrategyHistoryLookbackDays)*86400;
+   if(!HistorySelect(from,now)) return;
+
+   ulong pids[];
+   string syms[];
+   int total=HistoryDealsTotal();
+   for(int i=MathMax(0,total-1200);i<total;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0 || (long)HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if(pid==0 || PositionIdentifierOpen(pid) || GVRead(PosKey(pid,"ADAPT_FINAL"),0)>0.5 || GVRead(PosKey(pid,"ADAPT_META"),0)<0.5) continue;
+      bool duplicate=false;
+      for(int j=0;j<ArraySize(pids);j++) if(pids[j]==pid){ duplicate=true; break; }
+      if(duplicate) continue;
+      int n=ArraySize(pids); ArrayResize(pids,n+1); ArrayResize(syms,n+1);
+      pids[n]=pid; syms[n]=HistoryDealGetString(d,DEAL_SYMBOL);
+   }
+
+   for(int i=0;i<ArraySize(pids);i++)
+   {
+      ulong pid=pids[i];
+      int cls=(int)GVRead(PosKey(pid,"STRATEGY"),0); if(cls<=0) continue;
+      double risk=GVRead(PosKey(pid,"RISK"),0); if(risk<=0) continue;
+      double pnl=StrategyPositionRealized(pid),R=pnl/risk;
+
+      string quarantine="";
+      if(LearningSampleShouldQuarantine(pid,syms[i],quarantine))
+      {
+         MarkLearningQuarantine(pid,syms[i],quarantine);
+         WriteExecutionLearningRow("QUARANTINED",syms[i],pid,"excluded from learning: "+quarantine,R);
+         GVWrite(PosKey(pid,"ADAPT_FINAL"),2);
+         continue;
+      }
+
+      int raw=(int)GVRead(PosKey(pid,"RAW_CONF"),0);
+      int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
+      double tp1=GVRead(PosKey(pid,"TP1_M15"),0);
+
+      if(raw>0) UpdateConfidenceCalibrationBucket(raw,R);
+      if(ev>0) UpdateStrategyBucket(SysKey(StringFormat("EVENT_%d_STRAT_%d",ev,cls)),R);
+      if(tp1>0) UpdateExpiryHistogram((StrategyClass)cls,tp1);
+
+      string maeKey=SysKey(StringFormat("MAE_MFE_%d",cls));
+      GVWrite(maeKey+"_N",GVRead(maeKey+"_N",0)+1);
+      GVWrite(maeKey+"_MAE",GVRead(maeKey+"_MAE",0)+GVRead(PosKey(pid,"MAE_R"),0));
+      GVWrite(maeKey+"_MFE",GVRead(maeKey+"_MFE",0)+GVRead(PosKey(pid,"MFE_R"),0));
+
+      double commission=AdaptivePositionCommission(pid);
+      GVWrite(PosKey(pid,"ACTUAL_COMMISSION"),commission);
+      WriteExecutionLearningRow("CLOSED",syms[i],pid,"history-safe post-trade learning finalized",R);
+      GVWrite(PosKey(pid,"ADAPT_FINAL"),1);
+   }
+   GlobalVariablesFlush();
+}
+
+void ExecutionLearningInitR5()
+{
+   EnsureExecutionLearningHeader();
+   RefreshStrategyHealthModes();
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
+   FinalizeAdaptiveLearningHistoryR5();
+   Print("GPT_EA R5 execution-quality learning initialized.");
+}
+
+void ExecutionLearningTimerR5()
+{
+   UpdateOpenMAEMFE();
+   FinalizeAdaptiveLearningHistoryR5();
+   RefreshStrategyHealthModes();
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
+}
+// ===== END INLINED GPT_EA_Part31B_ExecutionFinalizer.mqh =====
 #include "GPT_EA_Part32_ChampionChallenger.mqh"
 #include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
 #include "GPT_EA_Part42_ExecutionReliability.mqh"

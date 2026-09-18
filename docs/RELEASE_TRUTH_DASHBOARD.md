@@ -1,6 +1,6 @@
 <!-- RELEASE_TRUTH_SCHEMA: gpt_ea_release_truth_v1 -->
 <!-- RELEASE_TRUTH_EVIDENCE_SHA256: b35149001885b28844758b92295ab454e554046ac8a02e0fac042c3d61248793 -->
-<!-- RELEASE_TRUTH_FINGERPRINT: f5a48f38590b2a5496101549c60ef30f8850c59ea7f80a54b5563c8ec909e44b -->
+<!-- RELEASE_TRUTH_FINGERPRINT: 2c5906b3593ea97bc1591c6a21906e6fd3cc4e11d1e10f1e63f0638c124da4c5 -->
 <!-- RELEASE_TRUTH_OVERALL: ⏸️ HOLD -->
 <!-- GPT_EA_DOC_HEADER -->
 <div align="center">
@@ -46,6 +46,7 @@ This checked-in dashboard is the repository **baseline generated from the intent
 | **Strategy Tester** | ⏸️ HOLD | gates.strategy_tester=false | Complete and validate required evidence. |
 | **Intelligence matrix** | ⏸️ HOLD | gates.intelligence_matrix=false | Complete and validate required evidence. |
 | **Broker/deployment** | ⏸️ HOLD | gates.broker_matrix=false | Complete and validate required evidence. |
+| **Broker coverage** | ⏸️ HOLD | gates.broker_coverage=false | Complete and validate required evidence. |
 | **Recovery** | ⏸️ HOLD | gates.recovery=false | Complete and validate required evidence. |
 | **Stop management** | ⏸️ HOLD | gates.stop_matrix=false | Complete and validate required evidence. |
 | **Stop observability** | ⏸️ HOLD | gates.stop_observability=false | Complete and validate required evidence. |

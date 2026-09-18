@@ -7811,9 +7811,364 @@ void SelectDynamicStrategyResearch(const string sym,TradeSetup &pb,TradeSetup &b
    PersistStrategyCandidate(sym,d);
 }
 // ===== END INLINED GPT_EA_Part21_ResearchValidation.mqh =====
-#include "GPT_EA_Part24_SessionStrategyHardening.mqh"
-#include "GPT_EA_Part27_StrategyCompletion.mqh"
-#include "GPT_EA_Part19_ContinuousIntelligence.mqh"
+// ===== BEGIN INLINED GPT_EA_Part24_SessionStrategyHardening.mqh =====
+// ============================================================================
+// GPT_EA Part 24 - Session accuracy, late-session risk and strategy expiry
+// ============================================================================
+
+input bool InpDowngradeLateSessionLiquidity = true;
+input int  InpLateSessionScorePenalty       = 8;
+
+string AccurateSessionBucket()
+{
+   datetime utc=TimeGMT();
+   MqlDateTime l={}; TimeToStruct(LondonLocal(utc),l);
+   MqlDateTime n={}; TimeToStruct(NewYorkLocal(utc),n);
+
+   // Overlap must be evaluated before generic London/NY buckets.
+   if(l.hour>=13 && l.hour<17 && n.hour>=8 && n.hour<12) return "LONDON_NY_OVERLAP";
+   if(l.hour>=7 && l.hour<9) return "LONDON_PREOPEN";
+   if(l.hour>=9 && l.hour<13) return "LONDON";
+   if(n.hour>=8 && n.hour<9) return "NEW_YORK_PREOPEN";
+   if(n.hour>=9 && n.hour<12) return "NEW_YORK_OPEN";
+   if(l.hour>=0 && l.hour<7) return "ASIAN";
+   if(l.hour>=16 && l.hour<18) return "LONDON_CLOSE";
+   if(n.hour>=15 && n.hour<17) return "NEW_YORK_CLOSE";
+   return "OTHER";
+}
+
+bool LateSessionLiquidityRisk(string &why)
+{
+   why="";
+   if(!InpDowngradeLateSessionLiquidity) return false;
+   string s=AccurateSessionBucket();
+   if(s=="LONDON_CLOSE" || s=="NEW_YORK_CLOSE")
+   {
+      why=s+" liquidity/flow transition can increase fakeouts, spread instability and poor follow-through.";
+      return true;
+   }
+   return false;
+}
+
+int StrategyAdaptiveExpiry(const string sym,StrategyClass c)
+{
+   int base=5;
+   switch(c)
+   {
+      case STRATEGY_BREAKOUT:            base=2; break;
+      case STRATEGY_BREAKOUT_RETEST:     base=3; break;
+      case STRATEGY_COUNTER_TREND_SCALP: base=2; break;
+      case STRATEGY_COUNTER_TREND_SWING: base=4; break;
+      case STRATEGY_POTENTIAL_REVERSAL:  base=4; break;
+      case STRATEGY_RANGE_TRADE:         base=4; break;
+      case STRATEGY_MEAN_REVERSION:      base=4; break;
+      case STRATEGY_TREND_CONTINUATION:  base=5; break;
+      case STRATEGY_RETRACEMENT_ENTRY:   base=6; break;
+      default:                           base=4; break;
+   }
+   return AdaptiveExpiry(sym,base);
+}
+
+void RefreshFrameworkForAccurateSession(const string sym,StrategyDecision &d)
+{
+   if(d.strategy==STRATEGY_NO_TRADE) return;
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   x.session=AccurateSessionBucket();
+   string framework=SelectedStrategyFramework(x,d.strategy);
+   d.session=x.session;
+   d.strategyName=StrategyClassName(d.strategy)+" — "+framework;
+   d.rationale+=" | Accurate session context: "+x.session+"; framework refreshed to "+framework+".";
+}
+
+bool AccurateSessionEvidenceAllows(const string sym,StrategyClass c,string &detail)
+{
+   detail="Accurate-session evidence: not applicable.";
+   if(c==STRATEGY_NO_TRADE) return true;
+   string session=AccurateSessionBucket();
+   int code=StrategySessionCode(session);
+   return ContextBucketAllows(SysKey(StringFormat("STRAT_%d_SESSION_%d",(int)c,code)),
+                              "ACCURATE SESSION "+session,detail);
+}
+
+void PersistStrategyPlanForExecutionAccurate(const TradeSetup &s)
+{
+   PersistStrategyPlanForExecutionFull(s);
+   string session=AccurateSessionBucket();
+   GVWrite(SymKey(s.symbol,"PLAN_SESSION_CODE"),StrategySessionCode(session));
+   GVWrite(SymKey(s.symbol,"PLAN_SESSION_HASH"),(double)StringLen(session));
+}
+
+void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
+{
+   SelectDynamicStrategyResearch(sym,pb,br,d);
+   RefreshFrameworkForAccurateSession(sym,d);
+
+   if(d.strategy!=STRATEGY_NO_TRADE)
+      d.setup.expiryM15=StrategyAdaptiveExpiry(sym,d.strategy);
+
+   if(d.strategy!=STRATEGY_NO_TRADE)
+   {
+      string sessionEvidence="";
+      bool sessionEvidenceOK=AccurateSessionEvidenceAllows(sym,d.strategy,sessionEvidence);
+      d.evidence+=" | "+sessionEvidence;
+      if(!sessionEvidenceOK)
+      {
+         d.action=STRATEGY_ACTION_NO_TRADE;
+         d.setup.valid=false;
+         d.rationale+=" | Corrected-session evidence gate BLOCKED the strategy in the current session segment.";
+      }
+   }
+
+   string lateWhy="";
+   if(LateSessionLiquidityRisk(lateWhy) && d.strategy!=STRATEGY_NO_TRADE && d.action!=STRATEGY_ACTION_NO_TRADE)
+   {
+      int penalty=(InpLateSessionScorePenalty>0?InpLateSessionScorePenalty:0);
+      d.score=(d.score>penalty?d.score-penalty:0);
+      d.rationale+=" | Late-session liquidity warning: "+lateWhy;
+      bool fastSetup=(d.strategy==STRATEGY_BREAKOUT || d.strategy==STRATEGY_BREAKOUT_RETEST ||
+                      d.strategy==STRATEGY_COUNTER_TREND_SCALP || d.strategy==STRATEGY_MEAN_REVERSION);
+      if(fastSetup && d.action==STRATEGY_ACTION_HIGH_CONFIDENCE)
+      {
+         d.action=STRATEGY_ACTION_WAIT;
+         d.setup.valid=false;
+         d.rationale+=" | Fast setup downgraded to WAIT because end-session liquidity can invalidate normal follow-through assumptions.";
+      }
+      else if(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE && d.score<InpMinStrategyScore)
+      {
+         d.action=STRATEGY_ACTION_WAIT;
+         d.setup.valid=false;
+      }
+   }
+   PersistStrategyCandidate(sym,d);
+}
+// ===== END INLINED GPT_EA_Part24_SessionStrategyHardening.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part27_StrategyCompletion.mqh =====
+// ============================================================================
+// GPT_EA Part 27 - Reachable first-class breakout / counter-trend strategy paths
+// ============================================================================
+
+input bool   InpAllowDirectBreakoutExecution = true;
+input double InpDirectBreakoutMinVolumeRatio = 1.15;
+input double InpDirectBreakoutMinADX         = 22.0;
+input double InpDirectBreakoutZoneATR        = 0.18;
+input double InpDirectBreakoutInsideStopATR  = 0.45;
+
+TradeSetup BuildDirectBreakoutCandidate(const StrategySnapshot &x,int score)
+{
+   bool bull=(x.breakoutUp && !x.breakoutDown ? true :
+              (!x.breakoutUp && x.breakoutDown ? false : x.dominantBull));
+   TradeSetup s; InitSetup(s,x.symbol,SETUP_BREAKOUT,bull);
+   if(x.atr<=0) return s;
+
+   double level=(bull?x.priorHigh:x.priorLow);
+   if(level<=0) return s;
+   double width=MathMax(0.05,InpDirectBreakoutZoneATR)*x.atr;
+   s.name="BREAKOUT";
+   if(bull)
+   {
+      s.zoneLow=NormPrice(x.symbol,level+0.02*x.atr);
+      s.zoneHigh=NormPrice(x.symbol,level+width);
+      s.preferred=NormPrice(x.symbol,level+0.07*x.atr);
+      s.sl=NormPrice(x.symbol,level-MathMax(0.25,InpDirectBreakoutInsideStopATR)*x.atr);
+   }
+   else
+   {
+      s.zoneLow=NormPrice(x.symbol,level-width);
+      s.zoneHigh=NormPrice(x.symbol,level-0.02*x.atr);
+      s.preferred=NormPrice(x.symbol,level-0.07*x.atr);
+      s.sl=NormPrice(x.symbol,level+MathMax(0.25,InpDirectBreakoutInsideStopATR)*x.atr);
+   }
+
+   SetConservativeTargets(s,1.0,2.0,3.0);
+   RefineTargetsToStructure(s);
+   s.confidence=(score>95?95:score);
+   s.expiryM15=StrategyAdaptiveExpiry(x.symbol,STRATEGY_BREAKOUT);
+   RealisticRRReport rr=RealisticRiskReward(s);
+   bool breakout=(bull?x.breakoutUp:x.breakoutDown);
+   bool fake=(bull?x.falseBreakUp:x.falseBreakDown);
+   bool quality=(x.expansion && x.volumeRatio>=InpDirectBreakoutMinVolumeRatio && x.adx>=InpDirectBreakoutMinADX);
+   s.valid=(InpAllowDirectBreakoutExecution && breakout && !fake && quality && !ChaseRiskDetected(x) && rr.rr>=InpMinEffectiveRR);
+   s.reason=StringFormat("Direct breakout through %.5f | expansion %s | ADX %.1f | volume %.2fx | chase %s | realistic weighted R:R %.2f.",
+                         level,x.expansion?"YES":"NO",x.adx,x.volumeRatio,ChaseRiskDetected(x)?"YES":"NO",rr.rr);
+   s.invalidation=(bull?
+      "M15 acceptance back below the broken resistance/old range invalidates the breakout thesis.":
+      "M15 acceptance back above the broken support/old range invalidates the breakdown thesis.");
+   s.failurePattern="Failure: displacement cannot hold outside the old range, momentum collapses, or price returns through the breakout level as a false break/liquidity sweep.";
+   s.executionRule="Direct breakout execution requires fresh expansion, volume/ADX support, price inside the shallow post-break zone, M5 trigger and EMA impulse. Do not chase beyond the breakout zone; otherwise WAIT for retest.";
+   return s;
+}
+
+bool OverrideResearchAllows(const string sym,StrategyDecision &d,string &detail)
+{
+   string research="";
+   bool ok=StrategyResearchEvidenceAllows(sym,d.strategy,d.setup.bullish,research);
+   string ses="";
+   bool sesOK=AccurateSessionEvidenceAllows(sym,d.strategy,ses);
+   detail=research+" | "+ses;
+   return (ok && sesOK);
+}
+
+void CompleteOverrideDecision(const string sym,StrategyDecision &d)
+{
+   RefreshFrameworkForAccurateSession(sym,d);
+   d.setup.expiryM15=StrategyAdaptiveExpiry(sym,d.strategy);
+   string evidence="";
+   bool evidenceOK=OverrideResearchAllows(sym,d,evidence);
+   d.evidence=evidence;
+   if(!evidenceOK)
+   {
+      d.action=STRATEGY_ACTION_NO_TRADE;
+      d.setup.valid=false;
+      d.rationale+=" | Override strategy rejected by research/context evidence.";
+      return;
+   }
+   if(d.score<InpMinStrategyScore || !d.setup.valid) d.action=STRATEGY_ACTION_WAIT;
+   else d.action=STRATEGY_ACTION_HIGH_CONFIDENCE;
+}
+
+void SelectDynamicStrategyUltimate(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
+{
+   SelectDynamicStrategyFinal(sym,pb,br,d);
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   string extreme="";
+   if(ExtremeRegimeDetected(x,extreme))
+   {
+      d.action=STRATEGY_ACTION_NO_TRADE;
+      d.setup.valid=false;
+      d.rationale+=" | Ultimate strategy guard retains extreme-regime BLOCK: "+extreme;
+      PersistStrategyCandidate(sym,d);
+      return;
+   }
+
+   // Trend failure is not yet a completed reversal. Always keep this state classified
+   // as Counter-Trend Swing; if its stricter score/trigger is insufficient the result is WAIT.
+   if(x.state==STATE_TREND_FAILURE && InpAllowCounterTrendSwing)
+   {
+      bool counterBull=!x.dominantBull;
+      int ct=CounterTrendScore(x,counterBull);
+      int reversalScore=StrategyBaseScore(x,STRATEGY_POTENTIAL_REVERSAL);
+      d.strategy=STRATEGY_COUNTER_TREND_SWING;
+      d.counterTrend=true;
+      d.counterTrendScore=ct;
+      d.score=(ct>reversalScore?ct:reversalScore);
+      d.state=STATE_TREND_FAILURE;
+      d.stateText=MarketStateName(d.state);
+      d.setup=BuildCounterTrendCandidate(x,counterBull,ct,true);
+      d.strategyName=StrategyClassName(d.strategy);
+      d.rationale+=" | Trend failure is classified as COUNTER-TREND SWING until full reversal acceptance is established.";
+      d.confirmation="COUNTER-TREND TRADE: require major-level/sweep rejection plus M5 BOS/CHOCH and rejection; targets remain conservative until reversal structure proves durable.";
+      CompleteOverrideDecision(sym,d);
+      if(ct<InpMinCounterTrendScore)
+      {
+         d.action=STRATEGY_ACTION_WAIT;
+         d.setup.valid=false;
+         d.rationale+=StringFormat(" | Counter-trend swing score %d/100 is below strict threshold %d; WAIT, do not relabel as reversal.",ct,InpMinCounterTrendScore);
+      }
+   }
+
+   // A completed structural reversal remains Potential Reversal rather than being diluted
+   // into the counter-trend swing class.
+   if(x.state==STATE_REVERSAL && d.strategy!=STRATEGY_NO_TRADE)
+   {
+      d.state=STATE_REVERSAL;
+      d.stateText=MarketStateName(d.state);
+   }
+
+   // Make BREAKOUT a true executable class when displacement quality is high and the
+   // price is still in a shallow post-break zone. Overextended breaks remain WAIT/retest.
+   if(d.strategy==STRATEGY_BREAKOUT && InpAllowDirectBreakoutExecution)
+   {
+      TradeSetup direct=BuildDirectBreakoutCandidate(x,d.score);
+      d.setup=direct;
+      d.strategyName=StrategyClassName(d.strategy);
+      d.rationale+=" | Direct breakout execution path evaluated. "+direct.reason;
+      d.confirmation=direct.executionRule;
+      CompleteOverrideDecision(sym,d);
+   }
+
+   if(d.strategy==STRATEGY_BREAKOUT_RETEST)
+   {
+      d.state=STATE_BREAKOUT_RETEST;
+      d.stateText=MarketStateName(d.state);
+   }
+
+   // Mean reversion has its own enable switch; do not accidentally depend on the range-trade toggle.
+   if(d.strategy==STRATEGY_MEAN_REVERSION && InpAllowMeanReversion && !d.setup.valid && d.setup.preferred>0)
+   {
+      RealisticRRReport rr=RealisticRiskReward(d.setup);
+      if(d.setup.confidence>=InpMinStrategyScore && rr.rr>=1.05)
+      {
+         d.setup.valid=true;
+         d.rationale+=" | Mean-reversion validity repaired using its dedicated enable switch and realistic R:R gate.";
+         CompleteOverrideDecision(sym,d);
+      }
+   }
+
+   PersistStrategyCandidate(sym,d);
+}
+// ===== END INLINED GPT_EA_Part27_StrategyCompletion.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part19_ContinuousIntelligence.mqh =====
+// ============================================================================
+// GPT_EA Part 19 - Continuous intelligence scan scheduler
+// ============================================================================
+
+input bool InpContinuousIntelligenceScan = true;
+input bool InpScanOnEveryNewM5Bar        = true;
+input int  InpContinuousScanMinutes      = 5;
+
+datetime g_lastContinuousScanTime=0;
+datetime g_lastContinuousM5Bar=0;
+
+bool ContinuousIntelligenceScanDue(string &why)
+{
+   why="";
+   if(!InpContinuousIntelligenceScan || ArraySize(g_symbols)<=0) return false;
+   datetime now=TimeTradeServer();
+
+   if(InpScanOnEveryNewM5Bar)
+   {
+      datetime newest=0;
+      for(int i=0;i<ArraySize(g_symbols);i++)
+      {
+         if(g_symbols[i]=="") continue;
+         datetime bt=iTime(g_symbols[i],PERIOD_M5,0);
+         if(bt>newest) newest=bt;
+      }
+      if(newest>0 && g_lastContinuousM5Bar>0 && newest!=g_lastContinuousM5Bar)
+      {
+         g_lastContinuousM5Bar=newest;
+         g_lastContinuousScanTime=now;
+         why="Continuous new-M5-bar intelligence scan";
+         return true;
+      }
+      if(g_lastContinuousM5Bar==0 && newest>0) g_lastContinuousM5Bar=newest;
+   }
+
+   int mins=MathMax(1,InpContinuousScanMinutes);
+   if(g_lastContinuousScanTime==0)
+   {
+      g_lastContinuousScanTime=now;
+      return false;
+   }
+   if(now-g_lastContinuousScanTime>=mins*60)
+   {
+      g_lastContinuousScanTime=now;
+      why=StringFormat("Continuous %d-minute intelligence scan",mins);
+      return true;
+   }
+   return false;
+}
+
+bool ScheduledOrContinuousScanDue(string &why)
+{
+   if(ScheduledScanDue(why))
+   {
+      g_lastContinuousScanTime=TimeTradeServer();
+      return true;
+   }
+   return ContinuousIntelligenceScanDue(why);
+}
+// ===== END INLINED GPT_EA_Part19_ContinuousIntelligence.mqh =====
 #define SelectDynamicStrategy SelectDynamicStrategyUltimate
 #define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
@@ -7826,17 +8181,940 @@ void SelectDynamicStrategyResearch(const string sym,TradeSetup &pb,TradeSetup &b
 // generated bearer header is then discarded before the proxy network request.
 #define InpOpenAIAPIKey APITransportLegacyCredential()
 #define WebRequest GPTAPIWebRequest
-#include "GPT_EA_Part16_NewsIntermarket.mqh"
-#include "GPT_EA_Part22A_IntermarketForward.mqh"
-#include "GPT_EA_Part22P_ResponseParser.mqh"
+// ===== BEGIN INLINED GPT_EA_Part16_NewsIntermarket.mqh =====
+// ============================================================================
+// GPT_EA Part 16 - Live web news, macro and intermarket intelligence
+// ============================================================================
+
+input bool   InpUseLiveWebIntelligence          = true;
+input bool   InpWebIntelHighConfidenceOnly      = true;
+input bool   InpBlockIfWebIntelUnavailable      = false;
+input bool   InpBlockOnWebIntelVerdictBLOCK     = true;
+input int    InpWebIntelRefreshMinutes          = 10;
+input int    InpIntermarketLookbackM15          = 8;
+input int    InpIntermarketSevereConflictScore  = -5;
+input string InpDXYAliases                      = "DXY,USDX,DX";
+input string InpVIXAliases                      = "VIX,USVIX,VIX.cash";
+input string InpGoldAliases                     = "XAUUSD,GOLD";
+input string InpOilAliases                      = "WTI,USOIL,WTICOIL";
+input string InpUS100Aliases                    = "US100,NAS100,USTEC,NQ100";
+input string InpUS500Aliases                    = "US500,SPX500,SP500";
+
+struct IntermarketReport
+{
+   int score;
+   bool severeConflict;
+   string detail;
+};
+
+string g_webIntelSymbols[];
+string g_webIntelText[];
+datetime g_webIntelTime[];
+bool g_webIntelBlock[];
+bool g_webIntelWatch[];
+
+int WebIntelCacheIndex(const string sym)
+{
+   for(int i=0;i<ArraySize(g_webIntelSymbols);i++) if(g_webIntelSymbols[i]==sym) return i;
+   int n=ArraySize(g_webIntelSymbols);
+   ArrayResize(g_webIntelSymbols,n+1); ArrayResize(g_webIntelText,n+1); ArrayResize(g_webIntelTime,n+1);
+   ArrayResize(g_webIntelBlock,n+1); ArrayResize(g_webIntelWatch,n+1);
+   g_webIntelSymbols[n]=sym; g_webIntelText[n]=""; g_webIntelTime[n]=0; g_webIntelBlock[n]=false; g_webIntelWatch[n]=false;
+   return n;
+}
+
+string ResolveFirstAlias(const string csv)
+{
+   string a[]; int n=StringSplit(csv,',',a);
+   for(int i=0;i<n;i++)
+   {
+      string s=ResolveBrokerSymbol(Trim(a[i]));
+      if(s!="") return s;
+   }
+   return "";
+}
+
+bool SymbolMovePct(const string sym,ENUM_TIMEFRAMES tf,int bars,double &pct)
+{
+   pct=0; if(sym=="") return false;
+   double now=0,old=0;
+   if(!CloseValue(sym,tf,1,now) || !CloseValue(sym,tf,MathMax(2,bars+1),old) || old==0) return false;
+   pct=(now-old)/old*100.0;
+   return true;
+}
+
+void AddIntermarketComponent(IntermarketReport &r,const string label,double move,bool bullishEffect,double weight)
+{
+   int delta=(int)MathRound(MathMin(3.0,MathAbs(move)*weight));
+   if(delta<1 && MathAbs(move)>0.01) delta=1;
+   if(!bullishEffect) delta=-delta;
+   r.score+=delta;
+   if(r.detail!="") r.detail+=" | ";
+   r.detail+=StringFormat("%s %+.3f%% => %s%d",label,move,delta>=0?"+":"",delta);
+}
+
+IntermarketReport AssessIntermarket(const string target,bool bull)
+{
+   IntermarketReport r; r.score=0; r.severeConflict=false; r.detail="";
+   string key=CanonicalInstrumentKey(target,SymbolInfoString(target,SYMBOL_DESCRIPTION),SymbolInfoString(target,SYMBOL_PATH));
+   string dxy=ResolveFirstAlias(InpDXYAliases),vix=ResolveFirstAlias(InpVIXAliases);
+   string gold=ResolveFirstAlias(InpGoldAliases),oil=ResolveFirstAlias(InpOilAliases);
+   string us100=ResolveFirstAlias(InpUS100Aliases),us500=ResolveFirstAlias(InpUS500Aliases);
+   string y10=ResolveBrokerSymbol(InpYieldSymbol);
+   double mD=0,mV=0,mY=0,mG=0,mO=0,mN=0,mS=0;
+   bool hD=SymbolMovePct(dxy,PERIOD_M15,InpIntermarketLookbackM15,mD);
+   bool hV=SymbolMovePct(vix,PERIOD_M15,InpIntermarketLookbackM15,mV);
+   bool hY=SymbolMovePct(y10,PERIOD_M15,InpIntermarketLookbackM15,mY);
+   bool hG=SymbolMovePct(gold,PERIOD_M15,InpIntermarketLookbackM15,mG);
+   bool hO=SymbolMovePct(oil,PERIOD_M15,InpIntermarketLookbackM15,mO);
+   bool hN=SymbolMovePct(us100,PERIOD_M15,InpIntermarketLookbackM15,mN);
+   bool hS=SymbolMovePct(us500,PERIOD_M15,InpIntermarketLookbackM15,mS);
+
+   if(StringFind(key,"METAL:XAU")==0 || StringFind(key,"METAL:XAG")==0)
+   {
+      if(hD) AddIntermarketComponent(r,"DXY",mD,bull?(mD<0):(mD>0),35.0);
+      if(hY) AddIntermarketComponent(r,"US10Y",mY,bull?(mY<0):(mY>0),40.0);
+      if(hV) AddIntermarketComponent(r,"VIX",mV,bull?(mV>0):(mV<0),18.0);
+   }
+   else if(StringFind(key,"INDEX:US100")==0 || StringFind(key,"INDEX:US500")==0 || StringFind(key,"INDEX:US30")==0)
+   {
+      if(hY) AddIntermarketComponent(r,"US10Y",mY,bull?(mY<0):(mY>0),45.0);
+      if(hV) AddIntermarketComponent(r,"VIX",mV,bull?(mV<0):(mV>0),25.0);
+      if(hS && target!=us500) AddIntermarketComponent(r,"US500",mS,bull?(mS>0):(mS<0),20.0);
+   }
+   else if(StringFind(key,"INDEX:GER40")==0 || StringFind(key,"INDEX:UK100")==0)
+   {
+      if(hV) AddIntermarketComponent(r,"VIX",mV,bull?(mV<0):(mV>0),20.0);
+      if(hN) AddIntermarketComponent(r,"US100",mN,bull?(mN>0):(mN<0),18.0);
+      if(hS) AddIntermarketComponent(r,"US500",mS,bull?(mS>0):(mS<0),18.0);
+   }
+   else if(StringFind(key,"ENERGY:")==0)
+   {
+      if(hD) AddIntermarketComponent(r,"DXY",mD,bull?(mD<0):(mD>0),22.0);
+      if(hS) AddIntermarketComponent(r,"US500",mS,bull?(mS>0):(mS<0),12.0);
+      if(hO && target!=oil) AddIntermarketComponent(r,"WTI",mO,bull?(mO>0):(mO<0),15.0);
+   }
+   else if(StringFind(key,"FX:")==0)
+   {
+      string pair=StringSubstr(key,3);
+      bool usdBase=(StringSubstr(pair,0,3)=="USD");
+      bool usdQuote=(StringSubstr(pair,3,3)=="USD");
+      if(hD && (usdBase || usdQuote))
+      {
+         bool supports=(usdBase?(bull?(mD>0):(mD<0)):(bull?(mD<0):(mD>0)));
+         AddIntermarketComponent(r,"DXY",mD,supports,35.0);
+      }
+      if(hY && StringFind(pair,"JPY")>=0)
+      {
+         bool supports=(usdBase?(bull?(mY>0):(mY<0)):(bull?(mY<0):(mY>0)));
+         AddIntermarketComponent(r,"US10Y",mY,supports,25.0);
+      }
+   }
+   else if(StringFind(key,"CRYPTO:")==0)
+   {
+      if(hD) AddIntermarketComponent(r,"DXY",mD,bull?(mD<0):(mD>0),20.0);
+      if(hV) AddIntermarketComponent(r,"VIX",mV,bull?(mV<0):(mV>0),15.0);
+      if(hN) AddIntermarketComponent(r,"US100",mN,bull?(mN>0):(mN<0),15.0);
+   }
+
+   if(r.detail=="") r.detail="Intermarket: relevant broker instruments unavailable; no fabricated confirmation.";
+   r.score=MathMax(-10,MathMin(10,r.score));
+   r.severeConflict=(r.score<=InpIntermarketSevereConflictScore);
+   r.detail=StringFormat("Intermarket score %+d/10 | %s",r.score,r.detail);
+   return r;
+}
+
+string WebIntelInstrumentContext(const string sym)
+{
+   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   if(StringFind(key,"INDEX:")==0) return "equity-index macro, rates, earnings/sector, volatility and geopolitical sensitivity";
+   if(StringFind(key,"METAL:")==0) return "USD, real/nominal yields, central-bank expectations, inflation, safe-haven and commodity-specific flows";
+   if(StringFind(key,"ENERGY:")==0) return "oil/gas inventories, OPEC+, geopolitical supply, demand growth, USD and risk sentiment";
+   if(StringFind(key,"FX:")==0) return "central banks, inflation, labor, GDP/PMI, rates/yields, political and currency-specific headlines";
+   if(StringFind(key,"CRYPTO:")==0) return "liquidity, regulation, ETF/flow, risk sentiment, rates, USD and crypto-specific headlines";
+   return "macro, sector/company where relevant, rates, volatility and instrument-specific breaking news";
+}
+
+bool CallOpenAIWebIntel(const string prompt,string &answer,string &errorText)
+{
+   answer=""; errorText="";
+   if(!InpUseLiveWebIntelligence){ errorText="Live web intelligence disabled."; return false; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest/web search unavailable in Strategy Tester."; return false; }
+   if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured."; return false; }
+
+   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"tools\":[{\"type\":\"web_search\",\"search_context_size\":\"medium\"}],\"input\":\""+JsonEscape(prompt)+"\"}";
+   string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
+   char data[],result[]; string resultHeaders="";
+   int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
+   ResetLastError();
+   int code=WebRequest("POST",InpOpenAIEndpoint,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
+   if(code==-1){ errorText=StringFormat("Web intel WebRequest failed (%d).",GetLastError()); return false; }
+   string json=CharArrayToString(result,0,-1,CP_UTF8);
+   if(code<200 || code>=300){ errorText=StringFormat("Web intel HTTP %d: %s",code,StringSubstr(json,0,500)); return false; }
+   answer=ExtractOpenAIText(json);
+   if(answer=="" || StringFind(answer,"could not be parsed")>=0){ errorText="Web intel response text unavailable."; return false; }
+   return true;
+}
+
+string BuildLiveNewsPrompt(const string sym,const TradeSetup &s,const StrategyDecision &d,const IntermarketReport &im)
+{
+   return "You are the live-news risk layer of a MetaTrader EA. Use web search for CURRENT information. Do not invent headlines, prices, event times, yields or sources. "
+          "Instrument: "+sym+". Direction: "+(s.bullish?"LONG":"SHORT")+". Strategy: "+d.strategyName+". Market state: "+d.stateText+". "
+          "Instrument context: "+WebIntelInstrumentContext(sym)+". Broker intermarket snapshot: "+im.detail+". "
+          "Search scheduled and unexpected market-moving information: central-bank rate decisions; CPI/inflation; PPI; employment/NFP/unemployment; GDP; PMI; retail sales; "
+          "FOMC/ECB/BoE and other central-bank speeches/communications; Treasury yields and bond volatility; USD strength; geopolitical developments; unexpected political/economic headlines; "
+          "company or sector news where relevant; commodity-specific supply/demand/OPEC/inventory news; volatility/risk events; and any other high-impact development relevant to the instrument. "
+          "Explain HOW a headline could invalidate the technical setup before entry or during the trade. Distinguish confirmed facts from uncertain reports. "
+          "Return concise plain text in this exact structure: VERDICT: CLEAR or WATCH or BLOCK; RISK_SCORE: 0-100; EVENTS: ...; BREAKING_NEWS: ...; "
+          "INVALIDATION_CHANNEL: ...; INTERMARKET: ...; SOURCES: include source names and URLs with dates/times where available. BLOCK only for materially setup-threatening current risk, not merely because news exists.";
+}
+
+void InterpretWebIntel(const string text,bool &block,bool &watch)
+{
+   block=false; watch=false; string u=text; StringToUpper(u);
+   if(StringFind(u,"VERDICT: BLOCK")>=0) block=true;
+   else if(StringFind(u,"VERDICT: WATCH")>=0) watch=true;
+}
+
+bool GetLiveWebIntel(const string sym,const TradeSetup &s,const StrategyDecision &d,bool force,string &text,bool &block,bool &watch,string &errorText)
+{
+   text=""; block=false; watch=false; errorText="";
+   if(!InpUseLiveWebIntelligence){ text="Live web intelligence disabled."; return true; }
+   if(InpWebIntelHighConfidenceOnly && !force && d.score<InpMinStrategyScore){ text="Web search deferred until a strategy candidate reaches quality threshold."; return true; }
+   int idx=WebIntelCacheIndex(sym);
+   datetime now=TimeTradeServer();
+   if(!force && g_webIntelTime[idx]>0 && now-g_webIntelTime[idx]<MathMax(1,InpWebIntelRefreshMinutes)*60)
+   {
+      text=g_webIntelText[idx]; block=g_webIntelBlock[idx]; watch=g_webIntelWatch[idx]; return true;
+   }
+   IntermarketReport im=AssessIntermarket(sym,s.bullish);
+   bool ok=CallOpenAIWebIntel(BuildLiveNewsPrompt(sym,s,d,im),text,errorText);
+   if(!ok)
+   {
+      text="Live web intelligence unavailable: "+errorText;
+      block=InpBlockIfWebIntelUnavailable; watch=!block;
+      return !InpBlockIfWebIntelUnavailable;
+   }
+   InterpretWebIntel(text,block,watch);
+   g_webIntelText[idx]=text; g_webIntelBlock[idx]=block; g_webIntelWatch[idx]=watch; g_webIntelTime[idx]=now;
+   return true;
+}
+
+bool PreEntryIntelligenceRevalidation(const TradeSetup &s,string &why)
+{
+   string strategyWhy="";
+   if(!RevalidateStrategyIdentity(s,strategyWhy)){ why=strategyWhy; return false; }
+
+   TradeSetup pb=BuildPullback(s.symbol,s.bullish,s.confidence,"");
+   TradeSetup br=BuildBreakoutRetest(s.symbol,s.bullish,s.confidence,"");
+   StrategyDecision d; SelectDynamicStrategy(s.symbol,pb,br,d);
+   IntermarketReport im=AssessIntermarket(s.symbol,s.bullish);
+   if(im.severeConflict){ why="Severe intermarket contradiction: "+im.detail; return false; }
+
+   string web="",err=""; bool block=false,watch=false;
+   bool webOK=GetLiveWebIntel(s.symbol,s,d,true,web,block,watch,err);
+   if(!webOK || (InpBlockOnWebIntelVerdictBLOCK && block))
+   { why="Live news/web intelligence invalidated execution: "+web; return false; }
+
+   string cal=""; if(CalendarBlock(s.symbol,cal)){ why="Economic calendar now blocks execution: "+cal; return false; }
+   string yield=""; if(YieldShock(yield)){ why="Treasury-yield shock now blocks execution: "+yield; return false; }
+   why="Pre-entry strategy/news/intermarket revalidation PASS | "+strategyWhy+" | "+im.detail+(watch?" | web news WATCH":" | web news CLEAR");
+   return true;
+}
+
+void NewsIntermarketInit()
+{
+   ArrayResize(g_webIntelSymbols,0); ArrayResize(g_webIntelText,0); ArrayResize(g_webIntelTime,0);
+   ArrayResize(g_webIntelBlock,0); ArrayResize(g_webIntelWatch,0);
+}
+
+void NewsIntermarketTimer()
+{
+   // Deliberately no unconditional web calls. Scheduled/manual scans and pre-entry validation refresh intelligence.
+}
+// ===== END INLINED GPT_EA_Part16_NewsIntermarket.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part22A_IntermarketForward.mqh =====
+// Forward declaration used to route Part22 web prompts through fresh intermarket data.
+IntermarketReport AssessIntermarketHardened(const string target,bool bull);
+// ===== END INLINED GPT_EA_Part22A_IntermarketForward.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part22P_ResponseParser.mqh =====
+// ============================================================================
+// GPT_EA Part 22P - Wider Responses API text extraction for intelligence data
+// ============================================================================
+
+input int InpIntelligenceResponseMaxChars = 12000;
+
+string ExtractOpenAITextWide(const string json)
+{
+   int typePos=StringFind(json,"\"type\":\"output_text\"");
+   int start=(typePos>=0?typePos:0);
+   string key="\"text\":\"";
+   int p=StringFind(json,key,start);
+   if(p<0)
+   {
+      key="\"output_text\":\"";
+      p=StringFind(json,key,start);
+   }
+   if(p<0) return "OpenAI response received, but text could not be parsed.";
+   p+=StringLen(key);
+
+   int cap=(InpIntelligenceResponseMaxChars<2000?2000:InpIntelligenceResponseMaxChars);
+   string out="";
+   bool esc=false;
+   for(int i=p;i<StringLen(json);i++)
+   {
+      ushort ch=StringGetCharacter(json,i);
+      if(ch=='\\' && !esc){ esc=true; out+="\\"; continue; }
+      if(ch=='\"' && !esc) break;
+      esc=false;
+      out+=ShortToString(ch);
+      if(StringLen(out)>=cap) break;
+   }
+   return JsonUnescape(out);
+}
+// ===== END INLINED GPT_EA_Part22P_ResponseParser.mqh =====
 #define AssessIntermarket AssessIntermarketHardened
 #define ExtractOpenAIText ExtractOpenAITextWide
-#include "GPT_EA_Part22_IntelligenceFreshness.mqh"
+// ===== BEGIN INLINED GPT_EA_Part22_IntelligenceFreshness.mqh =====
+// ============================================================================
+// GPT_EA Part 22 - Structured live-news contract and fresh intermarket data
+// ============================================================================
+
+input bool InpUseStructuredWebIntel            = true;
+input bool InpFailClosedHighConfidenceNews     = true;
+input bool InpRequireWebIntelSources            = true;
+input int  InpWebIntelRiskWatchScore            = 50;
+input int  InpWebIntelRiskBlockScore            = 80;
+input int  InpWebIntelFailureCircuitThreshold   = 3;
+input int  InpWebIntelMaxCacheAgeMinutes        = 12;
+input int  InpIntermarketMaxBarAgeMinutes       = 90;
+input int  InpIntermarketMinFreshComponents     = 1;
+input int  InpWebIntelMaxAsOfAgeMinutes          = 15;
+input int  InpWebIntelMaxFutureSkewSeconds       = 120;
+input int  InpWebIntelMinAnnotationURLs          = 1;
+input bool InpRequirePrimarySourceForHighRisk    = true;
+input string InpWebIntelProvenanceFile           = "GPT_EA_WebIntelProvenance.csv";
+
+string g_lastWebIntelAnnotationURLs="";
+string g_lastWebIntelAsOfUTC="";
+bool   g_lastWebIntelHasPrimarySource=false;
+bool   g_lastWebIntelProvenanceHardFail=false;
+string g_lastWebIntelFailureClass="NONE"; // NONE / UNAVAILABLE / SCHEMA / PROVENANCE / STALE / VERDICT_BLOCK
+
+string g_webHardFailSymbols[];
+int    g_webHardFailCounts[];
+
+int WebHardFailureIndex(const string sym)
+{
+   for(int i=0;i<ArraySize(g_webHardFailSymbols);i++) if(g_webHardFailSymbols[i]==sym) return i;
+   int n=ArraySize(g_webHardFailSymbols);
+   ArrayResize(g_webHardFailSymbols,n+1); ArrayResize(g_webHardFailCounts,n+1);
+   g_webHardFailSymbols[n]=sym; g_webHardFailCounts[n]=0;
+   return n;
+}
+
+int JsonValueStart(const string json,const string key)
+{
+   string needle="\""+key+"\"";
+   int p=StringFind(json,needle); if(p<0) return -1;
+   p=StringFind(json,":",p+StringLen(needle)); if(p<0) return -1;
+   p++;
+   while(p<StringLen(json))
+   {
+      ushort ch=StringGetCharacter(json,p);
+      if(ch!=' ' && ch!='\t' && ch!='\r' && ch!='\n') break;
+      p++;
+   }
+   return p;
+}
+
+bool JsonStringFieldSimple(const string json,const string key,string &out)
+{
+   out=""; int p=JsonValueStart(json,key); if(p<0 || p>=StringLen(json)) return false;
+   if(StringGetCharacter(json,p)!='\"') return false;
+   p++; bool esc=false;
+   for(int i=p;i<StringLen(json);i++)
+   {
+      ushort ch=StringGetCharacter(json,i);
+      if(ch=='\\' && !esc){ esc=true; out+="\\"; continue; }
+      if(ch=='\"' && !esc){ out=JsonUnescape(out); return true; }
+      esc=false; out+=ShortToString(ch);
+   }
+   return false;
+}
+
+bool JsonIntFieldSimple(const string json,const string key,int &out)
+{
+   out=0; int p=JsonValueStart(json,key); if(p<0) return false;
+   string s="";
+   for(int i=p;i<StringLen(json);i++)
+   {
+      ushort ch=StringGetCharacter(json,i);
+      if((ch>='0' && ch<='9') || (ch=='-' && StringLen(s)==0)) s+=ShortToString(ch);
+      else break;
+   }
+   if(s=="" || s=="-") return false;
+   out=(int)StringToInteger(s); return true;
+}
+
+bool WebIntelLeapYear(int y)
+{
+   return ((y%4==0 && y%100!=0) || y%400==0);
+}
+
+int WebIntelDaysInMonth(int y,int m)
+{
+   int d[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+   if(m==2 && WebIntelLeapYear(y)) return 29;
+   if(m<1 || m>12) return 0;
+   return d[m-1];
+}
+
+bool ParseISO8601UTC(const string value,datetime &out)
+{
+   out=0;
+   if(StringLen(value)<20) return false;
+   int y=(int)StringToInteger(StringSubstr(value,0,4));
+   int mo=(int)StringToInteger(StringSubstr(value,5,2));
+   int da=(int)StringToInteger(StringSubstr(value,8,2));
+   int hh=(int)StringToInteger(StringSubstr(value,11,2));
+   int mm=(int)StringToInteger(StringSubstr(value,14,2));
+   int ss=(int)StringToInteger(StringSubstr(value,17,2));
+   if(y<1970 || mo<1 || mo>12 || da<1 || da>WebIntelDaysInMonth(y,mo) ||
+      hh<0 || hh>23 || mm<0 || mm>59 || ss<0 || ss>60) return false;
+   long days=0;
+   for(int yy=1970;yy<y;yy++) days+=(WebIntelLeapYear(yy)?366:365);
+   for(int m=1;m<mo;m++) days+=WebIntelDaysInMonth(y,m);
+   days+=da-1;
+   out=(datetime)(days*86400L+hh*3600+mm*60+MathMin(ss,59));
+   return true;
+}
+
+bool WebIntelOfficialDomain(const string url)
+{
+   string u=url; StringToLower(u);
+   string domains="federalreserve.gov|bls.gov|bea.gov|treasury.gov|census.gov|eia.gov|energy.gov|"
+                  "ecb.europa.eu|eurostat.ec.europa.eu|ec.europa.eu|bankofengland.co.uk|ons.gov.uk|"
+                  "boj.or.jp|rba.gov.au|rbnz.govt.nz|bankofcanada.ca|statcan.gc.ca|bis.org|opec.org|imf.org|worldbank.org";
+   string a[]; int n=StringSplit(domains,'|',a);
+   for(int i=0;i<n;i++) if(StringFind(u,a[i])>=0) return true;
+   return false;
+}
+
+void ExtractResponseAnnotationURLs(const string response,string &urls,int &count,bool &hasPrimary)
+{
+   urls=""; count=0; hasPrimary=false;
+   string key="\"url\":\"";
+   int pos=0;
+   while(pos<StringLen(response) && count<20)
+   {
+      int p=StringFind(response,key,pos); if(p<0) break;
+      p+=StringLen(key);
+      string raw=""; bool esc=false;
+      int end=p;
+      for(;end<StringLen(response);end++)
+      {
+         ushort ch=StringGetCharacter(response,end);
+         if(ch=='\\' && !esc){ esc=true; raw+="\\"; continue; }
+         if(ch=='\"' && !esc) break;
+         esc=false; raw+=ShortToString(ch);
+      }
+      string url=JsonUnescape(raw);
+      if(StringFind(url,"https://")==0)
+      {
+         bool duplicate=(StringFind("|"+urls+"|","|"+url+"|")>=0);
+         if(!duplicate)
+         {
+            if(urls!="") urls+="|";
+            urls+=url; count++;
+            if(WebIntelOfficialDomain(url)) hasPrimary=true;
+         }
+      }
+      pos=end+1;
+   }
+}
+
+void EnsureWebIntelProvenanceHeader()
+{
+   bool exists=FileIsExist(InpWebIntelProvenanceFile,FILE_COMMON);
+   int h=FileOpen(InpWebIntelProvenanceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","as_of_utc","annotation_count","primary_source","urls","verdict","risk_score","status");
+   FileClose(h);
+}
+
+void WriteWebIntelProvenance(const string asof,const string urls,int count,bool primary,const string verdict,int risk,const string status)
+{
+   EnsureWebIntelProvenanceHeader();
+   int h=FileOpen(InpWebIntelProvenanceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"web_intel_provenance_v1",TimeToString(TimeGMT(),TIME_DATE|TIME_SECONDS),asof,count,
+      primary?"1":"0",urls,verdict,risk,status);
+   FileFlush(h); FileClose(h);
+}
+
+bool WebIntelAsOfFresh(const string asof,string &why)
+{
+   datetime ts=0;
+   if(!ParseISO8601UTC(asof,ts)){ why="as_of_utc is not valid UTC ISO-8601"; return false; }
+   datetime now=TimeGMT();
+   long age=(long)now-(long)ts;
+   if(age < -MathMax(0,InpWebIntelMaxFutureSkewSeconds))
+   { why=StringFormat("as_of_utc is %d seconds in the future",(int)(-age)); return false; }
+   if(age > MathMax(1,InpWebIntelMaxAsOfAgeMinutes)*60)
+   { why=StringFormat("as_of_utc is stale by %d minutes",(int)(age/60)); return false; }
+   why=StringFormat("as_of_utc age %d seconds",(int)MathMax(0,(long)age));
+   return true;
+}
+
+string WebIntelJsonSchema()
+{
+   return "{"
+          "\"type\":\"object\","
+          "\"properties\":{"
+             "\"verdict\":{\"type\":\"string\",\"enum\":[\"CLEAR\",\"WATCH\",\"BLOCK\"]},"
+             "\"risk_score\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":100},"
+             "\"events\":{\"type\":\"string\"},"
+             "\"breaking_news\":{\"type\":\"string\"},"
+             "\"invalidation_channel\":{\"type\":\"string\"},"
+             "\"intermarket\":{\"type\":\"string\"},"
+             "\"sources\":{\"type\":\"string\"},"
+             "\"as_of_utc\":{\"type\":\"string\"}"
+          "},"
+          "\"required\":[\"verdict\",\"risk_score\",\"events\",\"breaking_news\",\"invalidation_channel\",\"intermarket\",\"sources\",\"as_of_utc\"],"
+          "\"additionalProperties\":false"
+          "}";
+}
+
+bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &verdict,int &riskScore,string &sources,string &errorText)
+{
+   answer=""; verdict=""; riskScore=0; sources=""; errorText="";
+   g_lastWebIntelAnnotationURLs=""; g_lastWebIntelAsOfUTC="";
+   g_lastWebIntelHasPrimarySource=false; g_lastWebIntelProvenanceHardFail=false; g_lastWebIntelFailureClass="NONE";
+   if(!InpUseLiveWebIntelligence){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText="Live web intelligence disabled."; return false; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText="WebRequest/web search unavailable in Strategy Tester."; return false; }
+   if(StringLen(Trim(InpOpenAIAPIKey))<20){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText="OpenAI API key not configured."; return false; }
+
+   string schema=WebIntelJsonSchema();
+   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\","
+               "\"tools\":[{\"type\":\"web_search\"}],"
+               "\"input\":\""+JsonEscape(prompt+" Return the requested result as strict JSON matching the supplied schema.")+"\","
+               "\"text\":{\"format\":{\"type\":\"json_schema\",\"name\":\"market_intelligence\",\"strict\":true,\"schema\":"+schema+"}}}";
+   string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
+   char data[],result[]; string resultHeaders="";
+   int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
+   ResetLastError();
+   int code=WebRequest("POST",InpOpenAIEndpoint,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
+   if(code==-1){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText=StringFormat("Structured web-intel WebRequest failed (%d).",GetLastError()); return false; }
+   string response=CharArrayToString(result,0,-1,CP_UTF8);
+   if(code<200 || code>=300){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText=StringFormat("Structured web-intel HTTP %d: %s",code,StringSubstr(response,0,500)); return false; }
+   int annotationCount=0; bool hasPrimary=false; string annotationURLs="";
+   ExtractResponseAnnotationURLs(response,annotationURLs,annotationCount,hasPrimary);
+   g_lastWebIntelAnnotationURLs=annotationURLs;
+   g_lastWebIntelHasPrimarySource=hasPrimary;
+   answer=ExtractOpenAIText(response);
+   if(answer=="" || StringFind(answer,"could not be parsed")>=0){ g_lastWebIntelFailureClass="SCHEMA"; errorText="Structured web-intel response text unavailable."; return false; }
+
+   string events="",breaking="",invalidation="",intermarket="",asof="";
+   bool ok=(JsonStringFieldSimple(answer,"verdict",verdict) &&
+            JsonIntFieldSimple(answer,"risk_score",riskScore) &&
+            JsonStringFieldSimple(answer,"events",events) &&
+            JsonStringFieldSimple(answer,"breaking_news",breaking) &&
+            JsonStringFieldSimple(answer,"invalidation_channel",invalidation) &&
+            JsonStringFieldSimple(answer,"intermarket",intermarket) &&
+            JsonStringFieldSimple(answer,"sources",sources) &&
+            JsonStringFieldSimple(answer,"as_of_utc",asof));
+   if(!ok){ g_lastWebIntelFailureClass="SCHEMA"; GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel JSON failed required-field validation."; return false; }
+   StringToUpper(verdict);
+   if(verdict!="CLEAR" && verdict!="WATCH" && verdict!="BLOCK")
+   { g_lastWebIntelFailureClass="SCHEMA"; GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel verdict is outside CLEAR/WATCH/BLOCK contract."; return false; }
+   if(riskScore<0 || riskScore>100){ g_lastWebIntelFailureClass="SCHEMA"; GVWrite(SysKey("MODEL_SCHEMA_FAIL"),GVRead(SysKey("MODEL_SCHEMA_FAIL"),0)+1); errorText="Structured web-intel risk_score is outside 0-100."; return false; }
+   if(InpRequireWebIntelSources && StringLen(Trim(sources))<8)
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true; g_lastWebIntelFailureClass="PROVENANCE";
+      errorText="PROVENANCE_HARD_FAIL: structured web-intel did not provide source attribution.";
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_MODEL_SOURCES");
+      return false;
+   }
+
+   g_lastWebIntelAsOfUTC=asof;
+   string freshWhy="";
+   if(!WebIntelAsOfFresh(asof,freshWhy))
+   {
+      GVWrite(SysKey("MODEL_STALE"),GVRead(SysKey("MODEL_STALE"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true; g_lastWebIntelFailureClass="STALE";
+      errorText="STALE_AS_OF: "+freshWhy;
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_AS_OF");
+      return false;
+   }
+   if(annotationCount<MathMax(1,InpWebIntelMinAnnotationURLs))
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true; g_lastWebIntelFailureClass="PROVENANCE";
+      errorText=StringFormat("PROVENANCE_HARD_FAIL: Responses payload supplied %d URL annotations; minimum %d.",
+                             annotationCount,MathMax(1,InpWebIntelMinAnnotationURLs));
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_ANNOTATIONS");
+      return false;
+   }
+   bool highRisk=(riskScore>=InpWebIntelRiskWatchScore || verdict=="WATCH" || verdict=="BLOCK");
+   if(InpRequirePrimarySourceForHighRisk && highRisk && !hasPrimary)
+   {
+      GVWrite(SysKey("MODEL_PROV_FAIL"),GVRead(SysKey("MODEL_PROV_FAIL"),0)+1);
+      g_lastWebIntelProvenanceHardFail=true; g_lastWebIntelFailureClass="PROVENANCE";
+      errorText="PROVENANCE_HARD_FAIL: high-risk intelligence lacks an authoritative/primary-source URL annotation.";
+      WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"FAIL_PRIMARY");
+      return false;
+   }
+   WriteWebIntelProvenance(asof,annotationURLs,annotationCount,hasPrimary,verdict,riskScore,"PASS");
+   g_lastWebIntelFailureClass=(verdict=="BLOCK"?"VERDICT_BLOCK":"NONE");
+   GVWrite(SysKey("MODEL_LAST_OK"),(double)TimeTradeServer());
+
+   answer=StringFormat("VERDICT: %s; RISK_SCORE: %d; AS_OF_UTC: %s; EVENTS: %s; BREAKING_NEWS: %s; INVALIDATION_CHANNEL: %s; INTERMARKET: %s; SOURCES: %s; RESPONSE_URL_ANNOTATIONS: %s",
+                       verdict,riskScore,asof,events,breaking,invalidation,intermarket,sources,annotationURLs);
+   return true;
+}
+
+bool GetLiveWebIntelHardened(const string sym,const TradeSetup &s,const StrategyDecision &d,bool force,string &text,bool &block,bool &watch,string &errorText)
+{
+   text=""; block=false; watch=false; errorText=""; g_lastWebIntelFailureClass="NONE";
+   if(!InpUseLiveWebIntelligence){ g_lastWebIntelFailureClass="UNAVAILABLE"; text="Live web intelligence disabled."; return true; }
+   if(InpWebIntelHighConfidenceOnly && !force && d.score<InpMinStrategyScore)
+   { text="Web search deferred until the candidate reaches the strategy-quality threshold."; return true; }
+
+   int idx=WebIntelCacheIndex(sym),fidx=WebHardFailureIndex(sym);
+   datetime now=TimeTradeServer();
+   int cacheMins=MathMax(1,MathMin(InpWebIntelRefreshMinutes,InpWebIntelMaxCacheAgeMinutes));
+   if(!force && g_webIntelTime[idx]>0 && now-g_webIntelTime[idx]<cacheMins*60)
+   {
+      text=g_webIntelText[idx]; block=g_webIntelBlock[idx]; watch=g_webIntelWatch[idx]; return true;
+   }
+
+   IntermarketReport im=AssessIntermarket(sym,s.bullish);
+   string prompt=BuildLiveNewsPrompt(sym,s,d,im);
+   bool ok=false; string verdict="",sources=""; int riskScore=0;
+   if(InpUseStructuredWebIntel)
+      ok=CallOpenAIWebIntelStructured(prompt,text,verdict,riskScore,sources,errorText);
+
+   if(!ok)
+   {
+      bool highQualityCandidate=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE || d.score>=InpMinStrategyScore);
+      bool hardStructuredFailure=(g_lastWebIntelFailureClass=="SCHEMA" ||
+                                  g_lastWebIntelFailureClass=="PROVENANCE" ||
+                                  g_lastWebIntelFailureClass=="STALE");
+      if((g_lastWebIntelProvenanceHardFail || hardStructuredFailure) && highQualityCandidate)
+      {
+         g_webHardFailCounts[fidx]++;
+         block=true; watch=false;
+         text="Structured web intelligence hard-failed "+g_lastWebIntelFailureClass+": "+errorText;
+         return false;
+      }
+
+      // Compatibility fallback is allowed only for transport/availability-type
+      // failures. Schema, stale or provenance failures on a high-quality
+      // candidate are semantic integrity failures and cannot be rescued.
+      string fallback="",fallbackErr="";
+      bool fallbackOK=CallOpenAIWebIntel(prompt,fallback,fallbackErr);
+      if(fallbackOK)
+      {
+         text="UNSTRUCTURED FALLBACK — downgraded confidence. "+fallback;
+         InterpretWebIntel(fallback,block,watch);
+         g_lastWebIntelFailureClass=(block?"VERDICT_BLOCK":"NONE");
+         watch=true;
+         g_webHardFailCounts[fidx]++;
+      }
+      else
+      {
+         g_webHardFailCounts[fidx]++;
+         errorText+=(errorText!=""?" | ":"")+fallbackErr;
+         if(g_lastWebIntelFailureClass=="NONE") g_lastWebIntelFailureClass="UNAVAILABLE";
+         block=(InpBlockIfWebIntelUnavailable || (InpFailClosedHighConfidenceNews && highQualityCandidate));
+         watch=!block;
+         text=StringFormat("Live web intelligence unavailable after structured/fallback attempts. Consecutive failures %d/%d. %s",
+                           g_webHardFailCounts[fidx],InpWebIntelFailureCircuitThreshold,errorText);
+         if(g_webHardFailCounts[fidx]>=InpWebIntelFailureCircuitThreshold)
+            text+=" | WEB-INTELLIGENCE CIRCUIT BREAKER OPEN: no silent HIGH-CONFIDENCE authorization without fresh news intelligence.";
+         return !block;
+      }
+   }
+   else
+   {
+      g_webHardFailCounts[fidx]=0;
+      block=(verdict=="BLOCK" || riskScore>=InpWebIntelRiskBlockScore);
+      if(block) g_lastWebIntelFailureClass="VERDICT_BLOCK";
+      watch=(!block && (verdict=="WATCH" || riskScore>=InpWebIntelRiskWatchScore));
+   }
+
+   g_webIntelText[idx]=text; g_webIntelBlock[idx]=block; g_webIntelWatch[idx]=watch; g_webIntelTime[idx]=now;
+   return true;
+}
+
+bool FreshSymbolMovePct(const string sym,ENUM_TIMEFRAMES tf,int bars,double &pct,string &why)
+{
+   pct=0; why=""; if(sym==""){ why="symbol unavailable"; return false; }
+   datetime bt=iTime(sym,tf,1);
+   if(bt<=0){ why="no closed bar"; return false; }
+   datetime now=TimeTradeServer();
+   if(now>bt && now-bt>MathMax(15,InpIntermarketMaxBarAgeMinutes)*60)
+   { why=StringFormat("stale closed bar age %d min",(int)((now-bt)/60)); return false; }
+   double current=0,old=0;
+   if(!CloseValue(sym,tf,1,current) || !CloseValue(sym,tf,MathMax(2,bars+1),old) || old==0)
+   { why="insufficient history"; return false; }
+   pct=(current-old)/old*100.0; return true;
+}
+
+void AddFreshIntermarketComponent(IntermarketReport &r,int &used,const string label,double move,bool bullishEffect,double weight)
+{
+   AddIntermarketComponent(r,label,move,bullishEffect,weight); used++;
+}
+
+IntermarketReport AssessIntermarketHardened(const string target,bool bull)
+{
+   IntermarketReport r; r.score=0; r.severeConflict=false; r.detail="";
+   string key=CanonicalInstrumentKey(target,SymbolInfoString(target,SYMBOL_DESCRIPTION),SymbolInfoString(target,SYMBOL_PATH));
+   string dxy=ResolveFirstAlias(InpDXYAliases),vix=ResolveFirstAlias(InpVIXAliases);
+   string gold=ResolveFirstAlias(InpGoldAliases),oil=ResolveFirstAlias(InpOilAliases);
+   string us100=ResolveFirstAlias(InpUS100Aliases),us500=ResolveFirstAlias(InpUS500Aliases);
+   string y10=ResolveBrokerSymbol(InpYieldSymbol);
+   double mD=0,mV=0,mY=0,mG=0,mO=0,mN=0,mS=0; string q="";
+   bool hD=FreshSymbolMovePct(dxy,PERIOD_M15,InpIntermarketLookbackM15,mD,q);
+   bool hV=FreshSymbolMovePct(vix,PERIOD_M15,InpIntermarketLookbackM15,mV,q);
+   bool hY=FreshSymbolMovePct(y10,PERIOD_M15,InpIntermarketLookbackM15,mY,q);
+   bool hG=FreshSymbolMovePct(gold,PERIOD_M15,InpIntermarketLookbackM15,mG,q);
+   bool hO=FreshSymbolMovePct(oil,PERIOD_M15,InpIntermarketLookbackM15,mO,q);
+   bool hN=FreshSymbolMovePct(us100,PERIOD_M15,InpIntermarketLookbackM15,mN,q);
+   bool hS=FreshSymbolMovePct(us500,PERIOD_M15,InpIntermarketLookbackM15,mS,q);
+   int used=0;
+
+   if(StringFind(key,"METAL:XAU")==0 || StringFind(key,"METAL:XAG")==0)
+   {
+      if(hD) AddFreshIntermarketComponent(r,used,"DXY",mD,bull?(mD<0):(mD>0),35.0);
+      if(hY) AddFreshIntermarketComponent(r,used,"US10Y",mY,bull?(mY<0):(mY>0),40.0);
+      if(hV) AddFreshIntermarketComponent(r,used,"VIX",mV,bull?(mV>0):(mV<0),18.0);
+   }
+   else if(StringFind(key,"INDEX:US100")==0 || StringFind(key,"INDEX:US500")==0 || StringFind(key,"INDEX:US30")==0)
+   {
+      if(hY) AddFreshIntermarketComponent(r,used,"US10Y",mY,bull?(mY<0):(mY>0),45.0);
+      if(hV) AddFreshIntermarketComponent(r,used,"VIX",mV,bull?(mV<0):(mV>0),25.0);
+      if(hS && target!=us500) AddFreshIntermarketComponent(r,used,"US500",mS,bull?(mS>0):(mS<0),20.0);
+   }
+   else if(StringFind(key,"INDEX:GER40")==0 || StringFind(key,"INDEX:UK100")==0)
+   {
+      if(hV) AddFreshIntermarketComponent(r,used,"VIX",mV,bull?(mV<0):(mV>0),20.0);
+      if(hN) AddFreshIntermarketComponent(r,used,"US100",mN,bull?(mN>0):(mN<0),18.0);
+      if(hS) AddFreshIntermarketComponent(r,used,"US500",mS,bull?(mS>0):(mS<0),18.0);
+   }
+   else if(StringFind(key,"ENERGY:")==0)
+   {
+      if(hD) AddFreshIntermarketComponent(r,used,"DXY",mD,bull?(mD<0):(mD>0),22.0);
+      if(hS) AddFreshIntermarketComponent(r,used,"US500",mS,bull?(mS>0):(mS<0),12.0);
+      if(hO && target!=oil) AddFreshIntermarketComponent(r,used,"WTI",mO,bull?(mO>0):(mO<0),15.0);
+   }
+   else if(StringFind(key,"FX:")==0)
+   {
+      string pair=StringSubstr(key,3);
+      bool usdBase=(StringSubstr(pair,0,3)=="USD"),usdQuote=(StringSubstr(pair,3,3)=="USD");
+      if(hD && (usdBase || usdQuote))
+      {
+         bool supports=(usdBase?(bull?(mD>0):(mD<0)):(bull?(mD<0):(mD>0)));
+         AddFreshIntermarketComponent(r,used,"DXY",mD,supports,35.0);
+      }
+      if(hY && StringFind(pair,"JPY")>=0)
+      {
+         bool supports=(usdBase?(bull?(mY>0):(mY<0)):(bull?(mY<0):(mY>0)));
+         AddFreshIntermarketComponent(r,used,"US10Y",mY,supports,25.0);
+      }
+   }
+   else if(StringFind(key,"CRYPTO:")==0)
+   {
+      if(hD) AddFreshIntermarketComponent(r,used,"DXY",mD,bull?(mD<0):(mD>0),20.0);
+      if(hV) AddFreshIntermarketComponent(r,used,"VIX",mV,bull?(mV<0):(mV>0),15.0);
+      if(hN) AddFreshIntermarketComponent(r,used,"US100",mN,bull?(mN>0):(mN<0),15.0);
+   }
+
+   r.score=MathMax(-10,MathMin(10,r.score));
+   if(used<InpIntermarketMinFreshComponents)
+   {
+      r.score=0; r.severeConflict=false;
+      r.detail=StringFormat("Intermarket freshness: %d fresh relevant components (<%d required). No confirmation or contradiction is fabricated from stale/closed-market data.",used,InpIntermarketMinFreshComponents);
+      return r;
+   }
+   r.severeConflict=(r.score<=InpIntermarketSevereConflictScore);
+   r.detail=StringFormat("Fresh intermarket score %+d/10 from %d component(s) | %s",r.score,used,r.detail);
+   return r;
+}
+// ===== END INLINED GPT_EA_Part22_IntelligenceFreshness.mqh =====
 #undef ExtractOpenAIText
 #define GetLiveWebIntel GetLiveWebIntelHardened
-#include "GPT_EA_Part16A_StrictRevalidation.mqh"
+// ===== BEGIN INLINED GPT_EA_Part16A_StrictRevalidation.mqh =====
+// ============================================================================
+// GPT_EA Part 16A - Strict pre-entry strategy identity revalidation
+// ============================================================================
+
+bool PreEntryIntelligenceRevalidationStrict(const TradeSetup &s,string &why)
+{
+   StrategyClass expected=(StrategyClass)(int)GVRead(SymKey(s.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   MarketStateClass expectedState=(MarketStateClass)(int)GVRead(SymKey(s.symbol,"CAND_STATE"),STATE_UNKNOWN);
+   if(expected==STRATEGY_NO_TRADE)
+   { why="No stored executable strategy classification exists."; return false; }
+
+   TradeSetup pb=BuildPullback(s.symbol,s.bullish,s.confidence,"");
+   TradeSetup br=BuildBreakoutRetest(s.symbol,s.bullish,s.confidence,"");
+   StrategyDecision d; SelectDynamicStrategy(s.symbol,pb,br,d);
+
+   if(d.strategy==STRATEGY_NO_TRADE || d.action==STRATEGY_ACTION_NO_TRADE)
+   {
+      GVWrite(SymKey(s.symbol,"CAND_STRATEGY"),(double)expected);
+      GVWrite(SymKey(s.symbol,"CAND_STATE"),(double)expectedState);
+      why="Fresh strategy engine now returns NO TRADE.";
+      return false;
+   }
+   if(d.setup.bullish!=s.bullish)
+   {
+      GVWrite(SymKey(s.symbol,"CAND_STRATEGY"),(double)expected);
+      GVWrite(SymKey(s.symbol,"CAND_STATE"),(double)expectedState);
+      why="Fresh strategy direction differs from the approved direction.";
+      return false;
+   }
+   if(d.strategy!=expected)
+   {
+      string change=StrategyClassName(expected)+" -> "+StrategyClassName(d.strategy);
+      GVWrite(SymKey(s.symbol,"CAND_STRATEGY"),(double)expected);
+      GVWrite(SymKey(s.symbol,"CAND_STATE"),(double)expectedState);
+      why="Strategy classification changed during approval: "+change+". Reanalyze instead of executing stale authorization.";
+      return false;
+   }
+
+   IntermarketReport im=AssessIntermarket(s.symbol,s.bullish);
+   if(im.severeConflict)
+   { why="Severe intermarket contradiction: "+im.detail; return false; }
+
+   string web="",err=""; bool block=false,watch=false;
+   bool webOK=GetLiveWebIntel(s.symbol,s,d,true,web,block,watch,err);
+   string emergencyWebWhy="";
+   bool emergencyWebBypass=(!webOK && g_lastWebIntelFailureClass=="UNAVAILABLE" &&
+                            DeterministicEmergencyExecutionActive(s.symbol,expected,emergencyWebWhy));
+   if((!webOK && !emergencyWebBypass) || (webOK && InpBlockOnWebIntelVerdictBLOCK && block))
+   { why="Live news/web intelligence invalidated execution: "+web+" | class "+g_lastWebIntelFailureClass; return false; }
+   if(emergencyWebBypass)
+   {
+      block=false; watch=true;
+      web="DETERMINISTIC_ONLY external-intelligence transport outage bypass | "+emergencyWebWhy+" | "+web;
+   }
+
+   string cal=""; if(CalendarBlock(s.symbol,cal)){ why="Economic calendar now blocks execution: "+cal; return false; }
+   string yield=""; if(YieldShock(yield)){ why="Treasury-yield shock now blocks execution: "+yield; return false; }
+
+   string ev="";
+   if(!StrategyEvidenceAllows(expected,ev)){ why="Historical strategy evidence gate changed to BLOCK: "+ev; return false; }
+
+   // Keep the original approved class, but refresh time/state only after identity is proven stable.
+   GVWrite(SymKey(s.symbol,"CAND_STRATEGY"),(double)expected);
+   GVWrite(SymKey(s.symbol,"CAND_STATE"),(double)d.state);
+   GVWrite(SymKey(s.symbol,"CAND_SCORE"),(double)d.score);
+   GVWrite(SymKey(s.symbol,"CAND_TIME"),(double)TimeTradeServer());
+   why="Strict pre-entry intelligence PASS | "+StrategyClassName(expected)+" remains valid | "+MarketStateName(d.state)+" | "+im.detail+
+       (emergencyWebBypass?" | deterministic-only transport fallback":(watch?" | web WATCH":" | web CLEAR"));
+   return true;
+}
+// ===== END INLINED GPT_EA_Part16A_StrictRevalidation.mqh =====
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
-#include "GPT_EA_Part17_ThesisEngine.mqh"
+// ===== BEGIN INLINED GPT_EA_Part17_ThesisEngine.mqh =====
+// ============================================================================
+// GPT_EA Part 17 - Mandatory 25-point trade thesis and GPT critique engine
+// ============================================================================
+
+string MultiTFAlignmentText(const string sym,bool bull)
+{
+   ENUM_TIMEFRAMES tf[6]={PERIOD_D1,PERIOD_H4,PERIOD_H1,PERIOD_M30,PERIOD_M15,PERIOD_M5};
+   string nm[6]={"D1","H4","H1","M30","M15","M5"};
+   string out="";
+   for(int i=0;i<6;i++)
+   {
+      int v=TrendVote(sym,tf[i],bull);
+      if(i>0) out+=" | ";
+      out+=nm[i]+":"+(v>0?"ALIGNED":v<0?"OPPOSED":"NEUTRAL");
+   }
+   return out;
+}
+
+string PriceInvalidationText(const TradeSetup &s)
+{
+   return StringFormat("Immediate price invalidation: %.*f plus the stated structural close/acceptance failure. %s",
+      DigitsFor(s.symbol),s.sl,s.invalidation);
+}
+
+string TargetLogicText(const TradeSetup &s,const StrategySnapshot &x)
+{
+   return StringFormat("TP1 %.*f, TP2 %.*f, TP3 %.*f. Objectives are checked against prior/session liquidity %.5f/%.5f, prior-day %.5f/%.5f and current range %.5f/%.5f rather than arbitrary pip distances.",
+      DigitsFor(s.symbol),s.tp1,DigitsFor(s.symbol),s.tp2,DigitsFor(s.symbol),s.tp3,
+      x.asianHigh,x.asianLow,x.previousDayHigh,x.previousDayLow,x.priorHigh,x.priorLow);
+}
+
+string LiquidityFakeoutText(const StrategySnapshot &x)
+{
+   return StringFormat("Bull sweep %s | Bear sweep %s | False break up/down %s/%s | Asian H/L %.5f/%.5f | Previous-day H/L %.5f/%.5f. Thin/opening volatility risk rises when OR is %.2fx ATR.",
+      x.bullishSweep?"YES":"NO",x.bearishSweep?"YES":"NO",x.falseBreakUp?"YES":"NO",x.falseBreakDown?"YES":"NO",
+      x.asianHigh,x.asianLow,x.previousDayHigh,x.previousDayLow,x.openingRangeRatio);
+}
+
+string VolatilityThesisText(const StrategySnapshot &x)
+{
+   return StringFormat("M15 ATR %.5f versus trailing ATR %.5f = %.2fx; opening range %.2fx ATR; regime %s. High volatility requires wider structural tolerance and faster invalidation; compression requires smaller target expectations until expansion confirms.",
+      x.atr,x.atrAverage,x.atrRatio,x.openingRangeRatio,x.baseRegime);
+}
+
+string BuildMandatory25PointThesis(const string sym,TradeSetup &primary,TradeSetup &pb,TradeSetup &br,
+                                   const StrategyDecision &d,const ConfluenceReport &c,
+                                   const string calendarText,const string webText,const IntermarketReport &im,
+                                   const string spreadText,const string sessionText)
+{
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   string s="\n━━━━━━━━━━━━━━━━━━━━\n📚 MANDATORY 25-POINT TRADE THESIS\n━━━━━━━━━━━━━━━━━━━━\n";
+   s+="1. Multi-Timeframe Alignment: "+MultiTFAlignmentText(sym,primary.bullish)+". HTF context establishes bias; M15/M5 are execution layers.\n";
+   s+="2. Market Regime: "+d.regime+" / "+d.stateText+". "+d.rationale+"\n";
+   s+=StringFormat("3. Market Structure: M15 bullish/bearish structure %s/%s; LTF bullish/bearish break %s/%s; CHOCH against trend %s; compression %s; expansion %s.\n",
+      x.m15BullStructure?"YES":"NO",x.m15BearStructure?"YES":"NO",x.ltfBullBreak?"YES":"NO",x.ltfBearBreak?"YES":"NO",x.chochAgainstTrend?"YES":"NO",x.compression?"YES":"NO",x.expansion?"YES":"NO");
+   s+="4. Strategy Selection: "+d.strategyName+" selected from the regime-driven library. "+d.librarySummary+"\n";
+   s+="5. Trend vs Retracement Assessment: current state is "+d.stateText+". HTF dominant direction is "+(x.dominantBull?"BULLISH":"BEARISH")+"; trend failure="+(x.trendFailure?"YES":"NO")+".\n";
+   s+=StringFormat("6. Entry Logic: zone %.*f-%.*f around preferred %.*f. %s\n",DigitsFor(sym),primary.zoneLow,DigitsFor(sym),primary.zoneHigh,DigitsFor(sym),primary.preferred,primary.reason);
+   s+="7. Confirmation Logic: "+d.confirmation+" Execution rule: "+primary.executionRule+"\n";
+   s+=StringFormat("8. Stop-Loss Logic: SL %.*f sits beyond the structural thesis invalidation rather than using a fixed pip distance. %s\n",DigitsFor(sym),primary.sl,primary.invalidation);
+   s+="9. Take-Profit Logic: "+TargetLogicText(primary,x)+"\n";
+   s+=StringFormat("10. Risk-to-Reward Analysis: theoretical geometry %.2fR to TP1 family; realistic effective R:R to TP2 after spread/slippage %.2f. %s Partials at TP1/TP2 alter realized portfolio R and are tracked in analytics.\n",
+      primary.nominalRR1,EffectiveRRDynamic(primary),spreadText);
+   s+="11. Pullback vs Breakout-Retest Analysis: Pullback => "+SetupSummaryLine(pb)+"; Breakout-Retest => "+SetupSummaryLine(br)+". Pullback failure is acceptance through value/structure; breakout-retest failure is a false break and return inside the old range.\n";
+   s+="12. Counter-Trend Assessment: "+(d.counterTrend?("COUNTER-TREND TRADE. Score "+IntegerToString(d.counterTrendScore)+"/100; strict sweep + CHOCH/BOS + rejection confirmation required, with more conservative targets."):"Trade is not classified as counter-trend against dominant HTF structure.")+"\n";
+   s+="13. Liquidity & Fakeout Assessment: "+LiquidityFakeoutText(x)+"\n";
+   s+="14. Volatility Analysis: "+VolatilityThesisText(x)+"\n";
+   s+="15. News Risk Assessment: Scheduled calendar => "+calendarText+" | Live web intelligence => "+webText+"\n";
+   s+="16. Treasury-Yield & Intermarket Analysis: "+im.detail+"; dedicated yield-shock filter is also checked independently before authorization.\n";
+   s+="17. Session Analysis: "+d.session+". "+sessionText+" Session/previous-day/Asian highs-lows are treated as liquidity objectives and fakeout locations.\n";
+   s+=StringFormat("18. Time-Based Invalidation: base setup expiry %d M15 candles; AdaptiveExpiry() shortens fast/high-ATR or oversized-opening-range setups and extends slow regimes within safety bounds. Breakouts demand faster follow-through than swing retracements.\n",primary.expiryM15);
+   s+="19. Price-Based Invalidation: "+PriceInvalidationText(primary)+"\n";
+   s+="20. Counterargument Analysis: "+d.counterargument+" Ask explicitly: could liquidity run the opposite side first, is this a retracement mistaken for reversal, is this breakout actually a sweep, is price overextended, and does effective R:R still survive costs?\n";
+   s+="21. Setup Quality Filtering: strategy action is "+(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE?"HIGH-CONFIDENCE TRADE SETUP":d.action==STRATEGY_ACTION_WAIT?"WAIT FOR CONFIRMATION":"NO TRADE")+". Contradictory/marginal evidence is not forced into a signal.\n";
+   s+=StringFormat("22. Confidence Validation: strategy %d/100 | advanced confluence %d/100 | HTF votes %d/3 | ADX %.1f | volume %.2fx | spread %s. Confidence is multi-factor, not a single-indicator label.\n",
+      d.score,c.score,c.htfVotes,c.adx,c.volumeRatio,c.spreadOK?"OK":"BLOCK");
+   s+="23. Historical Strategy Validation: "+d.evidence+" Contextual strategy stats are accumulated by strategy/state/direction/volatility. Historical/forward evidence is treated as evidence, never as a guarantee.\n";
+   s+="24. Pre-Entry Revalidation: immediately before execution the EA re-checks strategy identity, D1/H4/H1/M30/M15/M5 data freshness, current zone/trigger, spread, ATR/opening range, calendar, live web news, Treasury yields, intermarket conflict, release/risk/broker gates and original invalidation. Changed conditions cancel the setup.\n";
+   s+="25. Detailed Trade Thesis: The trade exists because "+d.strategyName+" matches "+d.stateText+" with the stated structure/confluence. Entry requires "+d.confirmation+" SL invalidates the thesis at structure, targets follow liquidity/structural objectives, failure channels are explicitly listed, and execution is authorized only if realistic reward still justifies total risk.\n";
+   return s;
+}
+
+string BuildDeepGPTPrompt(const string sym,const string card,const string thesis,const string webIntel,const StrategyDecision &d)
+{
+   return "You are the secondary adversarial validation layer for a MetaTrader EA. The broker-derived technical data, strategy classification and live-news intelligence below are authoritative inputs. "
+          "Do not invent prices, economic events, yields, headlines or statistics. Actively try to DISPROVE the proposed trade before validating it. "
+          "Confirm that the classification distinguishes trend continuation, retracement/correction, counter-trend movement, reversal, breakout/retest/fakeout, sweep, range, mean reversion, momentum, exhaustion and consolidation correctly. "
+          "If the trade is counter-trend, demand stronger evidence and conservative objectives. If evidence is insufficient say WAIT; if invalid say NO TRADE/INVALID; only say VALID when independent evidence genuinely aligns. "
+          "Return compact lines: VERDICT: VALID|WAIT|INVALID; CLASSIFICATION: ...; STRATEGY: ...; MTF: ...; RETRACEMENT_OR_REVERSAL: ...; COUNTER_TREND: ...; ENTRY_CONFIRMATION: ...; "
+          "SL_LOGIC: ...; TARGET_LOGIC: ...; RR_AFTER_COSTS: ...; LIQUIDITY_FAKEOUT: ...; VOLATILITY: ...; NEWS: ...; INTERMARKET: ...; COUNTERARGUMENT: ...; TIME_INVALIDATION: ...; PRICE_INVALIDATION: ...; EXECUTION_WARNING: ... .\n"
+          "Symbol: "+sym+"\nSelected strategy: "+d.strategyName+"\nSignal card:\n"+card+"\nMandatory thesis:\n"+thesis+"\nLive web intelligence:\n"+webIntel;
+}
+// ===== END INLINED GPT_EA_Part17_ThesisEngine.mqh =====
 #include "GPT_EA_Part25_ThesisHardening.mqh"
 #define ExtractOpenAIText ExtractOpenAITextWide
 #include "GPT_EA_Part26_DeepGPTPolicy.mqh"

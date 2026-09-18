@@ -157,6 +157,16 @@ relative_path | sha256 | size_bytes | evidence_type | generated_by | timestamp_u
 
 Then hash the completed manifest itself.
 
+## 🏛️ Architecture decision evidence
+
+Archive the active architecture-decision graph with the release:
+
+- `ADR_REGISTRY.json`
+- `ADR_INDEX.md`
+- `ADR_SUPERSESSION_POLICY.md`
+
+The static architecture checker must PASS so ADR IDs, statuses and supersession links are internally consistent.
+
 ## 🚦 Dashboard integrity
 
 See `DASHBOARD_DRIFT_DETECTION.md`. The dashboard is a derived artifact and must match the evidence SHA/fingerprint used to generate it.
@@ -191,6 +201,7 @@ Use `RELEASE_EVIDENCE_PACK_TEMPLATE.json` as the input manifest and run:
 
 ```text
 python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md
+python tools/check_architecture_release_truth.py
 python tools/check_release_truth_drift.py release_evidence.json --dashboard RELEASE_TRUTH_DASHBOARD.md --output release-truth-drift-validation.txt
 python tools/build_release_evidence_pack.py RELEASE_EVIDENCE_PACK_TEMPLATE.json
 ```

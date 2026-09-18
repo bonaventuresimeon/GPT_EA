@@ -94,6 +94,22 @@ string CurrentSensitiveConfigText()
       InpQuarantineChaosSamples?1:0,InpQuarantineStorageFailure?1:0,InpResetLearningOnGenerationChange?1:0,
       InpEnableChaosFaultInjection?1:0,InpChaosFaultScenario,InpChaosOneShot?1:0);
 
+   cfg+=StringFormat(
+      "|openai=%d:model%s:endpoint%s:timeout%d:hc%d|aiveto=%d:blockunavail%d|"
+      "web=%d:hconly%d:blockunavail%d:blockverdict%d:refresh%d|"
+      "structured=%d:failclosed%d:reqsources%d:circuit%d:cache%d|"
+      "deep=%d:model%s:effort%s:max%d|"
+      "confluence=%d:min%d:htf%d:adx%.2f:sweep%d:fvg%d:vol%d:minvol%.3f:maxdist%.3f",
+      InpUseOpenAI?1:0,InpOpenAIModel,InpOpenAIEndpoint,InpOpenAITimeoutMs,InpAIReviewHighConfidenceOnly?1:0,
+      InpAICanVetoTrade?1:0,InpBlockIfAIUnavailable?1:0,
+      InpUseLiveWebIntelligence?1:0,InpWebIntelHighConfidenceOnly?1:0,InpBlockIfWebIntelUnavailable?1:0,
+      InpBlockOnWebIntelVerdictBLOCK?1:0,InpWebIntelRefreshMinutes,
+      InpUseStructuredWebIntel?1:0,InpFailClosedHighConfidenceNews?1:0,InpRequireWebIntelSources?1:0,
+      InpWebIntelFailureCircuitThreshold,InpWebIntelMaxCacheAgeMinutes,
+      InpUseDeepGPTReviewModel?1:0,InpDeepGPTReviewModel,InpDeepGPTReasoningEffort,InpDeepGPTMaxOutputTokens,
+      InpUseAdvancedConfluence?1:0,InpMinAdvancedConfluence,InpRequireHTFMajority?1:0,InpMinADX,
+      InpUseLiquiditySweep?1:0,InpUseFairValueGap?1:0,InpUseVolumeImpulse?1:0,InpMinVolumeRatio,InpMaxEntryDistanceATR);
+
    cfg+=LateResilienceConfigText();
    return cfg;
 }

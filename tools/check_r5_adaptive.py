@@ -18,8 +18,12 @@ files=[
  "GPT_EA_Part31A_RegimeSizing.mqh","GPT_EA_Part31B_ExecutionFinalizer.mqh",
  "GPT_EA_Part32_ChampionChallenger.mqh","GPT_EA_Part33_LifecycleIntegrityReplay.mqh",
  "GPT_EA_Part34_StrategyHealthDashboard.mqh","GPT_EA_Part35_AdaptiveIntegration.mqh",
- "GPT_EA_Part36_DemoSoakEvidence.mqh","ADAPTIVE_EXECUTION_ARCHITECTURE.md",
- "ADAPTIVE_EXECUTION_TEST_MATRIX.md","DEMO_SOAK_EVIDENCE.md","DEMO_SOAK_REPORT_TEMPLATE.md",
+ "GPT_EA_Part36_DemoSoakEvidence.mqh","GPT_EA_Part39_DataIntegrityQuarantine.mqh",
+ "GPT_EA_Part40_ModelClockTrust.mqh","GPT_EA_Part41_PortfolioStressLatency.mqh",
+ "GPT_EA_Part42_ExecutionReliability.mqh","GPT_EA_Part43_CausalAttribution.mqh",
+ "GPT_EA_Part44_ChaosFaultInjection.mqh","ADAPTIVE_EXECUTION_ARCHITECTURE.md",
+ "ADAPTIVE_EXECUTION_TEST_MATRIX.md","R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
+ "DEMO_SOAK_EVIDENCE.md","DEMO_SOAK_REPORT_TEMPLATE.md",
 ]
 for f in files:
  if not (ROOT/f).exists(): errors.append(f"missing adaptive/release file: {f}")
@@ -34,6 +38,12 @@ main_tokens=[
  '#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"',
  '#include "GPT_EA_Part36_DemoSoakEvidence.mqh"',
  '#include "GPT_EA_Part35_AdaptiveIntegration.mqh"',
+ '#include "GPT_EA_Part39_DataIntegrityQuarantine.mqh"',
+ '#include "GPT_EA_Part40_ModelClockTrust.mqh"',
+ '#include "GPT_EA_Part41_PortfolioStressLatency.mqh"',
+ '#include "GPT_EA_Part42_ExecutionReliability.mqh"',
+ '#include "GPT_EA_Part43_CausalAttribution.mqh"',
+ '#include "GPT_EA_Part44_ChaosFaultInjection.mqh"',
  '#define SelectDynamicStrategy SelectDynamicStrategyR5',
  '#define PreAuthorizationRiskAllows AdaptivePreAuthorizationRiskAllowsR5',
  '#define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal',
@@ -42,7 +52,7 @@ main_tokens=[
  '#define NotifyCard NotifyCardR5',
  '#define NewsIntermarketInit NewsIntermarketInitR5',
  '#define NewsIntermarketTimer NewsIntermarketTimerR5',
- '#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API',
+ '#define ReleaseSafetyAllows ReleaseSafetyAllowsR10Privacy',
 ]
 for t in main_tokens:
  if t not in MAIN: errors.append(f"missing adaptive main wiring: {t}")
@@ -54,9 +64,15 @@ contracts={
  "GPT_EA_Part31B_ExecutionFinalizer.mqh":["FinalizeAdaptiveLearningHistoryR5","AdaptivePositionCommission","ExecutionLearningTimerR5"],
  "GPT_EA_Part32_ChampionChallenger.mqh":["ChallengerEligibleForPromotion","SHADOW_REJECTED_COUNTERFACTUAL","ChampionChallengerScanHook","InpAutoPromoteChallenger"],
  "GPT_EA_Part33_LifecycleIntegrityReplay.mqh":["LIFE_CANDIDATE","LIFE_FILLED","GPTDisagreementAllowsHighConfidence","GPTReviewIntegrityAllows","WriteDecisionSnapshot"],
- "GPT_EA_Part34_StrategyHealthDashboard.mqh":["GPT_EA_StrategyHealth.csv","AdaptiveCardAddendum"],
+ "GPT_EA_Part34_StrategyHealthDashboard.mqh":["GPT_EA_StrategyHealthV2.csv","AdaptiveCardAddendum"],
  "GPT_EA_Part35_AdaptiveIntegration.mqh":["SelectDynamicStrategyR5","AdaptivePreAuthorizationRiskAllowsR5","AIReviewAllowsExecutionR5","NotifyCardR5","ExecutionLearningInitR5","ExecutionLearningTimerR5","LIFECYCLE_WAIT_HUMAN_APPROVAL","LIFECYCLE_WAIT_MARKET_CONFIRMATION"],
  "GPT_EA_Part36_DemoSoakEvidence.mqh":["ReconcileStaleApprovalWaitStates","demo_soak_evidence_v1","WriteDemoSoakJsonSnapshot","SCHEDULED_SCANS","CONTINUOUS_SCANS","CHECKPOINT_UPDATES","BACKUP_CHECKPOINT_UPDATES"],
+ "GPT_EA_Part39_DataIntegrityQuarantine.mqh":["CurrentConfigFingerprint","LearningSampleShouldQuarantine","StrategyConfigVersion"],
+ "GPT_EA_Part40_ModelClockTrust.mqh":["ClockDriftAllows","MODEL_TRUST_DETERMINISTIC_ONLY","DeterministicEmergencyStrategyAllowed"],
+ "GPT_EA_Part41_PortfolioStressLatency.mqh":["WorstMacroScenarioPortfolioLoss","PORT_STRESS_YIELDS_UP","PORT_STRESS_VOLATILITY_SPIKE","DecisionAgeLatencyAllows"],
+ "GPT_EA_Part42_ExecutionReliability.mqh":["PrepareAtomicTradeIntent","MarkTradeIntentSent","INTENT_UNCERTAIN","ReconcileBrokerAgainstEA"],
+ "GPT_EA_Part43_CausalAttribution.mqh":["CausalAttributionForPosition","FinalizeCausalAttributionHistory"],
+ "GPT_EA_Part44_ChaosFaultInjection.mqh":["ChaosEnvironmentAllows","CHAOS_CORRUPT_CHECKPOINT","ChaosInjectPostFillPreBind"],
 }
 for f,tokens in contracts.items():
  p=ROOT/f
@@ -65,7 +81,9 @@ for f,tokens in contracts.items():
  for t in tokens:
   if t not in text: errors.append(f"{f} missing adaptive contract token: {t}")
 
-for t in ["AdaptivePreEntryAllows","StoredAIIntegrityAllows","RegisterAdaptiveExecutionRequest","RegisterAdaptiveExecutionFailure","RegisterAdaptiveExecutionFill","AttachLifecycleToNewestPosition"]:
+for t in ["AdaptivePreEntryAllows","StoredAIIntegrityAllows","RegisterAdaptiveExecutionRequest","RegisterAdaptiveExecutionFailure",
+          "RegisterAdaptiveExecutionFill","AttachLifecycleToNewestPosition","PrepareAtomicTradeIntent","MarkTradeIntentSent",
+          "BindTradeIntentToPosition"]:
  if t not in PART05: errors.append(f"Part05 missing adaptive execution token: {t}")
 
 flags=["InpReleaseAdaptivePortfolioPassed","InpReleaseExecutionLearningPassed","InpReleaseChampionChallengerPassed","InpReleaseLifecycleIntegrityPassed"]

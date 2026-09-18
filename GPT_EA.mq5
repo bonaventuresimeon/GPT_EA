@@ -1915,7 +1915,7 @@ void HandleExitDeal(ulong deal)
    AppendJournal("CLOSED",sym,kind,deal,pid,GVRead(PosKey(pid,"REQUESTED"),0),HistoryDealGetDouble(deal,DEAL_PRICE),slip,R,mae,mfe,"position finalized");
 }
 
-void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
+void HandleRiskAnalyticsTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
 {
    if(trans.type!=TRADE_TRANSACTION_DEAL_ADD || trans.deal==0) return;
    if(!HistoryDealSelect(trans.deal)) return;
@@ -15422,6 +15422,7 @@ void OnTimer()
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
 {
    HandleReliabilityTradeTransaction(trans,request,result);
+   HandleRiskAnalyticsTradeTransaction(trans,request,result);
 }
 
 void OnChartEvent(const int id,const long &lparam,const double &dparam,const string &sparam)

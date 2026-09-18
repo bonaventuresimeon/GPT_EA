@@ -320,8 +320,12 @@ bool ApplyAdvancedStop(ulong ticket,double candidate,int stage,double rNow,const
       Print(sym,": CHAOS synthetic stop-modification failure.");
       return false;
    }
+   GVWrite(PosKey(pid,"EA_EXPECT_SL"),candidate);
+   GVWrite(PosKey(pid,"EA_EXPECT_TP"),tp);
+   GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
    if(!trade.PositionModify(ticket,candidate,tp))
    {
+      GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
       Print(sym,": stop modification failed - ",trade.ResultRetcodeDescription());
       return false;
    }

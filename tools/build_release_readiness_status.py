@@ -10,6 +10,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from validate_release_evidence import validate_ci_release_record
+
 ROOT=Path(__file__).resolve().parents[1]
 SCHEMA="release_readiness_status_v1"
 RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
@@ -19,7 +21,7 @@ def resolve(value:str)->Path:
     p=Path(value)
     return p if p.is_absolute() else ROOT/p
 
-def parse_static(path:Path,candidate:str)->tuple[str,str,str,str]:
+def parse_static(path:Path,candidate:str)->tuple[str,str,str,str,str]:
     if not path.exists():
         return "CODE_STATIC_HOLD","NONE","UNKNOWN","","static-check.txt is absent."
     text=path.read_text(encoding="utf-8",errors="replace")
@@ -36,15 +38,11 @@ def parse_static(path:Path,candidate:str)->tuple[str,str,str,str]:
 
 def ci_static_ready(data:dict,candidate:str)->bool:
     ci=data.get("ci_static",{})
+    if not isinstance(ci,dict):
+        return False
     try:
-        return (
-            str(ci.get("conclusion",""))=="success" and
-            str(ci.get("head_sha","")).lower()==candidate.lower() and
-            int(ci.get("runner_id",0) or 0)>0 and
-            int(ci.get("steps_executed",0) or 0)>=7 and
-            ci.get("bundle_validated") is True and
-            ci.get("attestation_verified") is True
-        )
+        errors,_=validate_ci_release_record(ci,candidate)
+        return not errors
     except Exception:
         return False
 

@@ -16052,6 +16052,46 @@ void DrawLiveManagementMap(ulong ticket)
    RecordTrailingMovement(pid,currentSL,stage);
 }
 
+string VisualClock(datetime t)
+{
+   if(t<=0) return "--";
+   return TimeToString(t,TIME_MINUTES|TIME_SECONDS);
+}
+
+string VisualStopRulesText(const string sym,const bool bull)
+{
+   string dir=(bull?"LONG":"SHORT");
+   string trailFormula=(bull?
+      "trail=max(+strong lock, min(price-ATR*x, M5low-buffer))":
+      "trail=min(+strong lock, max(price+ATR*x, M5high+buffer))");
+   return StringFormat(
+      "%s  •  TP1 completion gates the protection ladder\n"
+      "B.E. @ %.2fR → entry +/− max(cost, %.2fR)  •  Lock @ %.2fR → %.2fR  •  Strong @ %.2fR → %.2fR\n"
+      "Trail @ %.2fR → %s  •  ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR  •  broker stop/freeze safe",
+      dir,InpBETriggerR,InpBELockMinR,InpProfitLockTriggerR,InpProfitLockR,
+      InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,trailFormula,
+      InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
+}
+
+string VisualTradeTimeline(const ulong pid,const ulong ticket)
+{
+   datetime analyze=(datetime)GVRead(PosKey(pid,"EXEC_ANALYSIS_TIME"),0);
+   datetime approve=(datetime)GVRead(PosKey(pid,"EXEC_APPROVAL_TIME"),0);
+   datetime sent=(datetime)GVRead(PosKey(pid,"EXEC_SENT_TIME"),0);
+   datetime fill=(datetime)GVRead(PosKey(pid,"EXEC_FILL_TIME"),PositionGetInteger(POSITION_TIME));
+   datetime tp1=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0));
+   datetime be=(datetime)GVRead(PosKey(pid,"BE_TIME"),0);
+   datetime lock=(datetime)GVRead(PosKey(pid,"PROFIT_LOCK_TIME"),0);
+   datetime strong=(datetime)GVRead(PosKey(pid,"STRONG_LOCK_TIME"),0);
+   datetime tp2=(datetime)GVRead(PosKey(pid,"TP2_TIME"),LegacyTicketRead(ticket,"TP2_TIME",0));
+   datetime trail=(datetime)GVRead(PosKey(pid,"TRAIL_TIME"),0);
+   return StringFormat(
+      "ANALYZE %s  →  APPROVE %s  →  SENT %s  →  FILL %s\n"
+      "TP1 %s  →  B.E. %s  →  LOCK %s  →  STRONG %s  →  TP2 %s  →  TRAIL %s",
+      VisualClock(analyze),VisualClock(approve),VisualClock(sent),VisualClock(fill),
+      VisualClock(tp1),VisualClock(be),VisualClock(lock),VisualClock(strong),VisualClock(tp2),VisualClock(trail));
+}
+
 void RenderLiveManagementDashboard(ulong ticket)
 {
    if(!InpDrawDashboard || !PositionSelectByTicket(ticket)) return;
@@ -16110,7 +16150,7 @@ void RenderLiveManagementDashboard(ulong ticket)
    else if(tp1reached) lifecycleBadge="TP1 HIT";
 
    int panelW=(int)MathMax(590,InpDashboardWidth);
-   int panelH=(int)MathMax(500,InpDashboardHeight);
+   int panelH=(int)MathMax(700,InpDashboardHeight);
    SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,C'7,12,21',C'122,96,170',1);
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+20,InpDashboardY+13,
       "GPT EA  •  Live Trade Atelier",C'232,201,115',15,InpDashboardTitleFont,5);
@@ -16145,7 +16185,17 @@ void RenderLiveManagementDashboard(ulong ticket)
                    d,tp3,tp3reached?"HIT":"RUNNER",InpTrailStartR,elapsedM15,expiry),
       C'71,184,132');
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+302,sw,96,
+   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+302,sw,90,
+      "EXACT STOP-MOVEMENT RULES",
+      VisualStopRulesText(sym,bull),
+      C'182,137,68');
+
+   SetDashboardSection(DASH_TIMELINE_CARD,DASH_TIMELINE_LABEL,sx,InpDashboardY+400,sw,80,
+      "COMPACT TRADE TIMELINE",
+      VisualTradeTimeline(pid,ticket),
+      C'106,128,201');
+
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+488,sw,96,
       "RISK & SAFETY",
       StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%\n"
                    "Broker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s\nBroker: %s",
@@ -16153,7 +16203,7 @@ void RenderLiveManagementDashboard(ulong ticket)
                    brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,brokerBrief),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
 
-   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+406,sw,64,
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+592,sw,64,
       "EA MANAGEMENT NOW",
       VisualShortText(action,126)+"\nSafety: "+VisualShortText(releaseWhy+" | "+modelBrief,126),
       stage>=4?C'187,119,250':C'116,101,181');
@@ -16210,7 +16260,7 @@ void RenderCandidateOperationalDashboard()
    double trailStart=NormalizePriceToTick(s.symbol,s.bullish?s.preferred+InpTrailStartR*R:s.preferred-InpTrailStartR*R);
 
    int panelW=(int)MathMax(590,InpDashboardWidth);
-   int panelH=(int)MathMax(500,InpDashboardHeight);
+   int panelH=(int)MathMax(610,InpDashboardHeight);
    SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,C'8,14,23',C'73,126,169',1);
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+20,InpDashboardY+13,
       "GPT EA  •  Market Intelligence Atelier",C'232,201,115',15,InpDashboardTitleFont,5);
@@ -16250,7 +16300,14 @@ void RenderCandidateOperationalDashboard()
                    d,s.tp1,d,s.tp2,d,s.tp3),
       pending>=0?PremiumPulseColor(C'76,147,215',C'106,190,248'):C'84,156,213');
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+314,sw,96,
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+
+   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+314,sw,90,
+      "PROTECTION RULES IF FILLED",
+      VisualStopRulesText(s.symbol,s.bullish),
+      C'182,137,68');
+
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+412,sw,96,
       "RISK & SAFETY",
       StringFormat("Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%  •  Broker %.0f/100\n"
                    "Model %s  •  OpenAI %s  •  Release %s\nFilters: %s",
@@ -16258,7 +16315,7 @@ void RenderCandidateOperationalDashboard()
                    ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,VisualShortText(g_visualLastFilter,104)),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
 
-   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+418,sw,54,
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+516,sw,54,
       "EA ACTION NOW",
       VisualShortText(action,132)+"\n"+VisualShortText("Broker "+brokerBrief+" | Model "+modelBrief+" | Release "+releaseWhy,132),
       pending>=0?C'92,174,229':C'116,101,181');

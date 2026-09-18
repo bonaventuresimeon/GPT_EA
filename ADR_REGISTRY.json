@@ -1,0 +1,70 @@
+{
+  "schema_version": "gpt_ea_adr_registry_v1",
+  "policy": "ADR_SUPERSESSION_POLICY.md",
+  "records": [
+    {
+      "id": "ADR-001",
+      "file": "ADR_001_FAIL_CLOSED_NEW_ENTRY_GOVERNANCE.md",
+      "title": "Fail-Closed New-Entry Governance",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-002",
+      "file": "ADR_002_CUSTOMER_OWNED_OPENAI_API_KEYS.md",
+      "title": "Customer-Owned OpenAI API Keys",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-003",
+      "file": "ADR_003_HUMAN_APPROVAL_BEFORE_EXECUTION.md",
+      "title": "Human Approval Before Execution",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-004",
+      "file": "ADR_004_EXISTING_POSITION_SAFETY_DURING_BLOCKS.md",
+      "title": "Preserve Existing-Position Safety During New-Entry Blocks",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-005",
+      "file": "ADR_005_EVIDENCE_BOUND_RELEASES.md",
+      "title": "Evidence-Bound Production Releases",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-006",
+      "file": "ADR_006_VERSIONED_LEGAL_RISK_PRIVACY_ACK.md",
+      "title": "Versioned Legal, Risk and Privacy Approvals",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-007",
+      "file": "ADR_007_PRIVACY_MINIMIZED_LICENSING_TELEMETRY.md",
+      "title": "Privacy-Minimized Licensing and Telemetry",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    },
+    {
+      "id": "ADR-008",
+      "file": "ADR_008_SHADOW_FIRST_ADAPTIVE_LEARNING.md",
+      "title": "Shadow-First Adaptive Learning",
+      "status": "Accepted",
+      "supersedes": [],
+      "superseded_by": []
+    }
+  ]
+}

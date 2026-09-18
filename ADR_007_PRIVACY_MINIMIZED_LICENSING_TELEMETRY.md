@@ -16,9 +16,12 @@
 
 # ADR-007: Privacy-Minimized Licensing and Telemetry
 
+**ADR ID:** ADR-007  
 **Status:** Accepted  
 **Decision date:** 2026-09-18  
 **Scope:** GPT_EA architecture and release governance
+**Supersedes:** None  
+**Superseded by:** None
 
 ## 🎯 Context
 

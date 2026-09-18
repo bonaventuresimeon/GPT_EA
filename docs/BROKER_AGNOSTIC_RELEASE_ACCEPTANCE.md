@@ -53,7 +53,7 @@ A broker-coverage record is acceptable only when all applicable gates below pass
 |---|---|---|
 | Candidate identity | Git SHA, EX5 SHA-256, SET SHA-256/NONE | Identity mismatch |
 | Broker identity | company, server, account currency, margin mode, catalogue timestamp | Missing or different deployment |
-| Full catalogue discovery | `SymbolsTotal(false)`/full-catalogue enumeration proven | Market-Watch-only proof |
+| Full catalogue discovery | `SymbolsTotal(false)`/full-catalogue enumeration proven; selected/rechecked count equals discovered count; per-class counts sum to the same total | Market-Watch-only or partially rechecked proof |
 | Selection safety | unselected symbols admitted provisionally, selected, then trade metadata rechecked | pre-selection disabled/invalid metadata used as final truth |
 | Market Watch independence | symbols outside Market Watch demonstrably discoverable | ALL depends on Market Watch |
 | Ambiguous mapping | 0 unresolved materially ambiguous mappings | any unresolved alias collision |
@@ -106,10 +106,11 @@ Every class row in the evidence record contains:
 Rules:
 
 1. **All eleven classes require classification tests**, even if the exact release broker does not offer every class. Synthetic/static fixtures may satisfy classification-only coverage.
-2. If the exact broker offers a class and it is intended for REAL execution, set `broker_runtime_required=true`; runtime, execution geometry and macro/context must all PASS before `live_execution_certified=true`.
-3. A class absent from the exact broker may remain `broker_runtime_required=false` and `live_execution_certified=false`; this does not invalidate discovery logic for that class, but it does not certify live use.
-4. `OTHER` is special: generic analysis is allowed, but live execution should normally remain uncertified. Any exception requires explicit tested symbols and full runtime evidence.
-5. A validated class flag cannot be borrowed by another class. For example, INDEX evidence does not certify an ETF that tracks the same index.
+2. The evidence must record `catalog.class_counts` for all eleven canonical classes. The sum must equal `selected_rechecked_symbols`, and every discovered symbol must be selected/rechecked before acceptance.
+3. If the exact broker exposes a class (`class_counts[class] > 0`), `broker_runtime_required` must be `true`. For FX through BOND/RATE, runtime, execution geometry and macro/context must all PASS and the class must be `live_execution_certified=true`.
+4. A class absent from the exact broker must remain `broker_runtime_required=false` and `live_execution_certified=false`; static classification fixtures still prove the code path but do not certify live use.
+5. `OTHER` is special: broker runtime and execution geometry are still checked for every generic symbol, but live execution may remain disabled. If `OTHER` is explicitly live-certified, macro/context must PASS and the `examples` list must name **every** generic symbol counted for that broker—one sample cannot authorize the rest.
+6. A validated class flag cannot be borrowed by another class. For example, INDEX evidence does not certify an ETF that tracks the same index.
 
 # Required evidence workflow
 
@@ -117,8 +118,8 @@ Rules:
 2. Export or capture the broker's complete catalogue and broker identity.
 3. Demonstrate discovery outside Market Watch.
 4. Exercise selection/recheck behavior for unselected symbols.
-5. Record classification fixtures for every canonical class.
-6. For each class present on the broker, test representative symbols through data readiness, technical scan, macro mapping, spread, tick/volume/stops, margin, filling/order modes and `OrderCheck()`.
+5. Record classification fixtures for every canonical class and populate `catalog.class_counts` from the fully selected/rechecked broker catalogue.
+6. For each non-OTHER class present on the broker, test representative symbols through data readiness, technical scan, macro mapping, spread, tick/volume/stops, margin, filling/order modes and `OrderCheck()`. For OTHER/GEN, test every generic symbol before any live certification.
 7. Record alias collisions and prove zero unresolved ambiguous mappings.
 8. Prove service-collateral exclusion and OTHER/GEN live fail-closed behavior.
 9. Complete operator review with decision `PASS`.

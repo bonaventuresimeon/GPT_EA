@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "static-check.txt"
 CHECKS = [
     ROOT / "tools" / "check_mql_static.py",
+    ROOT / "tools" / "check_mql_compile_hygiene.py",
     ROOT / "tools" / "check_release_certification.py",
     ROOT / "tools" / "check_r5_adaptive.py",
     ROOT / "tools" / "check_r6_resilience.py",

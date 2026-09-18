@@ -130,7 +130,7 @@ The visual controls include:
 - `InpDashboardTitleFont`;
 - `InpDashboardBodyFont`.
 
-The default title font is `Segoe Script` for a calligraphic heading while the analytical body uses a more readable UI font. The HUD header also shows `v1.22 • R8 HUD` so the running visual build can be checked at a glance.
+The default title font is `Segoe Script` for a calligraphic heading while the analytical body uses a more readable UI font. The HUD header also shows `v1.23 • R10 HUD` so the running visual build can be checked at a glance.
 
 ## Safety invariant
 
@@ -198,7 +198,7 @@ Milestones display:
 The timeline is reconstructed from durable execution/lifecycle keys such as `EXEC_ANALYSIS_TIME`, `EXEC_APPROVAL_TIME`, `EXEC_SENT_TIME`, `EXEC_FILL_TIME`, `TP1_TIME`, `BE_TIME`, `PROFIT_LOCK_TIME`, `STRONG_LOCK_TIME`, `TP2_TIME`, `TRAIL_TIME` and `TRAIL_LAST_TIME`.
 
 
-## v1.22 input ordering
+## v1.23 input ordering and model discovery
 
 The first MT5 user input is `InpSymbols="ALL"`. Immediately below it, the user-facing OpenAI controls appear in this order:
 
@@ -206,12 +206,18 @@ The first MT5 user input is `InpSymbols="ALL"`. Immediately below it, the user-f
 
 The source default for `InpOpenAIAPIKey` remains blank. Secrets are entered locally or loaded from `GPT_EA_OpenAI.key`; they must never be committed to Git.
 
-The v1.22 default model is `gpt-5.6-sol` and the direct Responses endpoint remains `https://api.openai.com/v1/responses`.
+The v1.23 default requested model is `gpt-5.6-sol` and the direct Responses endpoint remains `https://api.openai.com/v1/responses`.
 
-## v1.22 runtime identity
+When a direct OpenAI API key is available and `InpOpenAIModelAutoResolve=true`, the EA queries the OpenAI model catalog at `GET /v1/models`. If the requested model is available and suitable for the EA's text/Responses workload, it is used. If it is unavailable, the EA selects the first accessible model from `InpOpenAIModelFallbacks`; if none of those are returned, it ranks compatible GPT text models discovered for the key and chooses the best eligible fallback. All standard, live-web-intelligence and deep-review request builders then use the resolved runtime model rather than blindly using the requested input value.
+
+The default fallback order is `gpt-5.6-sol → gpt-5.6-terra → gpt-5.6-luna → gpt-5.6 → gpt-5.2 → gpt-5.1 → gpt-5 → gpt-4.1 → gpt-4o`. The model catalog is refreshed every `InpOpenAIModelScanMinutes` (default 60 minutes). Authentication/network failure during discovery does not masquerade as model unavailability: the requested model is retained as `UNVERIFIED` and normal API safety/failure handling remains active.
+
+Secure-proxy mode does not expose the server-side OpenAI key to MT5, so direct model-list discovery is deliberately skipped there and model selection is delegated to the proxy configuration.
+
+## v1.23 runtime identity
 
 A correctly compiled and attached v1.22 EX5 prints:
 
-`GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122`
+`GPT_EA runtime build R10-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123`
 
-The chart HUD subtitle must also contain `v1.22 • R8 HUD`. If either marker is absent, the terminal is still running an older EX5.
+The chart HUD subtitle must also contain `v1.23 • R10 HUD`. The Risk / Safety card shows the active runtime AI model and whether it is VERIFIED, FALLBACK, PROXY or UNVERIFIED. If the EX5/HUD markers are absent, the terminal is still running an older compiled build.

@@ -16,9 +16,12 @@
 
 # ADR-002: Customer-Owned OpenAI API Keys
 
+**ADR ID:** ADR-002  
 **Status:** Accepted  
 **Decision date:** 2026-09-18  
 **Scope:** GPT_EA architecture and release governance
+**Supersedes:** None  
+**Superseded by:** None
 
 ## 🎯 Context
 

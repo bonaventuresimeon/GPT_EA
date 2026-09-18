@@ -1,5 +1,63 @@
 // GPT_EA standalone MetaTrader 5 entry file
-// ===== BEGIN INLINED GPT_EA_Part01.mqh =====
+// Legacy modular wiring manifest (NON-EXECUTABLE).
+// Retained only so repository release checks can verify historical module order/provenance.
+// #include "GPT_EA_Part01.mqh"
+// #include "GPT_EA_Part02.mqh"
+// #include "GPT_EA_Part03.mqh"
+// #include "GPT_EA_Part04.mqh"
+// #include "GPT_EA_Part08_Advanced.mqh"
+// #include "GPT_EA_Part09_RiskRecoveryAnalytics.mqh"
+// #include "GPT_EA_Part44_ChaosFaultInjection.mqh"
+// #include "GPT_EA_Part10_BrokerUniversalRecovery.mqh"
+// #include "GPT_EA_Part11_PreflightRecoveryGuard.mqh"
+// #include "GPT_EA_Part00_ForwardDeclarations.mqh"
+// #include "GPT_EA_Part12_SafetyStopManagement.mqh"
+// #include "GPT_EA_Part14_StopFailurePolicy.mqh"
+// #include "GPT_EA_Part18_StopBrokerObservability.mqh"
+// #include "GPT_EA_Part28_ReleaseCertification.mqh"
+// #include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
+// #include "GPT_EA_Part28B_CIReleaseEvidence.mqh"
+// #include "GPT_EA_Part37A_APICompat.mqh"
+// #include "GPT_EA_Part37_APITransport.mqh"
+// #include "GPT_EA_Part38_LegalLicenseGate.mqh"
+// #include "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh"
+// #include "GPT_EA_Part40_PrivacyReleaseGate.mqh"
+// #include "GPT_EA_Part15_StrategyIntelligence.mqh"
+// #include "GPT_EA_Part15B_StrategyFrameworks.mqh"
+// #include "GPT_EA_Part15C_StrategyContextAnalytics.mqh"
+// #include "GPT_EA_Part20_RealisticCostModel.mqh"
+// #include "GPT_EA_Part15D_StructureTargets.mqh"
+// #include "GPT_EA_Part21_ResearchValidation.mqh"
+// #include "GPT_EA_Part24_SessionStrategyHardening.mqh"
+// #include "GPT_EA_Part27_StrategyCompletion.mqh"
+// #include "GPT_EA_Part19_ContinuousIntelligence.mqh"
+// #include "GPT_EA_Part16_NewsIntermarket.mqh"
+// #include "GPT_EA_Part22A_IntermarketForward.mqh"
+// #include "GPT_EA_Part22P_ResponseParser.mqh"
+// #include "GPT_EA_Part22_IntelligenceFreshness.mqh"
+// #include "GPT_EA_Part16A_StrictRevalidation.mqh"
+// #include "GPT_EA_Part17_ThesisEngine.mqh"
+// #include "GPT_EA_Part25_ThesisHardening.mqh"
+// #include "GPT_EA_Part26_DeepGPTPolicy.mqh"
+// #include "GPT_EA_Part40_ModelClockTrust.mqh"
+// #include "GPT_EA_Part41_PortfolioStressLatency.mqh"
+// #include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"
+// #include "GPT_EA_Part39_DataIntegrityQuarantine.mqh"
+// #include "GPT_EA_Part31_ExecutionLearning.mqh"
+// #include "GPT_EA_Part31A_RegimeSizing.mqh"
+// #include "GPT_EA_Part31B_ExecutionFinalizer.mqh"
+// #include "GPT_EA_Part32_ChampionChallenger.mqh"
+// #include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
+// #include "GPT_EA_Part42_ExecutionReliability.mqh"
+// #include "GPT_EA_Part43_CausalAttribution.mqh"
+// #include "GPT_EA_Part34_StrategyHealthDashboard.mqh"
+// #include "GPT_EA_Part36_DemoSoakEvidence.mqh"
+// #include "GPT_EA_Part35_AdaptiveIntegration.mqh"
+// #include "GPT_EA_Part05.mqh"
+// #include "GPT_EA_Part23_IntelligenceObservability.mqh"
+// #include "GPT_EA_Part06.mqh"
+// #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
+// #include "GPT_EA_Part07.mqh"
 #property strict
 #property version   "1.20"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
@@ -187,8 +245,6 @@ bool CallOpenAI(const string prompt,string &answer,string &errorText)
    int code=WebRequest("POST",InpOpenAIEndpoint,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
    if(code==-1)
    {
-// ===== END INLINED GPT_EA_Part01.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part02.mqh =====
       errorText=StringFormat("OpenAI WebRequest failed. MT5 error=%d. Add https://api.openai.com under Tools > Options > Expert Advisors > Allow WebRequest.",GetLastError());
       return false;
    }
@@ -401,8 +457,6 @@ bool ScheduledScanDue(string &why)
 
    if(l.hour==8 && l.min==InpPreLondonScanMinute){ due=true; why="Pre-London 08:"+IntegerToString(InpPreLondonScanMinute); }
    if(l.hour>=InpLondonHourlyStart && l.hour<=InpLondonHourlyEnd && l.min==0){ due=true; why="London hourly scan"; }
-// ===== END INLINED GPT_EA_Part02.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part03.mqh =====
    if(n.hour==InpUSOpenHourNY && n.min==InpPreUSOpenMinute){ due=true; why="Pre-U.S. cash open"; }
    if(n.hour==InpUSOpenHourNY && n.min==InpUSOpenMinuteNY){ due=true; why="U.S. cash open"; }
 
@@ -576,8 +630,6 @@ double EffectiveRR(const string sym,bool bullish,double entry,double sl,double t
    double cost=spread+slip;
    double risk=MathAbs(entry-sl)+cost;
    double reward=MathAbs(tp-entry)-cost;
-// ===== END INLINED GPT_EA_Part03.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part04.mqh =====
    if(risk<=0 || reward<=0) return 0;
    return reward/risk;
 }
@@ -718,8 +770,6 @@ double LotSizeForRisk(const TradeSetup &s,double &riskMoney,double &oneLotLoss)
 // --------------------------- Signal card --------------------------
 string DirText(bool bull){ return bull?"🟢 BULLISH — BUY":"🔴 BEARISH — SELL"; }
 string Arrow(bool bull){ return bull?"LONG":"SHORT"; }
-// ===== END INLINED GPT_EA_Part04.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part08_Advanced.mqh =====
 // ============================================================================
 // GPT_EA Part 08 - Advanced confluence, event horizon, dashboard and chart map
 // ============================================================================
@@ -1180,8 +1230,6 @@ void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const
    StyleApprovalUI();
    ChartRedraw();
 }
-// ===== END INLINED GPT_EA_Part08_Advanced.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part09_RiskRecoveryAnalytics.mqh =====
 // ============================================================================
 // GPT_EA Part 09 - Portfolio risk, recovery, analytics, DOM, regime and ONNX
 // ============================================================================
@@ -1993,8 +2041,6 @@ void RiskRecoveryShutdown()
    ShutdownONNX();
    DeleteRiskAnalyticsPanel();
 }
-// ===== END INLINED GPT_EA_Part09_RiskRecoveryAnalytics.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part44_ChaosFaultInjection.mqh =====
 // ============================================================================
 // GPT_EA Part 44 - Non-production chaos / fault-injection hooks
 // ============================================================================
@@ -2087,8 +2133,6 @@ void ChaosInit()
    if(InpEnableChaosFaultInjection)
       Print("GPT_EA chaos test enabled: ",ChaosFaultName(InpChaosFaultScenario)," | one-shot=",InpChaosOneShot?"YES":"NO");
 }
-// ===== END INLINED GPT_EA_Part44_ChaosFaultInjection.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part10_BrokerUniversalRecovery.mqh =====
 // ============================================================================
 // GPT_EA Part 10 - Universal broker/symbol compatibility and hardened recovery
 // ============================================================================
@@ -2793,8 +2837,6 @@ void UniversalRecoveryShutdown()
    WriteUniversalRecoveryCheckpoint();
    GlobalVariablesFlush();
 }
-// ===== END INLINED GPT_EA_Part10_BrokerUniversalRecovery.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part11_PreflightRecoveryGuard.mqh =====
 // ============================================================================
 // GPT_EA Part 11 - Server preflight and hardened recovery safety guard
 // ============================================================================
@@ -3083,8 +3125,6 @@ void SafeUniversalRecoveryTimer()
    if(g_lastUniversalCheckpoint==0 || now-g_lastUniversalCheckpoint>=MathMax(10,InpRecoveryCheckpointSeconds))
       SafeUniversalCheckpointNow();
 }
-// ===== END INLINED GPT_EA_Part11_PreflightRecoveryGuard.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part00_ForwardDeclarations.mqh =====
 // ============================================================================
 // GPT_EA Part 00 - Forward declarations for cross-module hooks
 // ============================================================================
@@ -3110,7 +3150,6 @@ void RecordPartialProtectionObservation(ulong ticket,const string eventName,cons
 // Defined in Part23 and used by adaptive notification integration in Part35.
 void NotifyCardObserved(const string card);
 
-
 // Defined in Part39 and used by pre-Part39 historical finalizers.
 int IntegrityTextHash(const string text);
 string CurrentSensitiveConfigText();
@@ -3120,8 +3159,6 @@ bool DeterministicEmergencyExecutionActive(const string sym,int strategyValue,st
 
 // Defined in Part42; allows Part39 fingerprinting to include later reliability/champion inputs.
 string LateResilienceConfigText();
-// ===== END INLINED GPT_EA_Part00_ForwardDeclarations.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part12_SafetyStopManagement.mqh =====
 // ============================================================================
 // GPT_EA Part 12 - Release safety gates, recovery invariants and advanced stops
 // ============================================================================
@@ -3552,8 +3589,6 @@ void AdvancedSafetyTimer()
 {
    RefreshReleaseSafetyGate();
 }
-// ===== END INLINED GPT_EA_Part12_SafetyStopManagement.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part14_StopFailurePolicy.mqh =====
 // ============================================================================
 // GPT_EA Part 14 - Stop update failure policy and escalation
 // ============================================================================
@@ -3885,8 +3920,6 @@ void StopFailurePolicyTimer()
 {
    RefreshStopFailurePolicyConfigGate();
 }
-// ===== END INLINED GPT_EA_Part14_StopFailurePolicy.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part18_StopBrokerObservability.mqh =====
 // ============================================================================
 // GPT_EA Part 18 - Broker-specific stop failure handling and observability
 // ============================================================================
@@ -4296,8 +4329,6 @@ void StopFailureObservabilityTimer()
 {
    ObservePartialProtectionState();
 }
-// ===== END INLINED GPT_EA_Part18_StopBrokerObservability.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part28_ReleaseCertification.mqh =====
 // ============================================================================
 // GPT_EA Part 28 - Live release certification / evidence gate
 // ============================================================================
@@ -4713,8 +4744,6 @@ void StopFailureObservabilityInitCertified()
    StopFailureObservabilityInit();
    ReleaseCertificationInit();
 }
-// ===== END INLINED GPT_EA_Part28_ReleaseCertification.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part29_DeploymentDriftGuard.mqh =====
 // ============================================================================
 // GPT_EA Part 29 - Deployment identity and broker contract drift guard
 // ============================================================================
@@ -4926,8 +4955,6 @@ void DeploymentDriftGuardInit()
    RefreshR6ReleaseState();
    Print("GPT_EA deployment drift guard: ",g_deploymentDriftBlocked?"BLOCK - ":"PASS - ",g_deploymentDriftReason);
 }
-// ===== END INLINED GPT_EA_Part29_DeploymentDriftGuard.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part28B_CIReleaseEvidence.mqh =====
 // ============================================================================
 // GPT_EA Part 28B - R6 supplemental CI / runner / MT5 / soak evidence binding
 // ============================================================================
@@ -5333,8 +5360,6 @@ void StopFailureObservabilityInitR6Evidence()
    RefreshR6EvidenceReleaseState();
    WriteR6SupplementalEvidenceSnapshot();
 }
-// ===== END INLINED GPT_EA_Part28B_CIReleaseEvidence.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part37A_APICompat.mqh =====
 // ============================================================================
 // GPT_EA Part 37A - API transport compatibility helpers
 // ============================================================================
@@ -5346,9 +5371,7 @@ string APITrim(const string source)
    StringTrimRight(value);
    return value;
 }
-// ===== END INLINED GPT_EA_Part37A_APICompat.mqh =====
 #define Trim APITrim
-// ===== BEGIN INLINED GPT_EA_Part37_APITransport.mqh =====
 // ============================================================================
 // GPT_EA Part 37 - OpenAI/WebRequest transport abstraction and release guard
 // ============================================================================
@@ -5728,9 +5751,7 @@ void StopFailureObservabilityInitR7API()
    StopFailureObservabilityInitR6Evidence();
    RefreshR7APIReleaseState();
 }
-// ===== END INLINED GPT_EA_Part37_APITransport.mqh =====
 #undef Trim
-// ===== BEGIN INLINED GPT_EA_Part38_LegalLicenseGate.mqh =====
 // ============================================================================
 // GPT_EA Part 38 - Commercial license / legal acknowledgement release gate
 // ============================================================================
@@ -5863,8 +5884,6 @@ void StopFailureObservabilityInitR8Legal()
    StopFailureObservabilityInitR7API();
    RefreshR8LegalReleaseState();
 }
-// ===== END INLINED GPT_EA_Part38_LegalLicenseGate.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part39_CustomerRiskAcknowledgement.mqh =====
 // ============================================================================
 // GPT_EA Part 39 - Customer-facing risk acknowledgement gate
 // ============================================================================
@@ -6075,8 +6094,6 @@ void StopFailureObservabilityInitR9CustomerAck()
    StopFailureObservabilityInitR8Legal();
    RefreshR9CustomerAckReleaseState();
 }
-// ===== END INLINED GPT_EA_Part39_CustomerRiskAcknowledgement.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part40_PrivacyReleaseGate.mqh =====
 // ============================================================================
 // GPT_EA Part 40 - Privacy sign-off release gate
 // ============================================================================
@@ -6320,13 +6337,11 @@ void StopFailureObservabilityInitR10Privacy()
    StopFailureObservabilityInitR9CustomerAck();
    RefreshR10PrivacyReleaseState();
 }
-// ===== END INLINED GPT_EA_Part40_PrivacyReleaseGate.mqh =====
 #define ReleaseSafetyAllows ReleaseSafetyAllowsR10Privacy
 #define ReleaseGateSummary ReleaseGateSummaryR10Privacy
 #define StopFailureObservabilityInit StopFailureObservabilityInitR10Privacy
 #define AdvancedSafetyInit AdvancedSafetyInitR10Privacy
 #define AdvancedSafetyTimer AdvancedSafetyTimerR10Privacy
-// ===== BEGIN INLINED GPT_EA_Part15_StrategyIntelligence.mqh =====
 // ============================================================================
 // GPT_EA Part 15 - Full regime-driven strategy intelligence
 // ============================================================================
@@ -7162,8 +7177,6 @@ void StrategyIntelligenceTimer()
    AttachStrategyMetadataToOpenPositions();
    FinalizeStrategyHistory();
 }
-// ===== END INLINED GPT_EA_Part15_StrategyIntelligence.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part15B_StrategyFrameworks.mqh =====
 // ============================================================================
 // GPT_EA Part 15B - Named strategy framework library
 // ============================================================================
@@ -7240,8 +7253,6 @@ void SelectDynamicStrategyEnriched(const string sym,TradeSetup &pb,TradeSetup &b
    EnrichStrategyDecision(sym,d);
    PersistStrategyCandidate(sym,d);
 }
-// ===== END INLINED GPT_EA_Part15B_StrategyFrameworks.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part15C_StrategyContextAnalytics.mqh =====
 // ============================================================================
 // GPT_EA Part 15C - Strategy context analytics (session/timeframe/news)
 // ============================================================================
@@ -7345,8 +7356,6 @@ void StrategyIntelligenceTimerFull()
    AttachStrategyContextMetadata();
    FinalizeStrategyContextHistory();
 }
-// ===== END INLINED GPT_EA_Part15C_StrategyContextAnalytics.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part20_RealisticCostModel.mqh =====
 // ============================================================================
 // GPT_EA Part 20 - Realistic execution-cost and partial-profit R:R model
 // ============================================================================
@@ -7442,8 +7451,6 @@ bool RealisticRRGate(const TradeSetup &s,double floor,string &why)
    why=r.detail;
    return r.rr>=floor;
 }
-// ===== END INLINED GPT_EA_Part20_RealisticCostModel.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part15D_StructureTargets.mqh =====
 // ============================================================================
 // GPT_EA Part 15D - Structure/liquidity-aware target refinement
 // ============================================================================
@@ -7523,8 +7530,6 @@ void SelectDynamicStrategyComplete(const string sym,TradeSetup &pb,TradeSetup &b
    }
    PersistStrategyCandidate(sym,d);
 }
-// ===== END INLINED GPT_EA_Part15D_StructureTargets.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part21_ResearchValidation.mqh =====
 // ============================================================================
 // GPT_EA Part 21 - Research validation, context evidence and retracement logic
 // ============================================================================
@@ -7810,8 +7815,6 @@ void SelectDynamicStrategyResearch(const string sym,TradeSetup &pb,TradeSetup &b
    }
    PersistStrategyCandidate(sym,d);
 }
-// ===== END INLINED GPT_EA_Part21_ResearchValidation.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part24_SessionStrategyHardening.mqh =====
 // ============================================================================
 // GPT_EA Part 24 - Session accuracy, late-session risk and strategy expiry
 // ============================================================================
@@ -7941,8 +7944,6 @@ void SelectDynamicStrategyFinal(const string sym,TradeSetup &pb,TradeSetup &br,S
    }
    PersistStrategyCandidate(sym,d);
 }
-// ===== END INLINED GPT_EA_Part24_SessionStrategyHardening.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part27_StrategyCompletion.mqh =====
 // ============================================================================
 // GPT_EA Part 27 - Reachable first-class breakout / counter-trend strategy paths
 // ============================================================================
@@ -8106,8 +8107,6 @@ void SelectDynamicStrategyUltimate(const string sym,TradeSetup &pb,TradeSetup &b
 
    PersistStrategyCandidate(sym,d);
 }
-// ===== END INLINED GPT_EA_Part27_StrategyCompletion.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part19_ContinuousIntelligence.mqh =====
 // ============================================================================
 // GPT_EA Part 19 - Continuous intelligence scan scheduler
 // ============================================================================
@@ -8168,7 +8167,6 @@ bool ScheduledOrContinuousScanDue(string &why)
    }
    return ContinuousIntelligenceScanDue(why);
 }
-// ===== END INLINED GPT_EA_Part19_ContinuousIntelligence.mqh =====
 #define SelectDynamicStrategy SelectDynamicStrategyUltimate
 #define PersistStrategyPlanForExecution PersistStrategyPlanForExecutionAccurate
 #define StrategyIntelligenceInit StrategyIntelligenceInitFull
@@ -8181,7 +8179,6 @@ bool ScheduledOrContinuousScanDue(string &why)
 // generated bearer header is then discarded before the proxy network request.
 #define InpOpenAIAPIKey APITransportLegacyCredential()
 #define WebRequest GPTAPIWebRequest
-// ===== BEGIN INLINED GPT_EA_Part16_NewsIntermarket.mqh =====
 // ============================================================================
 // GPT_EA Part 16 - Live web news, macro and intermarket intelligence
 // ============================================================================
@@ -8432,12 +8429,8 @@ void NewsIntermarketTimer()
 {
    // Deliberately no unconditional web calls. Scheduled/manual scans and pre-entry validation refresh intelligence.
 }
-// ===== END INLINED GPT_EA_Part16_NewsIntermarket.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part22A_IntermarketForward.mqh =====
 // Forward declaration used to route Part22 web prompts through fresh intermarket data.
 IntermarketReport AssessIntermarketHardened(const string target,bool bull);
-// ===== END INLINED GPT_EA_Part22A_IntermarketForward.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part22P_ResponseParser.mqh =====
 // ============================================================================
 // GPT_EA Part 22P - Wider Responses API text extraction for intelligence data
 // ============================================================================
@@ -8472,10 +8465,8 @@ string ExtractOpenAITextWide(const string json)
    }
    return JsonUnescape(out);
 }
-// ===== END INLINED GPT_EA_Part22P_ResponseParser.mqh =====
 #define AssessIntermarket AssessIntermarketHardened
 #define ExtractOpenAIText ExtractOpenAITextWide
-// ===== BEGIN INLINED GPT_EA_Part22_IntelligenceFreshness.mqh =====
 // ============================================================================
 // GPT_EA Part 22 - Structured live-news contract and fresh intermarket data
 // ============================================================================
@@ -8945,10 +8936,8 @@ IntermarketReport AssessIntermarketHardened(const string target,bool bull)
    r.detail=StringFormat("Fresh intermarket score %+d/10 from %d component(s) | %s",r.score,used,r.detail);
    return r;
 }
-// ===== END INLINED GPT_EA_Part22_IntelligenceFreshness.mqh =====
 #undef ExtractOpenAIText
 #define GetLiveWebIntel GetLiveWebIntelHardened
-// ===== BEGIN INLINED GPT_EA_Part16A_StrictRevalidation.mqh =====
 // ============================================================================
 // GPT_EA Part 16A - Strict pre-entry strategy identity revalidation
 // ============================================================================
@@ -9019,9 +9008,7 @@ bool PreEntryIntelligenceRevalidationStrict(const TradeSetup &s,string &why)
        (emergencyWebBypass?" | deterministic-only transport fallback":(watch?" | web WATCH":" | web CLEAR"));
    return true;
 }
-// ===== END INLINED GPT_EA_Part16A_StrictRevalidation.mqh =====
 #define PreEntryIntelligenceRevalidation PreEntryIntelligenceRevalidationStrict
-// ===== BEGIN INLINED GPT_EA_Part17_ThesisEngine.mqh =====
 // ============================================================================
 // GPT_EA Part 17 - Mandatory 25-point trade thesis and GPT critique engine
 // ============================================================================
@@ -9114,8 +9101,6 @@ string BuildDeepGPTPrompt(const string sym,const string card,const string thesis
           "SL_LOGIC: ...; TARGET_LOGIC: ...; RR_AFTER_COSTS: ...; LIQUIDITY_FAKEOUT: ...; VOLATILITY: ...; NEWS: ...; INTERMARKET: ...; COUNTERARGUMENT: ...; TIME_INVALIDATION: ...; PRICE_INVALIDATION: ...; EXECUTION_WARNING: ... .\n"
           "Symbol: "+sym+"\nSelected strategy: "+d.strategyName+"\nSignal card:\n"+card+"\nMandatory thesis:\n"+thesis+"\nLive web intelligence:\n"+webIntel;
 }
-// ===== END INLINED GPT_EA_Part17_ThesisEngine.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part25_ThesisHardening.mqh =====
 // ============================================================================
 // GPT_EA Part 25 - Thesis hardening and explicit disproof/RR comparison
 // ============================================================================
@@ -9155,9 +9140,7 @@ string BuildMandatory25PointThesisFinal(const string sym,TradeSetup &primary,Tra
    thesis+="News freshness contract: a HIGH-CONFIDENCE authorization must not silently rely on unavailable/stale live-news intelligence when fail-closed high-confidence news mode is enabled. Intermarket contradiction is accepted only from fresh broker bars.\n";
    return thesis;
 }
-// ===== END INLINED GPT_EA_Part25_ThesisHardening.mqh =====
 #define ExtractOpenAIText ExtractOpenAITextWide
-// ===== BEGIN INLINED GPT_EA_Part26_DeepGPTPolicy.mqh =====
 // ============================================================================
 // GPT_EA Part 26 - Deep GPT policy for final adversarial validation
 // ============================================================================
@@ -9215,12 +9198,10 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
    }
    return true;
 }
-// ===== END INLINED GPT_EA_Part26_DeepGPTPolicy.mqh =====
 #undef ExtractOpenAIText
 #undef WebRequest
 #undef InpOpenAIAPIKey
 
-// ===== BEGIN INLINED GPT_EA_Part40_ModelClockTrust.mqh =====
 // ============================================================================
 // GPT_EA Part 40 - Clock integrity, model degradation and deterministic fallback
 // ============================================================================
@@ -9428,8 +9409,6 @@ void ModelClockTrustTimer()
       last=now;
    }
 }
-// ===== END INLINED GPT_EA_Part40_ModelClockTrust.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part41_PortfolioStressLatency.mqh =====
 // ============================================================================
 // GPT_EA Part 41 - Portfolio scenario stress, gap/margin risk and decision age
 // ============================================================================
@@ -9458,7 +9437,6 @@ input double InpMinimumStressedMarginLevelPct    = 250.0;
 input bool   InpUseDecisionHalfLife              = true;
 input bool   InpUseExecutionLatencyBudget        = true;
 input double InpMaxLatencyBudgetFraction         = 0.35;
-
 
 enum PortfolioStressScenario
 {
@@ -9823,11 +9801,9 @@ bool PortfolioStressLatencyAllows(const TradeSetup &s,double lots,string &why)
                     pct,assetClassStress,worstMacro,macroStress,gap,margin,age);
    return true;
 }
-// ===== END INLINED GPT_EA_Part41_PortfolioStressLatency.mqh =====
 
 // Adaptive execution, portfolio risk, integrity/quarantine, shadow validation, lifecycle,
 // exactly-once reconciliation, causal analytics, demo-soak evidence and dashboard stack.
-// ===== BEGIN INLINED GPT_EA_Part30_AdaptiveRiskPortfolio.mqh =====
 // ============================================================================
 // GPT_EA Part 30 - Adaptive portfolio risk, correlation and independent supervisor
 // ============================================================================
@@ -10341,8 +10317,6 @@ void AdaptiveRiskSupervisorTimer()
 {
    RefreshDrawdownAccelerationBaseline();
 }
-// ===== END INLINED GPT_EA_Part30_AdaptiveRiskPortfolio.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part39_DataIntegrityQuarantine.mqh =====
 // ============================================================================
 // GPT_EA Part 39 - Data integrity versioning, strategy registry and quarantine
 // ============================================================================
@@ -10707,8 +10681,6 @@ void DataIntegrityShutdown()
 {
    WriteDataIntegrityRow("SHUTDOWN","",STRATEGY_NO_TRADE,0,"EA data-integrity generation shutdown");
 }
-// ===== END INLINED GPT_EA_Part39_DataIntegrityQuarantine.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part31_ExecutionLearning.mqh =====
 // ============================================================================
 // GPT_EA Part 31 - Execution-quality learning, calibration and strategy health
 // ============================================================================
@@ -11295,8 +11267,6 @@ void ExecutionLearningTimer()
    RefreshStrategyHealthModes();
    for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
 }
-// ===== END INLINED GPT_EA_Part31_ExecutionLearning.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part31A_RegimeSizing.mqh =====
 // ============================================================================
 // GPT_EA Part 31A - Final adaptive sizing with regime-transition caution
 // ============================================================================
@@ -11323,8 +11293,6 @@ string FinalAdaptiveSizingText(const TradeSetup &s)
    double transition=MathMax(0.25,MathMin(1.0,GVRead(SymKey(s.symbol,"REGIME_RISK_MULT"),1.0)));
    return StringFormat("final adaptive sizing x%.2f = quality x%.2f * regime-transition x%.2f",base*transition,base,transition);
 }
-// ===== END INLINED GPT_EA_Part31A_RegimeSizing.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part31B_ExecutionFinalizer.mqh =====
 // ============================================================================
 // GPT_EA Part 31B - History-safe adaptive execution finalization
 // ============================================================================
@@ -11417,8 +11385,6 @@ void ExecutionLearningTimerR5()
    RefreshStrategyHealthModes();
    for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
 }
-// ===== END INLINED GPT_EA_Part31B_ExecutionFinalizer.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part32_ChampionChallenger.mqh =====
 // ============================================================================
 // GPT_EA Part 32 - Champion/challenger shadow validation and counterfactuals
 // ============================================================================
@@ -11827,8 +11793,6 @@ void ChampionChallengerTimer()
    }
    RefreshChampionChallengerPromotion();
 }
-// ===== END INLINED GPT_EA_Part32_ChampionChallenger.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part33_LifecycleIntegrityReplay.mqh =====
 // ============================================================================
 // GPT_EA Part 33 - Trade lifecycle, GPT disagreement/integrity and replay snapshots
 // ============================================================================
@@ -12165,8 +12129,6 @@ void LifecycleIntegrityTimer()
 {
    RefreshOpenPositionLifecycles(); FinalizeClosedLifecycles();
 }
-// ===== END INLINED GPT_EA_Part33_LifecycleIntegrityReplay.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part42_ExecutionReliability.mqh =====
 // ============================================================================
 // GPT_EA Part 42 - Atomic intent ledger, exactly-once execution and reconciliation
 // ============================================================================
@@ -12944,8 +12906,6 @@ void ExecutionReliabilityShutdown()
    ReconcileBrokerAgainstEA();
    string q=""; CriticalStorageHealthCheck(q);
 }
-// ===== END INLINED GPT_EA_Part42_ExecutionReliability.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part43_CausalAttribution.mqh =====
 // ============================================================================
 // GPT_EA Part 43 - Post-trade causal attribution
 // ============================================================================
@@ -13104,8 +13064,6 @@ void CausalAttributionTimer()
 {
    FinalizeCausalAttributionHistory();
 }
-// ===== END INLINED GPT_EA_Part43_CausalAttribution.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part34_StrategyHealthDashboard.mqh =====
 // ============================================================================
 // GPT_EA Part 34 - Strategy health dashboard and adaptive telemetry
 // ============================================================================
@@ -13258,8 +13216,6 @@ void DeleteStrategyHealthDashboard()
 {
    ObjectDelete(0,STRATEGY_HEALTH_PANEL);
 }
-// ===== END INLINED GPT_EA_Part34_StrategyHealthDashboard.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part36_DemoSoakEvidence.mqh =====
 // ============================================================================
 // GPT_EA Part 36 - Machine-observed R6 demo-soak evidence
 // ============================================================================
@@ -13862,8 +13818,6 @@ void DemoSoakEvidenceShutdown()
    WriteDemoSoakJsonSnapshot();
    GlobalVariablesFlush();
 }
-// ===== END INLINED GPT_EA_Part36_DemoSoakEvidence.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part35_AdaptiveIntegration.mqh =====
 // ============================================================================
 // GPT_EA Part 35 - Adaptive stack integration wrappers
 // ============================================================================
@@ -14106,13 +14060,11 @@ void DeleteAdvancedDashboardR5()
    DeleteAdvancedDashboard();
    DeleteStrategyHealthDashboard();
 }
-// ===== END INLINED GPT_EA_Part35_AdaptiveIntegration.mqh =====
 
 // Part05 order execution consumes final adaptive sizing and learned slippage.
 #define LotSizeForRisk AdaptiveLotSizeForRiskFinal
 #define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal
 #define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5
-// ===== BEGIN INLINED GPT_EA_Part05.mqh =====
 string SetupSummaryLine(const TradeSetup &s)
 {
    return StringFormat("%s: zone %.*f–%.*f | preferred %.*f | SL %.*f | TP1 %.*f | conf %d%% | eff R:R %.2f",
@@ -14430,12 +14382,10 @@ bool ApprovedPlaceTrade(const TradeSetup &s)
                adaptiveWhy,learningWhy,slipForecast+" | "+reliabilityWhy+" | "+intentWhy);
    return true;
 }
-// ===== END INLINED GPT_EA_Part05.mqh =====
 #undef DynamicSlippagePoints
 #undef AdaptiveLotSizeForRisk
 #undef LotSizeForRisk
 
-// ===== BEGIN INLINED GPT_EA_Part23_IntelligenceObservability.mqh =====
 // ============================================================================
 // GPT_EA Part 23 - Full intelligence decision observability
 // ============================================================================
@@ -14495,8 +14445,6 @@ void NotifyCardObserved(const string card)
    WriteIntelligenceDecisionJournal(card);
    NotifyCard(card);
 }
-// ===== END INLINED GPT_EA_Part23_IntelligenceObservability.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part06.mqh =====
 bool ReducePosition(ulong ticket,double closeVolume)
 {
    if(!PositionSelectByTicket(ticket)) return false;
@@ -14679,8 +14627,6 @@ void RenderApprovalPrompt()
    ObjectSetString(0,BTN_DENY,OBJPROP_TEXT,"DENY TRADE");
    ChartRedraw();
 }
-// ===== END INLINED GPT_EA_Part06.mqh =====
-// ===== BEGIN INLINED GPT_EA_Part13_AdvancedPositionManager.mqh =====
 // ============================================================================
 // GPT_EA Part 13 - Advanced position manager
 // ============================================================================
@@ -14965,7 +14911,6 @@ void ManagePositionsAdvanced()
       }
    }
 }
-// ===== END INLINED GPT_EA_Part13_AdvancedPositionManager.mqh =====
 
 // Scanner/approval path uses the adaptive execution wrappers while older modules retain
 // their original deterministic functions.
@@ -14982,7 +14927,6 @@ void ManagePositionsAdvanced()
 #define NewsIntermarketInit NewsIntermarketInitR5
 #define NewsIntermarketTimer NewsIntermarketTimerR5
 #define DeleteAdvancedDashboard DeleteAdvancedDashboardR5
-// ===== BEGIN INLINED GPT_EA_Part07.mqh =====
 // ============================================================================
 // GPT_EA Part 07 - Approval workflow, full intelligence scanner and MT5 hooks
 // ============================================================================
@@ -15449,7 +15393,6 @@ void OnTick()
 {
    // Multi-symbol intelligence scans, approval expiry, recovery and position management are timer-driven.
 }
-// ===== END INLINED GPT_EA_Part07.mqh =====
 #undef DeleteAdvancedDashboard
 #undef NewsIntermarketTimer
 #undef NewsIntermarketInit

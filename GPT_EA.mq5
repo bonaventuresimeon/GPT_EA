@@ -796,6 +796,7 @@ input bool   InpDrawTrailingMovement        = true;
 input int    InpTrailMovementSegments       = 12;
 input int    InpDashboardWidth              = 560;
 input int    InpDashboardHeight             = 410;
+input int    InpDashboardRefreshMs           = 750;
 input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
 
@@ -851,6 +852,7 @@ double g_visualTrailLastSL=0.0;
 datetime g_visualTrailLastTime=0;
 ulong g_visualTrailPid=0;
 int g_visualTrailSeq=0;
+ulong g_visualLastRefreshMS=0;
 
 bool ADXSnapshot(const string sym,ENUM_TIMEFRAMES tf,int period,double &adx,double &pdi,double &mdi)
 {
@@ -15101,6 +15103,374 @@ string FilterStateText(bool newsBlock,bool yieldBlock,bool spreadOk,bool session
 {
    return StringFormat("Filters: Calendar %s | Yield %s | Spread %s | Session %s | AI %s",
       newsBlock?"BLOCK":"OK",yieldBlock?"BLOCK":"OK",spreadOk?"OK":"BLOCK",sessionBlock?"BLOCK":"OK",aiAllows?"OK":"VETO");
+}
+
+// ------------------- Elegant live chart observability -------------------
+string VisualShortText(string value,int maxLen=92)
+{
+   StringReplace(value,"\n"," ");
+   StringReplace(value,"\r"," ");
+   if(StringLen(value)<=maxLen) return value;
+   return StringSubstr(value,0,MathMax(8,maxLen-3))+"...";
+}
+
+void DeleteVisualObject(const string name)
+{
+   if(ObjectFind(0,name)>=0) ObjectDelete(0,name);
+}
+
+void ClearTrailMovementSegments()
+{
+   int maxSeg=(int)MathMax(3,InpTrailMovementSegments);
+   for(int i=0;i<maxSeg;i++) ObjectDelete(0,StringFormat("GPT_EA_TRAIL_SEG_%02d",i));
+   g_visualTrailLastSL=0.0;
+   g_visualTrailLastTime=0;
+   g_visualTrailPid=0;
+   g_visualTrailSeq=0;
+}
+
+void DeleteLiveManagementVisuals()
+{
+   DeleteVisualObject(LEVEL_BE);
+   DeleteVisualObject(LEVEL_LIVE_SL);
+   DeleteVisualObject(TAG_ENTRY);
+   DeleteVisualObject(TAG_SL);
+   DeleteVisualObject(TAG_BE);
+   DeleteVisualObject(TAG_TP1);
+   DeleteVisualObject(TAG_TP2);
+   DeleteVisualObject(TAG_TP3);
+   DeleteVisualObject(TAG_TRAIL);
+   DeleteVisualObject("GPT_EA_RISK_ZONE");
+   DeleteVisualObject("GPT_EA_REWARD_ZONE");
+   ClearTrailMovementSegments();
+}
+
+bool FindChartManagedPosition(ulong &ticket)
+{
+   ticket=0;
+   datetime newest=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i);
+      if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic || PositionGetString(POSITION_SYMBOL)!=_Symbol) continue;
+      datetime opened=(datetime)PositionGetInteger(POSITION_TIME);
+      if(opened>=newest){ newest=opened; ticket=tk; }
+   }
+   return ticket>0;
+}
+
+void SetVisualPriceTag(const string name,double price,const string label,color c)
+{
+   if(price<=0) { DeleteVisualObject(name); return; }
+   int sec=PeriodSeconds(_Period);
+   if(sec<=0) sec=60;
+   datetime t=TimeCurrent()+sec*4;
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_TEXT,0,t,price);
+   else ObjectMove(0,name,0,t,price);
+   ObjectSetString(0,name,OBJPROP_TEXT,label);
+   ObjectSetString(0,name,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetInteger(0,name,OBJPROP_FONTSIZE,8);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,c);
+   ObjectSetInteger(0,name,OBJPROP_ANCHOR,ANCHOR_LEFT);
+   ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,name,OBJPROP_BACK,false);
+}
+
+void SetVisualBand(const string name,double p1,double p2,color c)
+{
+   if(p1<=0 || p2<=0){ DeleteVisualObject(name); return; }
+   datetime left=TimeCurrent()-6*3600;
+   datetime right=TimeCurrent()+6*3600;
+   double hi=MathMax(p1,p2),lo=MathMin(p1,p2);
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE,0,left,hi,right,lo);
+   else
+   {
+      ObjectMove(0,name,0,left,hi);
+      ObjectMove(0,name,1,right,lo);
+   }
+   ObjectSetInteger(0,name,OBJPROP_COLOR,c);
+   ObjectSetInteger(0,name,OBJPROP_FILL,true);
+   ObjectSetInteger(0,name,OBJPROP_BACK,true);
+   ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+}
+
+double VisualBreakEvenLevel(const string sym,bool bull,double entry,double R)
+{
+   MqlTick t={}; double atr=0;
+   if(!GetTickSafe(sym,t)) return entry;
+   ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
+   double cost=MathMax(InpBECostATRFrac*atr,(t.ask-t.bid)+DynamicSlippagePoints(sym)*PointFor(sym));
+   double buffer=MathMax(cost,InpBELockMinR*R);
+   return NormalizePriceToTick(sym,bull?entry+buffer:entry-buffer);
+}
+
+string VisualTPState(bool reached,bool partial)
+{
+   if(partial) return "SCALED";
+   if(reached) return "HIT";
+   return "WAIT";
+}
+
+string LiveManagementAction(bool tp1done,bool tp2done,int stage,double rNow,int expiry,int elapsedM15)
+{
+   if(!tp1done)
+   {
+      int remaining=MathMax(0,expiry-elapsedM15);
+      return StringFormat("Protective SL active; monitoring TP1. Time invalidation in ~%d M15 candles if TP1 is not reached.",remaining);
+   }
+   if(stage<1) return "TP1 scale-out completed; EA is retrying broker-valid break-even protection.";
+   if(stage==1) return StringFormat("Break-even protected. EA will lock %.2fR when price reaches %.2fR.",InpProfitLockR,InpProfitLockTriggerR);
+   if(stage==2) return StringFormat("Profit locked at %.2fR. EA is waiting for %.2fR strong-lock trigger.",InpProfitLockR,InpStrongLockTriggerR);
+   if(stage==3 && rNow<InpTrailStartR) return StringFormat("Strong profit lock active at %.2fR. ATR + M5 structure trail starts at %.2fR.",InpStrongLockR,InpTrailStartR);
+   if(stage>=4) return StringFormat("ATR + M5 structure trailing ACTIVE. SL ratchets only in the profitable direction; TP2 %s and TP3/runner remain monitored.",tp2done?"completed":"pending");
+   return "EA is protecting the runner and checking TP2, momentum, structure and the next barrier.";
+}
+
+void RecordTrailingMovement(ulong pid,double currentSL,int stage)
+{
+   if(!InpDrawTrailingMovement || currentSL<=0) return;
+   if(g_visualTrailPid!=pid)
+   {
+      ClearTrailMovementSegments();
+      g_visualTrailPid=pid;
+      g_visualTrailLastSL=currentSL;
+      g_visualTrailLastTime=TimeCurrent();
+      return;
+   }
+
+   double pt=PointFor(_Symbol);
+   if(g_visualTrailLastSL<=0)
+   {
+      g_visualTrailLastSL=currentSL;
+      g_visualTrailLastTime=TimeCurrent();
+      return;
+   }
+   if(MathAbs(currentSL-g_visualTrailLastSL)<=MathMax(pt*0.5,0.0000001)) return;
+
+   int maxSeg=(int)MathMax(3,InpTrailMovementSegments);
+   int slot=g_visualTrailSeq%maxSeg;
+   string name=StringFormat("GPT_EA_TRAIL_SEG_%02d",slot);
+   ObjectDelete(0,name);
+   datetime now=TimeCurrent();
+   if(ObjectCreate(0,name,OBJ_TREND,0,g_visualTrailLastTime,g_visualTrailLastSL,now,currentSL))
+   {
+      ObjectSetInteger(0,name,OBJPROP_RAY_RIGHT,false);
+      ObjectSetInteger(0,name,OBJPROP_COLOR,stage>=4?C'218,126,255':C'80,211,211');
+      ObjectSetInteger(0,name,OBJPROP_STYLE,STYLE_SOLID);
+      ObjectSetInteger(0,name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+      ObjectSetInteger(0,name,OBJPROP_BACK,false);
+   }
+   g_visualTrailSeq++;
+   g_visualTrailLastSL=currentSL;
+   g_visualTrailLastTime=now;
+}
+
+void DrawLiveManagementMap(ulong ticket)
+{
+   if(!InpDrawTradeLevels || !InpDrawLiveManagementLevels || !PositionSelectByTicket(ticket)) return;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   if(sym!=_Symbol) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",currentSL));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return;
+   double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
+   double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
+   double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
+   double be=VisualBreakEvenLevel(sym,bull,entry,R);
+   int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
+
+   DeleteVisualObject(ZONE_BOX);
+   SetVisualBand("GPT_EA_RISK_ZONE",entry,initSL,C'45,20,24');
+   SetVisualBand("GPT_EA_REWARD_ZONE",entry,tp3,C'13,45,35');
+
+   SetHLine(LEVEL_ENTRY,entry,C'232,199,104',STYLE_SOLID,2);
+   SetHLine(LEVEL_SL,initSL,C'132,76,82',STYLE_DASH,1);
+   SetHLine(LEVEL_BE,be,C'80,211,211',STYLE_DASHDOT,1);
+   color liveSLColor=(stage>=4?C'218,126,255':(stage>=1?C'80,211,211':C'244,82,82'));
+   SetHLine(LEVEL_LIVE_SL,currentSL,liveSLColor,STYLE_SOLID,2);
+   SetHLine(LEVEL_TP1,tp1,C'94,210,142',STYLE_DASH,1);
+   SetHLine(LEVEL_TP2,tp2,C'72,190,125',STYLE_DASH,1);
+   SetHLine(LEVEL_TP3,tp3,C'53,167,106',STYLE_DOT,2);
+
+   int d=DigitsFor(sym);
+   SetVisualPriceTag(TAG_ENTRY,entry,StringFormat("ENTRY  %.*f",d,entry),C'232,199,104');
+   SetVisualPriceTag(TAG_SL,initSL,StringFormat("INITIAL SL  %.*f",d,initSL),C'180,105,110');
+   SetVisualPriceTag(TAG_BE,be,StringFormat("B.E.  %.*f",d,be),C'80,211,211');
+   SetVisualPriceTag(TAG_TP1,tp1,StringFormat("TP1  %.*f",d,tp1),C'94,210,142');
+   SetVisualPriceTag(TAG_TP2,tp2,StringFormat("TP2  %.*f",d,tp2),C'72,190,125');
+   SetVisualPriceTag(TAG_TP3,tp3,StringFormat("TP3 / RUNNER  %.*f",d,tp3),C'53,167,106');
+   SetVisualPriceTag(TAG_TRAIL,currentSL,StringFormat("%s SL  %.*f",StopStageName(stage),d,currentSL),liveSLColor);
+   RecordTrailingMovement(pid,currentSL,stage);
+}
+
+void RenderLiveManagementDashboard(ulong ticket)
+{
+   if(!InpDrawDashboard || !PositionSelectByTicket(ticket)) return;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   if(sym!=_Symbol) return;
+
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   double volume=PositionGetDouble(POSITION_VOLUME);
+   double floating=PositionGetDouble(POSITION_PROFIT);
+   datetime opened=(datetime)PositionGetInteger(POSITION_TIME);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",currentSL));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return;
+
+   double rNow=0,liveR=0,liveEntry=0,px=0; bool liveBull=bull;
+   CurrentPositionR(ticket,rNow,liveR,liveEntry,px,liveBull);
+   double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
+   double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
+   double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
+   int expiry=(int)LegacyTicketRead(ticket,"EXP",InpPullbackExpiryM15);
+   int elapsedM15=BarsSince(sym,PERIOD_M15,opened);
+   bool tp1done=PositionFlag(pid,ticket,"TP1DONE");
+   bool tp1partial=PositionFlag(pid,ticket,"TP1PARTIAL");
+   bool tp2partial=PositionFlag(pid,ticket,"TP2PARTIAL");
+   bool tp1reached=(bull?px>=tp1:px<=tp1) || tp1done;
+   bool tp2reached=(bull?px>=tp2:px<=tp2) || tp2partial;
+   bool tp3reached=(bull?px>=tp3:px<=tp3);
+   int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
+   double be=VisualBreakEvenLevel(sym,bull,entry,R);
+
+   StrategyClass strategy=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),CandidateStrategyForSymbol(sym));
+   int life=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_FILLED);
+   string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
+   string brokerDetail=""; double brokerHealth=BrokerHealthScore(sym,brokerDetail);
+   double riskMoney=GVRead(PosKey(pid,"RISK"),0);
+   string action=LiveManagementAction(tp1done,tp2partial,stage,rNow,expiry,elapsedM15);
+   string releaseState=g_releaseBlocked?"BLOCK":"PASS";
+   string releaseWhy=VisualShortText(g_releaseBlockReason,86);
+   string modelState=ModelTrustModeName(modelMode);
+   int d=DigitsFor(sym);
+
+   int panelW=MathMax(500,InpDashboardWidth);
+   int panelH=MathMax(370,InpDashboardHeight);
+   if(ObjectFind(0,DASH_PANEL)<0) ObjectCreate(0,DASH_PANEL,OBJ_RECTANGLE_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XDISTANCE,InpDashboardX);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YDISTANCE,InpDashboardY);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XSIZE,panelW);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YSIZE,panelH);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BGCOLOR,C'8,14,23');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BORDER_COLOR,C'118,91,165');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BACK,false);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_SELECTABLE,false);
+
+   if(ObjectFind(0,DASH_TITLE)<0) ObjectCreate(0,DASH_TITLE,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_XDISTANCE,InpDashboardX+20);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_YDISTANCE,InpDashboardY+13);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_COLOR,C'230,199,111');
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_FONTSIZE,15);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_FONT,InpDashboardTitleFont);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_TEXT,"GPT EA  •  Live Trade Atelier");
+
+   if(ObjectFind(0,DASH_SUBTITLE)<0) ObjectCreate(0,DASH_SUBTITLE,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_YDISTANCE,InpDashboardY+46);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_COLOR,C'161,184,211');
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_FONT,InpDashboardBodyFont);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_TEXT,StringFormat("%s  •  %s  •  %s  •  lifecycle %s",
+      sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)));
+
+   if(ObjectFind(0,DASH_STATUS)<0) ObjectCreate(0,DASH_STATUS,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_YDISTANCE,InpDashboardY+70);
+   color statusColor=(rNow>=0?C'91,220,156':C'244,110,110');
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_COLOR,statusColor);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_FONTSIZE,10);
+   ObjectSetString(0,DASH_STATUS,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,DASH_STATUS,OBJPROP_TEXT,StringFormat("● %s  |  %.2fR  |  floating %.2f",
+      StopStageName(stage),rNow,floating));
+
+   if(ObjectFind(0,DASH_TEXT)<0) ObjectCreate(0,DASH_TEXT,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_YDISTANCE,InpDashboardY+96);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_COLOR,clrWhiteSmoke);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,DASH_TEXT,OBJPROP_FONT,InpDashboardBodyFont);
+
+   string text=StringFormat(
+      "Position #%I64u  |  Volume %.2f  |  Open %s\n"
+      "Entry %.*f   •   Market %.*f   •   Current R %.2f\n"
+      "Initial SL %.*f   •   Live SL %.*f   •   B.E. %.*f   •   Stage %s\n"
+      "TP1 %.*f [%s]   •   TP2 %.*f [%s]   •   TP3 %.*f [%s]\n"
+      "Initial risk %.2f   •   Floating P/L %.2f   •   Portfolio risk %.2f%%\n"
+      "Daily loss %.2f%%   •   Drawdown %.2f%%   •   Broker health %.0f/100\n"
+      "Model %s   •   Release %s   •   Manual pause %s\n"
+      "Release detail: %s\n"
+      "EA management: %s",
+      ticket,volume,TimeToString(opened,TIME_DATE|TIME_MINUTES),
+      d,entry,d,px,rNow,
+      d,initSL,d,currentSL,d,be,StopStageName(stage),
+      d,tp1,VisualTPState(tp1reached,tp1partial),d,tp2,VisualTPState(tp2reached,tp2partial),d,tp3,tp3reached?"HIT":"RUNNER",
+      riskMoney,floating,CurrentPortfolioRiskPercent(),
+      DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
+      modelState,releaseState,g_manualPaused?"YES":"NO",
+      releaseWhy,action);
+   ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
+
+   if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+panelH-42);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,132);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,27);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'54,65,105');
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_COLOR,clrWhite);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'122,105,175');
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"↻  REANALYZE");
+
+   DrawLiveManagementMap(ticket);
+   StyleApprovalUI();
+   ChartRedraw();
+}
+
+void RefreshElegantChartDashboard(bool force=false)
+{
+   if(!InpElegantChartDashboard) return;
+   ulong nowMS=GetTickCount64();
+   int refreshMs=MathMax(100,InpDashboardRefreshMs);
+   if(!force && g_visualLastRefreshMS>0 && nowMS-g_visualLastRefreshMS<(ulong)refreshMs) return;
+   g_visualLastRefreshMS=nowMS;
+
+   ulong ticket=0;
+   if(FindChartManagedPosition(ticket))
+   {
+      RenderLiveManagementDashboard(ticket);
+      return;
+   }
+
+   if(g_visualTrailPid!=0)
+   {
+      DeleteLiveManagementVisuals();
+      DeleteVisualObject(LEVEL_ENTRY);
+      DeleteVisualObject(LEVEL_SL);
+      DeleteVisualObject(LEVEL_TP1);
+      DeleteVisualObject(LEVEL_TP2);
+      DeleteVisualObject(LEVEL_TP3);
+      if(g_visualHasSetup && g_visualLastSetup.symbol==_Symbol)
+         RenderAdvancedDashboard(g_visualLastSetup,g_visualLastReport,g_visualLastFilter,g_visualLastReady);
+      else
+         ChartRedraw();
+   }
 }
 
 // ----------------------------- Scanner ----------------------------

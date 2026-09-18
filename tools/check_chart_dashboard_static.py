@@ -26,7 +26,7 @@ required=[
     "UI_STATE_TRADE_ACTIVE","UI_STATE_TP1","UI_STATE_BREAK_EVEN","UI_STATE_TRAILING","UI_STATE_CLOSED",
     "ApplyDashboardChartReserve","DashboardLayout","VisualMTFMatrix","VisualConfidenceBar",
     "RenderPremiumHUDFrame","DASH_HEADER_BG","DASH_FOOTER_BG","DASH_TOP_RAIL","DASH_INNER_FRAME",
-    "R8-ELEGANT-HUD-INPUTS-20260918","HUD122",
+    "R10-AUTO-MODEL-HUD-20260918","HUD123",
     "PurgeLegacyVisualObjects","g_visualDataState","DATA LOADING / INSUFFICIENT HISTORY",
     "RenderScanningDashboard","RenderClosedDashboard","RenderDashboardControls",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",

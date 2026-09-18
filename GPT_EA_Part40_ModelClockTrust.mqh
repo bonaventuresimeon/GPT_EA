@@ -127,9 +127,10 @@ bool DeterministicEmergencyStrategyAllowed(const string sym,StrategyClass c,stri
    return true;
 }
 
-bool DeterministicEmergencyExecutionActive(const string sym,StrategyClass c,string &why)
+bool DeterministicEmergencyExecutionActive(const string sym,int strategyValue,string &why)
 {
    why="";
+   StrategyClass c=(StrategyClass)strategyValue;
    string health="";
    int mode=CurrentModelTrustMode(health);
    if(mode!=MODEL_TRUST_DETERMINISTIC_ONLY)

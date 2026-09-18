@@ -9,10 +9,12 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any
+from release_contract import load_release_contract
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = "github_actions_static_evidence_v1"
-JOB_METADATA_SCHEMA = "github_actions_job_metadata_v1"
+CONTRACT=load_release_contract()
+SCHEMA_VERSION = CONTRACT["ci_schema"]
+JOB_METADATA_SCHEMA = CONTRACT["ci_job_metadata_schema"]
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 

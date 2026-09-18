@@ -19,10 +19,12 @@ from validate_resilience_hardening_evidence import validate_resilience
 from validate_rollback_readiness import validate_rollback_readiness
 from validate_soak_evidence import validate_soak
 from json_bundle import materialize_legacy_json_documents
+from release_contract import load_release_contract
 
 materialize_legacy_json_documents()
 
 ROOT=Path(__file__).resolve().parents[1]
+CONTRACT=load_release_contract()
 MQH=ROOT/"mqh"
 PART28=MQH/"GPT_EA_Part28_ReleaseCertification.mqh"
 SOAK_SCHEMA=ROOT/"SOAK_EVIDENCE_SCHEMA.json"
@@ -40,10 +42,7 @@ def resolve(path_text:str)->Path:
     return p if p.is_absolute() else ROOT/p
 
 def current_release_id()->str:
-    text=PART28.read_text(encoding="utf-8")
-    m=re.search(r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"',text)
-    if not m: raise RuntimeError("release validation ID not found in Part28")
-    return m.group(1)
+    return str(CONTRACT["release_validation_id"])
 
 def git_head()->str|None:
     try: return subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True,stderr=subprocess.DEVNULL).strip()
@@ -54,7 +53,7 @@ def require(errors:list[str],cond:bool,msg:str)->None:
 
 def validate_ci_release_record(ci:dict,build_sha:str)->tuple[list[str],str]:
     errors:list[str]=[]
-    require(errors,ci.get("schema_version")=="github_actions_static_evidence_v1","ci_static.schema_version must be github_actions_static_evidence_v1")
+    require(errors,ci.get("schema_version")==CONTRACT["ci_schema"],"ci_static.schema_version must be github_actions_static_evidence_v1")
     for key in ("run_id","run_attempt","job_id","runner_id","steps_executed"):
         try: value=int(ci.get(key,0) or 0)
         except Exception: value=0
@@ -103,7 +102,7 @@ def validate_ci_release_record(ci:dict,build_sha:str)->tuple[list[str],str]:
         require(errors,p.exists(),f"CI attestation verification output not found: {p}")
         if p.exists(): require(errors,"CI ATTESTATION VERIFY: PASS" in p.read_text(encoding="utf-8",errors="replace"),"CI attestation verification output does not contain PASS marker")
 
-    require(errors,ci.get("bundle_schema_version")=="ci_evidence_bundle_v1","ci_static.bundle_schema_version must be ci_evidence_bundle_v1")
+    require(errors,ci.get("bundle_schema_version")==CONTRACT["ci_bundle_schema"],"ci_static.bundle_schema_version must be ci_evidence_bundle_v1")
     expected_bundle_digest=str(ci.get("bundle_digest",""))
     require(errors,bool(HEX64.fullmatch(expected_bundle_digest)),"ci_static.bundle_digest must be 64 hexadecimal characters")
     require(errors,ci.get("bundle_validated") is True,"ci_static.bundle_validated must be true")
@@ -134,7 +133,7 @@ def validate_ci_release_record(ci:dict,build_sha:str)->tuple[list[str],str]:
 
 def validate_runner_release_record(rr:dict,build_sha:str,ci_bundle_digest:str,ci:dict)->tuple[list[str],str]:
     errors:list[str]=[]
-    require(errors,rr.get("schema_version")=="runner_recovery_evidence_v1","runner_recovery.schema_version must be runner_recovery_evidence_v1")
+    require(errors,rr.get("schema_version")==CONTRACT["runner_recovery_schema"],"runner_recovery.schema_version must be runner_recovery_evidence_v1")
     require(errors,len(str(rr.get("evidence_id","")).strip())>=8,"runner_recovery.evidence_id is required")
     expected=str(rr.get("evidence_digest",""))
     require(errors,bool(HEX64.fullmatch(expected)),"runner_recovery.evidence_digest must be SHA-256")
@@ -166,7 +165,7 @@ def validate_runner_release_record(rr:dict,build_sha:str,ci_bundle_digest:str,ci
 
 def validate_runner_acceptance_release_record(ra:dict,build_sha:str,ci_bundle_digest:str,rr:dict)->tuple[list[str],str]:
     errors:list[str]=[]
-    require(errors,ra.get("schema_version")=="runner_recovery_acceptance_v1","runner_recovery_acceptance.schema_version must be runner_recovery_acceptance_v1")
+    require(errors,ra.get("schema_version")==CONTRACT["runner_acceptance_schema"],"runner_recovery_acceptance.schema_version must be runner_recovery_acceptance_v1")
     require(errors,len(str(ra.get("acceptance_id","")).strip())>=8,"runner_recovery_acceptance.acceptance_id is required")
     expected=str(ra.get("acceptance_digest",""))
     require(errors,bool(HEX64.fullmatch(expected)),"runner_recovery_acceptance.acceptance_digest must be SHA-256")
@@ -197,7 +196,7 @@ def validate_runner_acceptance_release_record(ra:dict,build_sha:str,ci_bundle_di
 
 def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list[str],str]:
     errors:list[str]=[]
-    require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v2","mt5_validation.schema_version must be mt5_validation_evidence_v2")
+    require(errors,mt5.get("schema_version")==CONTRACT["mt5_validation_schema"],"mt5_validation.schema_version must be mt5_validation_evidence_v2")
     require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"mt5_validation.evidence_id is required")
     expected=str(mt5.get("evidence_digest",""))
     require(errors,bool(HEX64.fullmatch(expected)),"mt5_validation.evidence_digest must be SHA-256")
@@ -247,7 +246,7 @@ def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list
 
 def validate_resilience_release_record(rh:dict,build_sha:str)->tuple[list[str],str,str]:
     errors:list[str]=[]
-    require(errors,rh.get("schema_version")=="resilience_hardening_evidence_v1","resilience_hardening.schema_version must be resilience_hardening_evidence_v1")
+    require(errors,rh.get("schema_version")==CONTRACT["resilience_schema"],"resilience_hardening.schema_version must be resilience_hardening_evidence_v1")
     require(errors,len(str(rh.get("evidence_id","")).strip())>=8,"resilience_hardening.evidence_id is required")
     expected=str(rh.get("evidence_digest",""))
     cfg=str(rh.get("config_fingerprint",""))
@@ -397,7 +396,7 @@ def main()->int:
     if not isinstance(soak,dict): errors.append("demo_soak must be an object")
     else:
         soak_errors,soak_digest=validate_soak(soak,schema); errors.extend(soak_errors)
-        require(errors,soak.get("acceptance_record_schema_version")=="five_day_soak_acceptance_v2","demo_soak.acceptance_record_schema_version must be five_day_soak_acceptance_v2")
+        require(errors,soak.get("acceptance_record_schema_version")==CONTRACT["soak_acceptance_schema"],"demo_soak.acceptance_record_schema_version must be five_day_soak_acceptance_v2")
         record_raw=str(soak.get("acceptance_record_path","")).strip()
         require(errors,bool(record_raw),"demo_soak.acceptance_record_path is required")
         if record_raw:
@@ -427,7 +426,7 @@ def main()->int:
     for key in required_gates: require(errors,gates.get(key) is True,f"gates.{key} must be true")
 
     final_review=data.get("final_review",{})
-    require(errors,final_review.get("schema_version")=="final_release_review_v1","final_review.schema_version must be final_release_review_v1")
+    require(errors,final_review.get("schema_version")==CONTRACT["final_review_schema"],"final_review.schema_version must be final_release_review_v1")
     require(errors,len(str(final_review.get("review_evidence_id","")).strip())>=4,"final_review.review_evidence_id is required")
     require(errors,bool(HEX64.fullmatch(str(final_review.get("review_digest","")))),"final_review.review_digest must be 64 hexadecimal characters")
     require(errors,final_review.get("decision")=="GO","final_review.decision must be GO")

@@ -2,8 +2,11 @@
 from __future__ import annotations
 import hashlib, json, re, sys
 from pathlib import Path
+from release_contract import load_release_contract
 
-EXPECTED_SCHEMA="gpt_ea_demo_validation_run_v1"
+CONTRACT=load_release_contract()
+
+EXPECTED_SCHEMA=CONTRACT["demo_validation_run_schema"]
 EXPECTED_IDS=[f"DV-{i:03d}" for i in range(1,19)]
 SHA40=re.compile(r"^[0-9a-fA-F]{40}$")
 SHA64=re.compile(r"^[0-9a-f]{64}$")

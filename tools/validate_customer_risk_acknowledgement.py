@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib, json, sys
 from datetime import datetime
 from pathlib import Path
+from release_contract import load_release_contract
 
-EXPECTED_SCHEMA="GPT_EA_RISK_ACK_V1"
-EXPECTED_TERMS="GPT_EA_TERMS_20260917_V1"
+CONTRACT=load_release_contract()
+EXPECTED_SCHEMA=CONTRACT["risk_ack_schema"]
+EXPECTED_TERMS=CONTRACT["legal_terms_version"]
 
 def fail(msg:str)->None:
     print("CUSTOMER RISK ACKNOWLEDGEMENT: FAILED")

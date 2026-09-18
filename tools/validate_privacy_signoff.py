@@ -7,8 +7,10 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from release_contract import load_release_contract
 
-SCHEMA = "gpt_ea_privacy_signoff_v1"
+CONTRACT=load_release_contract()
+SCHEMA = CONTRACT["privacy_schema"]
 SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
 

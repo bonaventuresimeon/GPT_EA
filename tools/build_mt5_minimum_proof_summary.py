@@ -6,9 +6,11 @@ import json
 from pathlib import Path
 
 from validate_mt5_validation_evidence import validate_mt5
+from release_contract import load_release_contract
 
 ROOT=Path(__file__).resolve().parents[1]
-SCHEMA="mt5_minimum_proof_summary_v1"
+CONTRACT=load_release_contract()
+SCHEMA=CONTRACT["mt5_minimum_proof_schema"]
 
 def resolve(value:str)->Path:
     p=Path(value)

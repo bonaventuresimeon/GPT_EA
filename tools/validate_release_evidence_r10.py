@@ -6,8 +6,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from release_contract import load_release_contract
 
 ROOT = Path(__file__).resolve().parents[1]
+CONTRACT = load_release_contract()
 OUT = ROOT / "release-evidence-validation-r10.txt"
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -44,7 +46,7 @@ def main() -> int:
     build_sha = str(data.get("build", {}).get("git_sha", ""))
 
     compile_section = data.get("compile_evidence", {})
-    if compile_section.get("schema_version") != "gpt_ea_compile_evidence_v1":
+    if compile_section.get("schema_version") != CONTRACT["compile_evidence_schema"]:
         errors.append("compile_evidence.schema_version must be gpt_ea_compile_evidence_v1")
     if compile_section.get("validated") is not True:
         errors.append("compile_evidence.validated must be true")
@@ -77,7 +79,7 @@ def main() -> int:
                 errors.append(f"could not validate compile evidence: {exc}")
 
     privacy = data.get("privacy_signoff", {})
-    if privacy.get("schema_version") != "gpt_ea_privacy_signoff_v1":
+    if privacy.get("schema_version") != CONTRACT["privacy_schema"]:
         errors.append("privacy_signoff.schema_version must be gpt_ea_privacy_signoff_v1")
     if privacy.get("validated") is not True:
         errors.append("privacy_signoff.validated must be true")

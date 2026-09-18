@@ -214,7 +214,19 @@ Read: [docs/TRADING_RISK_DISCLOSURE.md](docs/TRADING_RISK_DISCLOSURE.md) · [doc
 
 Compile only `GPT_EA.mq5` in MetaEditor. All 57 former project `.mqh` modules are already inlined; `mqh/` is retained only as a reference archive. The only executable include left in the EA is MT5's built-in `<Trade/Trade.mqh>`.
 
-Committed JSON configuration is consolidated into **`GPT_EA_DATA.json`**. Its `documents` object contains the 27 former registry/schema/template JSON documents keyed by their original filenames. Python tooling materializes ignored compatibility views automatically when legacy file paths are required.
+Committed JSON configuration is consolidated into **`GPT_EA_DATA.json`**. Its `documents` object contains the 35 active registry/schema/template JSON documents keyed by their original filenames. Python tooling materializes ignored compatibility views automatically when legacy file paths are required. The top-level `release_contract` is the canonical source for release/schema identifiers used by Python and checked against `GPT_EA.mq5`.
+
+Validated MT5 release preset export:
+
+```text
+python tools/export_mt5_release_inputs.py artifacts/release-evidence.json \\
+  --final-review artifacts/final-release-review.json \\
+  --risk-ack artifacts/customer-risk-acknowledgement.json \\
+  --base-set path/to/certified-baseline.set
+```
+
+The exporter validates the release, privacy, final-review and customer-risk evidence before producing `artifacts/GPT_EA_RELEASE.set`; API keys and proxy tokens are never written into that preset.
+
 
 Core/legacy-compatible modules:
 

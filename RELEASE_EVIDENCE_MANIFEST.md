@@ -377,6 +377,24 @@ Archive as applicable:
 - recovery checkpoint + `.bak`
 - material screenshots/exports.
 
+## Architecture decision / release-truth evidence
+
+Archive:
+
+- `ADR_REGISTRY.json`
+- `ADR_INDEX.md`
+- `ADR_SUPERSESSION_POLICY.md`
+- `RELEASE_TRUTH_DASHBOARD.md`
+- `release-truth-drift-validation.txt`
+
+Required:
+
+- [ ] ADR graph static validation PASS;
+- [ ] no supersession cycle or broken reciprocal link;
+- [ ] dashboard generated from the final evidence JSON;
+- [ ] deterministic dashboard evidence hash/fingerprint match;
+- [ ] drift detector PASS.
+
 ## 10. Final GO/NO-GO review
 
 Follow `FINAL_GO_NO_GO_REVIEW.md` and start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`.
@@ -421,6 +439,9 @@ python tools/validate_compile_evidence.py artifacts/compile-evidence.json
 python tools/validate_privacy_signoff.py artifacts/privacy-signoff.json
 python tools/validate_release_evidence_r10.py release_evidence.json
 python tools/validate_final_release_review_r10.py release_evidence.json final_release_review.json
+python tools/check_architecture_release_truth.py
+python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md --require-pass
+python tools/check_release_truth_drift.py release_evidence.json --dashboard RELEASE_TRUTH_DASHBOARD.md --output release-truth-drift-validation.txt
 ```
 
 Final checklist:
@@ -441,6 +462,9 @@ Final checklist:
 - [ ] all zero-tolerance fields zero;
 - [ ] final review GO/PASS;
 - [ ] aggregate release validator PASS;
+- [ ] ADR registry/supersession graph PASS;
+- [ ] candidate dashboard `--require-pass` PASS;
+- [ ] dashboard drift validation PASS;
 - [ ] all local MT5 release inputs match archived evidence exactly;
 - [ ] live arm phrase is entered only after final GO.
 

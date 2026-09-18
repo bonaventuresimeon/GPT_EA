@@ -214,6 +214,14 @@ Read: [docs/TRADING_RISK_DISCLOSURE.md](docs/TRADING_RISK_DISCLOSURE.md) · [doc
 
 Compile only `GPT_EA.mq5` in MetaEditor. All 57 former project `.mqh` modules are already inlined; `mqh/` is retained only as a reference archive. The only executable include left in the EA is MT5's built-in `<Trade/Trade.mqh>`.
 
+### Full broker symbol universe
+
+By default, `InpSymbols="ALL"` discovers the broker's complete symbol catalog at runtime with MT5's own symbol registry rather than relying on a fixed broker list. Disabled instruments are ignored, close-only instruments are excluded by default, and long-only/short-only markets remain discoverable with direction restrictions enforced before execution.
+
+Known aliases such as **US100, US30, US500, GER40, JP225, XAUUSD, XAGUSD, USOIL, UKOIL, NATGAS, BTCUSD, ETHUSD, SOLUSD, XRPUSD, LTCUSD, UNIUSD, BNBUSD and FX pairs** receive canonical market classification. Broker-specific stocks, ETFs, futures, indices, crypto and other tradeable symbols remain eligible through broker path/description metadata or the generic instrument class.
+
+For large broker catalogs, full D1→M5 analysis runs in round-robin batches controlled by `InpUniversalScanBatchSize` (default 40). This keeps every tradeable symbol in the universe while preventing one timer cycle from attempting hundreds of deep scans. Set the batch size to `0` to scan the whole resolved universe in one cycle.
+
 Committed JSON configuration is consolidated into **`GPT_EA_DATA.json`**. Its `documents` object contains the 35 active registry/schema/template JSON documents keyed by their original filenames. Python tooling materializes ignored compatibility views automatically when legacy file paths are required. The top-level `release_contract` is the canonical source for release/schema identifiers used by Python and checked against `GPT_EA.mq5`.
 
 Validated MT5 release preset export:

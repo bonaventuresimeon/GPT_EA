@@ -54,7 +54,7 @@ if not errors:
         if token not in builder: errors.append(f"MT5 evidence builder missing token: {token}")
 
     matrix=(ROOT/"MT5_VALIDATION_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
-    for token in ["M5-001","M5-007","M5-016","M5-023","M5-029","M5-034","M5-035","M5-044","M5-046","M5-053"]:
+    for token in ["M5-001","M5-007","M5-016","M5-023","M5-029","M5-034","M5-035","M5-044","M5-046","M5-050","M5-053"]:
         if token not in matrix: errors.append(f"MT5 acceptance matrix missing {token}")
 
     part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")

@@ -75,6 +75,10 @@ as_of_utc stale/future rejection:
 Clock-drift test:
 Model degradation NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY:
 Deterministic-only strategy/news restrictions:
+Transport-unavailable bypass:
+Available GPT veto remains blocking:
+Web BLOCK verdict remains blocking:
+Stale/schema/provenance failure remains blocking:
 
 ## Portfolio stress
 

@@ -214,7 +214,7 @@ string OpenAISecretTrim(string value)
 
 string ReadOpenAIKeyFile()
 {
-   if(Trim(InpOpenAIKeyFile)=="") return "";
+   if(OpenAISecretTrim(InpOpenAIKeyFile)=="") return "";
    int flags=FILE_READ|FILE_TXT|FILE_ANSI;
    if(InpOpenAIKeyUseCommonFile) flags|=FILE_COMMON;
    ResetLastError();

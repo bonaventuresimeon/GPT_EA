@@ -445,7 +445,7 @@ datetime ServerToUTC(datetime serverTime)
 {
    // Calendar and bars use server time. For same-day session checks this live offset is adequate.
    long off=(long)(TimeTradeServer()-TimeGMT());
-   return serverTime-off;
+   return (datetime)(serverTime-off);
 }
 
 bool ScheduledScanDue(string &why)
@@ -2676,8 +2676,10 @@ bool LoadSymbolProfile(const string sym,GPTSymbolProfile &p)
    if(SymbolInfoTick(sym,t) && p.point>0)
    {
       p.spreadPoints=MathMax(0.0,(t.ask-t.bid)/p.point);
-      OrderCalcMargin(ORDER_TYPE_BUY,sym,1.0,t.ask,p.marginBuy1Lot);
-      OrderCalcMargin(ORDER_TYPE_SELL,sym,1.0,t.bid,p.marginSell1Lot);
+      if(!OrderCalcMargin(ORDER_TYPE_BUY,sym,1.0,t.ask,p.marginBuy1Lot))
+         p.marginBuy1Lot=0.0;
+      if(!OrderCalcMargin(ORDER_TYPE_SELL,sym,1.0,t.bid,p.marginSell1Lot))
+         p.marginSell1Lot=0.0;
    }
    else p.spreadPoints=0;
    SymbolInfoMarginRate(sym,ORDER_TYPE_BUY,p.initialMarginRateBuy,p.maintenanceMarginRateBuy);
@@ -4923,6 +4925,21 @@ string ReleaseGateSummaryCertified()
    return "PASS - "+why;
 }
 
+string ReleaseCsvEscape(string value)
+{
+   bool quote=(StringFind(value,";")>=0 || StringFind(value,"\"")>=0 ||
+               StringFind(value,"\\r")>=0 || StringFind(value,"\\n")>=0);
+   if(StringFind(value,"\"")>=0)
+      StringReplace(value,"\"","\"\"");
+   return quote ? "\""+value+"\"" : value;
+}
+
+void ReleaseCsvAppend(string &row,const string value)
+{
+   if(StringLen(row)>0) row+=";";
+   row+=ReleaseCsvEscape(value);
+}
+
 void WriteReleaseEvidenceSnapshot()
 {
    if(!InpWriteReleaseEvidenceSnapshot || (bool)MQLInfoInteger(MQL_TESTER)) return;
@@ -4932,41 +4949,100 @@ void WriteReleaseEvidenceSnapshot()
       Print("Release evidence snapshot open failed: ",GetLastError());
       return;
    }
+
    if(FileSize(h)==0)
-      FileWrite(h,"time","required_release_id","entered_release_id","account_mode","broker","server",
-         "source_commit","ex5_sha256","set_sha256","compile_evidence_id","metaeditor_build","mt5_build",
-         "compile","artifact_identity","strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger","lifecycle_integrity",
-         "broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy","partial_protection","stop_observability","live_news_intermarket",
-         "web_failure_injection","demo_soak","soak_schema","soak_evidence_id","soak_digest","soak_trading_days","soak_london_sessions","soak_ny_sessions",
-         "soak_overlap","soak_news_day","soak_rollover","soak_restart","soak_reconnect","soak_scheduled_scans","soak_continuous_scans",
-         "soak_checkpoint_updates","soak_backup_updates","soak_zero_tolerance_failures","soak_unresolved_critical","soak_duplicate_orders","soak_duplicate_partials",
-         "soak_sl_regressions","soak_unprotected_authorizations","soak_gate_bypasses","soak_analytics_duplicate_final","soak_stop_join_failures",
-         "soak_dashboard_mismatches","soak_runtime_critical_errors","soak_secrets_exposed","soak_execution_log","soak_stop_log","soak_release_log",
-         "operator_review","final_review_id","final_review_digest","final_decision","final_reviewer","final_review_timestamp","gate_result","reason");
+   {
+      string header=
+         "time;required_release_id;entered_release_id;account_mode;broker;server;"
+         "source_commit;ex5_sha256;set_sha256;compile_evidence_id;metaeditor_build;mt5_build;"
+         "compile;artifact_identity;strategy_tester;intelligence_matrix;adaptive_portfolio;execution_learning;champion_challenger;lifecycle_integrity;"
+         "broker_matrix;deployment_profile;recovery;stop_matrix;broker_stop_policy;partial_protection;stop_observability;live_news_intermarket;"
+         "web_failure_injection;demo_soak;soak_schema;soak_evidence_id;soak_digest;soak_trading_days;soak_london_sessions;soak_ny_sessions;"
+         "soak_overlap;soak_news_day;soak_rollover;soak_restart;soak_reconnect;soak_scheduled_scans;soak_continuous_scans;"
+         "soak_checkpoint_updates;soak_backup_updates;soak_zero_tolerance_failures;soak_unresolved_critical;soak_duplicate_orders;soak_duplicate_partials;"
+         "soak_sl_regressions;soak_unprotected_authorizations;soak_gate_bypasses;soak_analytics_duplicate_final;soak_stop_join_failures;"
+         "soak_dashboard_mismatches;soak_runtime_critical_errors;soak_secrets_exposed;soak_execution_log;soak_stop_log;soak_release_log;"
+         "operator_review;final_review_id;final_review_digest;final_decision;final_reviewer;final_review_timestamp;gate_result;reason";
+      FileWriteString(h,header+"\r\n");
+   }
+
    FileSeek(h,0,SEEK_END);
-   string why=""; bool ok=ReleaseSafetyAllowsCertified("",why);
-   FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseValidationId,
-      (string)AccountInfoInteger(ACCOUNT_TRADE_MODE),AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),
-      InpReleaseSourceCommitSha,InpReleaseEx5Sha256,InpReleaseSetSha256,InpReleaseCompileEvidenceId,InpReleaseMetaEditorBuild,InpReleaseMT5Build,
-      InpReleaseMetaEditorCompilePassed?"1":"0",InpReleaseArtifactIdentityArchived?"1":"0",InpReleaseStrategyTesterPassed?"1":"0",
-      InpReleaseIntelligenceMatrixPassed?"1":"0",InpReleaseAdaptivePortfolioPassed?"1":"0",InpReleaseExecutionLearningPassed?"1":"0",
-      InpReleaseChampionChallengerPassed?"1":"0",InpReleaseLifecycleIntegrityPassed?"1":"0",InpReleaseBrokerMatrixPassed?"1":"0",
-      InpReleaseDeploymentProfilePassed?"1":"0",InpReleaseRecoveryTestsPassed?"1":"0",InpReleaseStopMatrixPassed?"1":"0",
-      InpReleaseBrokerStopPolicyPassed?"1":"0",InpReleasePartialProtectionPassed?"1":"0",InpReleaseStopObservabilityPassed?"1":"0",
-      InpReleaseLiveNewsIntermarketPassed?"1":"0",InpReleaseWebFailureInjectionPassed?"1":"0",InpReleaseDemoSoakPassed?"1":"0",
-      InpReleaseSoakSchemaVersion,InpReleaseSoakEvidenceId,InpReleaseSoakEvidenceDigest,(string)InpReleaseSoakTradingDays,
-      (string)InpReleaseSoakLondonSessions,(string)InpReleaseSoakNYSessions,InpReleaseSoakOverlapObserved?"1":"0",
-      InpReleaseSoakNewsDayObserved?"1":"0",InpReleaseSoakRolloverObserved?"1":"0",InpReleaseSoakRestartObserved?"1":"0",
-      InpReleaseSoakReconnectObserved?"1":"0",(string)InpReleaseSoakScheduledScans,(string)InpReleaseSoakContinuousScans,
-      (string)InpReleaseSoakCheckpointUpdates,(string)InpReleaseSoakBackupCheckpointUpdates,(string)InpReleaseSoakZeroToleranceFailures,
-      (string)InpReleaseSoakUnresolvedCriticalStates,(string)InpReleaseSoakDuplicateOrders,(string)InpReleaseSoakDuplicatePartials,
-      (string)InpReleaseSoakSLRegressions,(string)InpReleaseSoakUnprotectedAuthorizations,(string)InpReleaseSoakReleaseGateBypasses,
-      (string)InpReleaseSoakAnalyticsDuplicateFinal,(string)InpReleaseSoakStopJoinFailures,(string)InpReleaseSoakDashboardMismatches,
-      (string)InpReleaseSoakRuntimeCriticalErrors,(string)InpReleaseSoakSecretsExposed,InpReleaseSoakExecutionLogPresent?"1":"0",
-      InpReleaseSoakStopLogPresent?"1":"0",InpReleaseSoakReleaseLogPresent?"1":"0",InpReleaseOperatorReviewPassed?"1":"0",
-      InpReleaseFinalReviewEvidenceId,InpReleaseFinalReviewDigest,InpReleaseFinalDecision,InpReleaseFinalReviewer,InpReleaseFinalReviewTimestamp,
-      ok?"PASS":"BLOCK",why);
-   FileFlush(h); FileClose(h);
+   string why="";
+   bool ok=ReleaseSafetyAllowsCertified("",why);
+   string row="";
+
+   ReleaseCsvAppend(row,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS));
+   ReleaseCsvAppend(row,GPT_EA_REQUIRED_RELEASE_VALIDATION_ID);
+   ReleaseCsvAppend(row,InpReleaseValidationId);
+   ReleaseCsvAppend(row,(string)AccountInfoInteger(ACCOUNT_TRADE_MODE));
+   ReleaseCsvAppend(row,AccountInfoString(ACCOUNT_COMPANY));
+   ReleaseCsvAppend(row,AccountInfoString(ACCOUNT_SERVER));
+   ReleaseCsvAppend(row,InpReleaseSourceCommitSha);
+   ReleaseCsvAppend(row,InpReleaseEx5Sha256);
+   ReleaseCsvAppend(row,InpReleaseSetSha256);
+   ReleaseCsvAppend(row,InpReleaseCompileEvidenceId);
+   ReleaseCsvAppend(row,InpReleaseMetaEditorBuild);
+   ReleaseCsvAppend(row,InpReleaseMT5Build);
+   ReleaseCsvAppend(row,InpReleaseMetaEditorCompilePassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseArtifactIdentityArchived?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseStrategyTesterPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseIntelligenceMatrixPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAdaptivePortfolioPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseExecutionLearningPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseChampionChallengerPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseLifecycleIntegrityPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseBrokerMatrixPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseDeploymentProfilePassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseRecoveryTestsPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseStopMatrixPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseBrokerStopPolicyPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleasePartialProtectionPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseStopObservabilityPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseLiveNewsIntermarketPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseWebFailureInjectionPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseDemoSoakPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakSchemaVersion);
+   ReleaseCsvAppend(row,InpReleaseSoakEvidenceId);
+   ReleaseCsvAppend(row,InpReleaseSoakEvidenceDigest);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakTradingDays);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakLondonSessions);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakNYSessions);
+   ReleaseCsvAppend(row,InpReleaseSoakOverlapObserved?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakNewsDayObserved?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakRolloverObserved?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakRestartObserved?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakReconnectObserved?"1":"0");
+   ReleaseCsvAppend(row,(string)InpReleaseSoakScheduledScans);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakContinuousScans);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakCheckpointUpdates);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakBackupCheckpointUpdates);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakZeroToleranceFailures);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakUnresolvedCriticalStates);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakDuplicateOrders);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakDuplicatePartials);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakSLRegressions);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakUnprotectedAuthorizations);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakReleaseGateBypasses);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakAnalyticsDuplicateFinal);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakStopJoinFailures);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakDashboardMismatches);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakRuntimeCriticalErrors);
+   ReleaseCsvAppend(row,(string)InpReleaseSoakSecretsExposed);
+   ReleaseCsvAppend(row,InpReleaseSoakExecutionLogPresent?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakStopLogPresent?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseSoakReleaseLogPresent?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseOperatorReviewPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseFinalReviewEvidenceId);
+   ReleaseCsvAppend(row,InpReleaseFinalReviewDigest);
+   ReleaseCsvAppend(row,InpReleaseFinalDecision);
+   ReleaseCsvAppend(row,InpReleaseFinalReviewer);
+   ReleaseCsvAppend(row,InpReleaseFinalReviewTimestamp);
+   ReleaseCsvAppend(row,ok?"PASS":"BLOCK");
+   ReleaseCsvAppend(row,why);
+
+   FileWriteString(h,row+"\r\n");
+   FileFlush(h);
+   FileClose(h);
 }
 
 void ReleaseCertificationInit()

@@ -3084,16 +3084,2651 @@ void SafeUniversalRecoveryTimer()
       SafeUniversalCheckpointNow();
 }
 // ===== END INLINED GPT_EA_Part11_PreflightRecoveryGuard.mqh =====
-#include "GPT_EA_Part00_ForwardDeclarations.mqh"
-#include "GPT_EA_Part12_SafetyStopManagement.mqh"
-#include "GPT_EA_Part14_StopFailurePolicy.mqh"
-#include "GPT_EA_Part18_StopBrokerObservability.mqh"
-#include "GPT_EA_Part28_ReleaseCertification.mqh"
-#include "GPT_EA_Part29_DeploymentDriftGuard.mqh"
-#include "GPT_EA_Part28B_CIReleaseEvidence.mqh"
-#include "GPT_EA_Part37A_APICompat.mqh"
+// ===== BEGIN INLINED GPT_EA_Part00_ForwardDeclarations.mqh =====
+// ============================================================================
+// GPT_EA Part 00 - Forward declarations for cross-module hooks
+// ============================================================================
+
+// Defined in Part05.
+bool PriceInsideZone(const TradeSetup &s);
+bool M5Trigger(const TradeSetup &s);
+string SetupSummaryLine(const TradeSetup &s);
+
+// Defined in Part13.
+bool PositionFlag(ulong pid,ulong ticket,const string field);
+
+// Defined in Part14.
+void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical,double requestedSL,double rNow);
+bool StopUpdateRetryDue(ulong pid);
+
+// Defined in Part18 and called by Part14 / Part13.
+void RecordStopFailureObservation(ulong ticket,const string context,const string reason,bool critical,double requestedSL,double rNow);
+void RecordStopRecoveryObservation(ulong ticket,const string context,const string note);
+void RecordStopObservationEvent(ulong ticket,const string eventName,const string context,const string reason,bool critical,double requestedSL,double rNow);
+void RecordPartialProtectionObservation(ulong ticket,const string eventName,const string reason);
+
+// Defined in Part23 and used by adaptive notification integration in Part35.
+void NotifyCardObserved(const string card);
+
+
+// Defined in Part39 and used by pre-Part39 historical finalizers.
+int IntegrityTextHash(const string text);
+string CurrentSensitiveConfigText();
+
+// Defined in Part40 and used by strict revalidation before Part40 is included.
+bool DeterministicEmergencyExecutionActive(const string sym,int strategyValue,string &why);
+
+// Defined in Part42; allows Part39 fingerprinting to include later reliability/champion inputs.
+string LateResilienceConfigText();
+// ===== END INLINED GPT_EA_Part00_ForwardDeclarations.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part12_SafetyStopManagement.mqh =====
+// ============================================================================
+// GPT_EA Part 12 - Release safety gates, recovery invariants and advanced stops
+// ============================================================================
+
+input bool   InpUseReleaseSafetyGate           = true;
+input bool   InpBlockRealUnlessExplicitlyArmed = true;
+input string InpLiveArmPhrase                  = "";
+input bool   InpRequireApprovalOnRealAccount   = true;
+input bool   InpRequireTerminalConnected       = true;
+input bool   InpRequireSeriesSynchronized      = true;
+input int    InpMinBarsPerRequiredTF           = 120;
+input int    InpMaxQuoteAgeSeconds             = 30;
+input bool   InpBlockOnRecoveryInvariantFail   = true;
+input bool   InpRequireMarketAndSLOrderModes   = true;
+
+input bool   InpUseAdvancedStopManagement = true;
+input double InpBETriggerR                = 1.00;
+input double InpBELockMinR                = 0.00;
+input double InpProfitLockTriggerR        = 1.50;
+input double InpProfitLockR               = 0.50;
+input double InpStrongLockTriggerR        = 2.00;
+input double InpStrongLockR               = 1.00;
+input bool   InpUseATRTrailing            = true;
+input double InpTrailStartR               = 2.00;
+input double InpTrailATRMultiplier        = 1.25;
+input int    InpTrailStructureBarsM5      = 8;
+input double InpTrailStructureBufferATR   = 0.15;
+input double InpTrailMinStepR             = 0.15;
+input double InpPartialAtTP2Percent       = 50.0;
+input bool   InpKeepTP3WhileTrailing      = true;
+
+bool g_releaseBlocked=false;
+string g_releaseBlockReason="Not evaluated";
+
+bool AdvancedManagementConfigSafe(string &why)
+{
+   why="";
+   if(!InpUseAdvancedStopManagement) return true;
+   if(InpBETriggerR<=0){ why="InpBETriggerR must be > 0."; return false; }
+   if(InpBELockMinR<0){ why="InpBELockMinR cannot be negative."; return false; }
+   if(InpProfitLockTriggerR<InpBETriggerR){ why="Profit-lock trigger must be >= BE trigger."; return false; }
+   if(InpProfitLockR<0 || InpProfitLockR>=InpProfitLockTriggerR){ why="Profit-lock R must be >=0 and below its trigger R."; return false; }
+   if(InpStrongLockTriggerR<InpProfitLockTriggerR){ why="Strong-lock trigger must be >= profit-lock trigger."; return false; }
+   if(InpStrongLockR<InpProfitLockR || InpStrongLockR>=InpStrongLockTriggerR){ why="Strong-lock R must be >= profit-lock R and below strong-lock trigger R."; return false; }
+   if(InpTrailStartR<InpStrongLockTriggerR){ why="Trail start must be >= strong-lock trigger."; return false; }
+   if(InpTrailATRMultiplier<=0){ why="Trail ATR multiplier must be > 0."; return false; }
+   if(InpTrailStructureBarsM5<3){ why="Trail structure lookback must be >= 3 bars."; return false; }
+   if(InpTrailStructureBufferATR<0 || InpTrailMinStepR<0){ why="Trail buffers/steps cannot be negative."; return false; }
+   if(InpPartialAtTP1Percent<0 || InpPartialAtTP1Percent>100){ why="TP1 partial percent must be 0..100."; return false; }
+   if(InpPartialAtTP2Percent<0 || InpPartialAtTP2Percent>100){ why="TP2 partial percent must be 0..100."; return false; }
+   return true;
+}
+
+bool RequiredSeriesReady(const string sym,string &why)
+{
+   why="";
+   if(!InpRequireSeriesSynchronized) return true;
+   ENUM_TIMEFRAMES tfs[6]={PERIOD_D1,PERIOD_H4,PERIOD_H1,PERIOD_M30,PERIOD_M15,PERIOD_M5};
+   string names[6]={"D1","H4","H1","M30","M15","M5"};
+   for(int i=0;i<6;i++)
+   {
+      if(!(bool)SeriesInfoInteger(sym,tfs[i],SERIES_SYNCHRONIZED))
+      {
+         why=sym+" "+names[i]+" series is not synchronized.";
+         return false;
+      }
+      long bars=SeriesInfoInteger(sym,tfs[i],SERIES_BARS_COUNT);
+      if(InpMinBarsPerRequiredTF>0 && bars<InpMinBarsPerRequiredTF)
+      {
+         why=StringFormat("%s %s has only %I64d bars; minimum is %d.",sym,names[i],bars,InpMinBarsPerRequiredTF);
+         return false;
+      }
+   }
+   return true;
+}
+
+bool QuoteFreshEnough(const string sym,string &why)
+{
+   why="";
+   if(InpMaxQuoteAgeSeconds<=0) return true;
+   MqlTick t;
+   if(!GetTickSafe(sym,t)){ why=sym+" has no current tick."; return false; }
+   datetime now=TimeTradeServer();
+   if(now<=0 || t.time<=0){ why=sym+" quote/server timestamp unavailable."; return false; }
+   long age=(long)(now-t.time);
+   if(age>InpMaxQuoteAgeSeconds)
+   {
+      why=StringFormat("%s quote age %I64d sec exceeds %d sec limit.",sym,age,InpMaxQuoteAgeSeconds);
+      return false;
+   }
+   return true;
+}
+
+bool SymbolOrderModesSafe(const string sym,string &why)
+{
+   why="";
+   if(!InpRequireMarketAndSLOrderModes) return true;
+   long mode=SymbolInfoInteger(sym,SYMBOL_ORDER_MODE);
+   if((mode & SYMBOL_ORDER_MARKET)!=(long)SYMBOL_ORDER_MARKET){ why=sym+" does not permit market orders."; return false; }
+   if((mode & SYMBOL_ORDER_SL)!=(long)SYMBOL_ORDER_SL){ why=sym+" does not permit protective Stop Loss orders."; return false; }
+   return true;
+}
+
+bool PositionRecoveryInvariant(ulong ticket,string &why)
+{
+   why="";
+   if(!PositionSelectByTicket(ticket)){ why="Position selection failed."; return false; }
+   if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) return true;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double vol=PositionGetDouble(POSITION_VOLUME);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   if(pid==0){ why=sym+" has zero POSITION_IDENTIFIER."; return false; }
+   if(entry<=0 || vol<=0){ why=sym+" has invalid entry/volume."; return false; }
+   if(currentSL<=0){ why=sym+" open GPT_EA position is unprotected (SL=0)."; return false; }
+   if(GVRead(PosKey(pid,"FINAL"),0)>0.5){ why=sym+" is open but analytics FINAL flag is already set."; return false; }
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   if(initSL<=0){ why=sym+" original stop cannot be recovered."; return false; }
+   if(bull && initSL>=entry){ why=sym+" BUY original SL is not below entry."; return false; }
+   if(!bull && initSL<=entry){ why=sym+" SELL original SL is not above entry."; return false; }
+   double R=MathAbs(entry-initSL);
+   if(R<=PointFor(sym)){ why=sym+" recovered initial risk distance is invalid."; return false; }
+   double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
+   double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
+   double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
+   if(bull && !(tp1>entry && tp2>tp1 && tp3>tp2)){ why=sym+" BUY target geometry is inconsistent."; return false; }
+   if(!bull && !(tp1<entry && tp2<tp1 && tp3<tp2)){ why=sym+" SELL target geometry is inconsistent."; return false; }
+   return true;
+}
+
+bool PendingRecoveryInvariant(string &why)
+{
+   why="";
+   for(int i=0;i<ArraySize(g_pending);i++)
+   {
+      if(!g_pending[i].active) continue;
+      TradeSetup s=g_pending[i].setup;
+      if(s.symbol=="" || !EnsureSymbol(s.symbol)){ why="Pending approval has unavailable symbol."; return false; }
+      if(g_pending[i].expiresAt<=g_pending[i].createdAt){ why=s.symbol+" pending approval has invalid timestamps."; return false; }
+      if(!s.valid){ why=s.symbol+" active pending setup is not marked valid."; return false; }
+      if(s.bullish && !(s.sl<s.preferred && s.tp1>s.preferred && s.tp2>s.tp1 && s.tp3>s.tp2)){ why=s.symbol+" pending BUY geometry is inconsistent."; return false; }
+      if(!s.bullish && !(s.sl>s.preferred && s.tp1<s.preferred && s.tp2<s.tp1 && s.tp3<s.tp2)){ why=s.symbol+" pending SELL geometry is inconsistent."; return false; }
+      for(int j=i+1;j<ArraySize(g_pending);j++)
+         if(g_pending[j].active && g_pending[j].setup.symbol==s.symbol){ why=s.symbol+" has duplicate active pending approvals."; return false; }
+   }
+   return true;
+}
+
+bool RecoveryInvariantsPass(string &why)
+{
+   why="";
+   string configWhy="";
+   if(!AdvancedManagementConfigSafe(configWhy)){ why="Management configuration invalid: "+configWhy; return false; }
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0) continue;
+      if(!PositionSelectByTicket(tk) || PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      string pwhy="";
+      if(!PositionRecoveryInvariant(tk,pwhy)){ why=pwhy; return false; }
+   }
+   string pendingWhy="";
+   if(!PendingRecoveryInvariant(pendingWhy)){ why=pendingWhy; return false; }
+   if(g_dayStartEquity<=0 || g_equityPeak<=0){ why="Risk-session equity state is invalid."; return false; }
+   return true;
+}
+
+void RebuildAdvancedProtectionState()
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+      double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl=PositionGetDouble(POSITION_SL);
+      double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(tk,"INITSL",0));
+      if(initSL<=0) initSL=HistoricalInitialSL(pid);
+      double R=MathAbs(entry-initSL);
+      if(R<=0) continue;
+      int stage=0;
+      if(sl>0)
+      {
+         double locked=(bull?sl-entry:entry-sl)/R;
+         if(locked>=InpStrongLockR-0.05) stage=3;
+         else if(locked>=InpProfitLockR-0.05) stage=2;
+         else if(locked>=-0.05) stage=1;
+      }
+      double stored=GVRead(PosKey(pid,"SL_STAGE"),0);
+      if(stage>(int)stored) GVWrite(PosKey(pid,"SL_STAGE"),stage);
+      GVWrite(PosKey(pid,"LASTSL"),sl);
+      if(LegacyTicketRead(tk,"TP1DONE",0)>0.5 || PositionHistoryHadExit(pid))
+      {
+         LegacyTicketWrite(tk,"TP1PARTIAL",1);
+         GVWrite(PosKey(pid,"TP1PARTIAL"),1);
+      }
+   }
+   GlobalVariablesFlush();
+}
+
+bool ReleaseSafetyAllows(const string sym,string &why)
+{
+   why="";
+   if(!InpUseReleaseSafetyGate){ why="Release safety gate disabled."; return true; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ why="Strategy Tester environment."; return true; }
+   string configWhy="";
+   if(!AdvancedManagementConfigSafe(configWhy)){ why="Management configuration invalid: "+configWhy; return false; }
+   if(InpRequireTerminalConnected && !(bool)TerminalInfoInteger(TERMINAL_CONNECTED)){ why="Terminal is not connected to trade server."; return false; }
+   if(!(bool)TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)){ why="Terminal automated trading is disabled."; return false; }
+   if(!(bool)MQLInfoInteger(MQL_TRADE_ALLOWED)){ why="EA-level automated trading permission is disabled."; return false; }
+   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_ALLOWED)){ why="Trading is disabled for this account."; return false; }
+   if(!(bool)AccountInfoInteger(ACCOUNT_TRADE_EXPERT)){ why="EA trading is disabled by the trade server/account."; return false; }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode==ACCOUNT_TRADE_MODE_REAL)
+   {
+      if(InpBlockRealUnlessExplicitlyArmed && InpLiveArmPhrase!="GPT_EA_LIVE_ARMED"){ why="REAL account blocked: set local InpLiveArmPhrase to GPT_EA_LIVE_ARMED only after release validation."; return false; }
+      if(InpRequireApprovalOnRealAccount && !InpRequireApproval){ why="REAL account blocked: human approval is required by release policy."; return false; }
+   }
+   if(InpBlockOnRecoveryInvariantFail)
+   {
+      string inv="";
+      if(!RecoveryInvariantsPass(inv)){ why="Recovery invariant failed: "+inv; return false; }
+   }
+   if(sym!="")
+   {
+      string swhy="";
+      if(!RequiredSeriesReady(sym,swhy)){ why=swhy; return false; }
+      if(!QuoteFreshEnough(sym,swhy)){ why=swhy; return false; }
+      if(!SymbolOrderModesSafe(sym,swhy)){ why=swhy; return false; }
+   }
+   return true;
+}
+
+void RefreshReleaseSafetyGate()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllows("",why);
+   if(ok)
+   {
+      for(int i=0;i<ArraySize(g_symbols);i++)
+      {
+         if(g_symbols[i]=="") continue;
+         if(!ReleaseSafetyAllows(g_symbols[i],why)){ ok=false; break; }
+      }
+   }
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All release-blocking safety gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason)) Print("GPT_EA RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all release-blocking safety gates pass.");
+}
+
+string ReleaseGateSummary(){ return (g_releaseBlocked?"BLOCKED - "+g_releaseBlockReason:"PASS"); }
+
+double BrokerModifyDistance(const string sym)
+{
+   double pt=PointFor(sym);
+   int stops=(int)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL);
+   int freeze=(int)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL);
+   return ((double)MathMax(stops,freeze)+1.0)*pt;
+}
+
+bool StopImproves(bool bull,double currentSL,double candidate,double minStep)
+{
+   if(candidate<=0) return false;
+   if(currentSL<=0) return true;
+   return bull ? (candidate>currentSL+minStep) : (candidate<currentSL-minStep);
+}
+
+bool StopBrokerSafe(const string sym,bool bull,double candidate,string &why)
+{
+   why="";
+   MqlTick t; if(!GetTickSafe(sym,t)){ why="No tick for stop validation."; return false; }
+   double px=(bull?t.bid:t.ask);
+   double dist=BrokerModifyDistance(sym);
+   if(bull && candidate>=px-dist){ why="BUY stop is inside broker stop/freeze distance."; return false; }
+   if(!bull && candidate<=px+dist){ why="SELL stop is inside broker stop/freeze distance."; return false; }
+   return true;
+}
+
+string StopStageName(int stage)
+{
+   if(stage<=0) return "INITIAL";
+   if(stage==1) return "BREAKEVEN";
+   if(stage==2) return "PROFIT_LOCK";
+   if(stage==3) return "STRONG_LOCK";
+   return "TRAIL";
+}
+
+bool ApplyAdvancedStop(ulong ticket,double candidate,int stage,double rNow,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return false;
+   double minStep=MathMax(PointFor(sym),InpTrailMinStepR*MathMax(R,PointFor(sym)));
+   candidate=NormalizePriceToTick(sym,candidate);
+   if(stage>=4)
+   {
+      if(!StopImproves(bull,currentSL,candidate,minStep)) return false;
+   }
+   else if(!StopImproves(bull,currentSL,candidate,PointFor(sym)*0.5)) return false;
+   string safeWhy="";
+   if(!StopBrokerSafe(sym,bull,candidate,safeWhy)) return false;
+   double currentTP=PositionGetDouble(POSITION_TP);
+   double tp=((stage>=4 && !InpKeepTP3WhileTrailing)?0:currentTP);
+   if(ChaosInjectStopModifyFailure())
+   {
+      GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
+      Print(sym,": CHAOS synthetic stop-modification failure.");
+      return false;
+   }
+   GVWrite(PosKey(pid,"EA_EXPECT_SL"),candidate);
+   GVWrite(PosKey(pid,"EA_EXPECT_TP"),tp);
+   GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
+   if(!trade.PositionModify(ticket,candidate,tp))
+   {
+      GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+      Print(sym,": stop modification failed - ",trade.ResultRetcodeDescription());
+      return false;
+   }
+   GVWrite(PosKey(pid,"SL_STAGE"),stage);
+   GVWrite(PosKey(pid,"LASTSL"),candidate);
+   LegacyTicketWrite(ticket,"ADV_STAGE",stage);
+   SafeUniversalCheckpointNow();
+   int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
+   AppendJournal("STOP_"+StopStageName(stage),sym,kind,0,pid,entry,candidate,0,rNow,GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
+   PrintFormat("%s: protective SL advanced to %.*f | stage %s | %.2fR | %s",sym,DigitsFor(sym),candidate,StopStageName(stage),rNow,reason);
+   return true;
+}
+
+bool CurrentPositionR(ulong ticket,double &rNow,double &R,double &entry,double &px,bool &bull)
+{
+   rNow=0; R=0; entry=0; px=0; bull=true;
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   R=MathAbs(entry-initSL);
+   if(R<=0) return false;
+   MqlTick t; if(!GetTickSafe(sym,t)) return false;
+   px=(bull?t.bid:t.ask);
+   rNow=(bull?px-entry:entry-px)/R;
+   return true;
+}
+
+bool EnsureBreakEvenProtection(ulong ticket,double rNow,double R,double entry,bool bull)
+{
+   if(!InpUseAdvancedStopManagement || rNow<InpBETriggerR) return false;
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   MqlTick t; if(!GetTickSafe(sym,t)) return false;
+   double atr=0; ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
+   double cost=MathMax(InpBECostATRFrac*atr,(t.ask-t.bid)+DynamicSlippagePoints(sym)*PointFor(sym));
+   double minLock=InpBELockMinR*R;
+   double buffer=MathMax(cost,minLock);
+   double candidate=(bull?entry+buffer:entry-buffer);
+   return ApplyAdvancedStop(ticket,candidate,1,rNow,"cost-aware breakeven");
+}
+
+bool AdvanceProfitProtection(ulong ticket,double rNow,double R,double entry,double px,bool bull)
+{
+   if(!InpUseAdvancedStopManagement) return false;
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
+   bool changed=false;
+   if(rNow>=InpBETriggerR && stage<1)
+   {
+      if(EnsureBreakEvenProtection(ticket,rNow,R,entry,bull)){ stage=1; changed=true; }
+   }
+   if(rNow>=InpProfitLockTriggerR && stage<2)
+   {
+      double candidate=(bull?entry+InpProfitLockR*R:entry-InpProfitLockR*R);
+      if(ApplyAdvancedStop(ticket,candidate,2,rNow,StringFormat("lock %.2fR after %.2fR",InpProfitLockR,InpProfitLockTriggerR))){ stage=2; changed=true; }
+   }
+   if(rNow>=InpStrongLockTriggerR && stage<3)
+   {
+      double candidate=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+      if(ApplyAdvancedStop(ticket,candidate,3,rNow,StringFormat("lock %.2fR after %.2fR",InpStrongLockR,InpStrongLockTriggerR))){ stage=3; changed=true; }
+   }
+   if(InpUseATRTrailing && rNow>=InpTrailStartR)
+   {
+      double atr=0,hi=0,lo=0;
+      int lookback=(int)MathMax(3,InpTrailStructureBarsM5);
+      if(ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) && atr>0 && RecentHighLow(sym,PERIOD_M5,1,lookback,hi,lo))
+      {
+         double atrStop=(bull?px-InpTrailATRMultiplier*atr:px+InpTrailATRMultiplier*atr);
+         double structureStop=(bull?lo-InpTrailStructureBufferATR*atr:hi+InpTrailStructureBufferATR*atr);
+         double floorStop=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+         double candidate=(bull?MathMax(floorStop,MathMin(atrStop,structureStop)):MathMin(floorStop,MathMax(atrStop,structureStop)));
+         if(ApplyAdvancedStop(ticket,candidate,4,rNow,"ATR + M5 structure trailing")) changed=true;
+      }
+   }
+   return changed;
+}
+
+bool PositionProtectedAtOrBeyondBE(ulong ticket)
+{
+   if(!PositionSelectByTicket(ticket)) return false;
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double sl=PositionGetDouble(POSITION_SL);
+   return sl>0 && (bull?sl>=entry:sl<=entry);
+}
+
+void AdvancedSafetyInit()
+{
+   RebuildAdvancedProtectionState();
+   RefreshReleaseSafetyGate();
+}
+
+void AdvancedSafetyTimer()
+{
+   RefreshReleaseSafetyGate();
+}
+// ===== END INLINED GPT_EA_Part12_SafetyStopManagement.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part14_StopFailurePolicy.mqh =====
+// ============================================================================
+// GPT_EA Part 14 - Stop update failure policy and escalation
+// ============================================================================
+
+input int  InpStopUpdateRetrySeconds          = 10;
+input int  InpStopFailureWarnAfter            = 3;
+input int  InpStopFailurePauseAfter           = 8;
+input bool InpPauseNewEntriesOnStopFailure    = true;
+input int  InpUnprotectedEmergencySeconds     = 30;
+input bool InpEmergencyCloseUnprotected       = true;
+input bool InpAlertOnStopFailureEscalation    = true;
+
+bool g_stopPolicyConfigBlocked=false;
+string g_stopPolicyConfigReason="Not evaluated";
+
+bool StopFailurePolicyConfigSafe(string &why)
+{
+   why="";
+   if(InpStopUpdateRetrySeconds<1){ why="InpStopUpdateRetrySeconds must be >= 1."; return false; }
+   if(InpStopFailureWarnAfter<1){ why="InpStopFailureWarnAfter must be >= 1."; return false; }
+   if(InpStopFailurePauseAfter<InpStopFailureWarnAfter)
+   { why="InpStopFailurePauseAfter must be >= warning threshold."; return false; }
+   if(InpEmergencyCloseUnprotected && InpUnprotectedEmergencySeconds<1)
+   { why="InpUnprotectedEmergencySeconds must be >= 1 when emergency close is enabled."; return false; }
+   return true;
+}
+
+void RefreshStopFailurePolicyConfigGate()
+{
+   string why="";
+   bool ok=StopFailurePolicyConfigSafe(why);
+   bool old=g_stopPolicyConfigBlocked;
+   string oldWhy=g_stopPolicyConfigReason;
+   g_stopPolicyConfigBlocked=!ok;
+   g_stopPolicyConfigReason=(ok?"Stop failure policy configuration valid.":why);
+   if(!ok)
+   {
+      StopFailurePauseNewEntries("stop failure policy configuration invalid: "+why);
+      if(!old || oldWhy!=why) Print("GPT_EA STOP POLICY CONFIG BLOCK: ",why);
+   }
+}
+
+int StopFailureCount(ulong pid)
+{
+   return (int)GVRead(PosKey(pid,"STOP_FAIL_COUNT"),0);
+}
+
+datetime StopFailureFirstTime(ulong pid)
+{
+   return (datetime)GVRead(PosKey(pid,"STOP_FAIL_FIRST"),0);
+}
+
+datetime StopFailureLastTime(ulong pid)
+{
+   return (datetime)GVRead(PosKey(pid,"STOP_FAIL_LAST"),0);
+}
+
+bool StopUpdateRetryDue(ulong pid)
+{
+   datetime now=TimeTradeServer();
+   datetime next=(datetime)GVRead(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0);
+   if(next>0) return now>=next;
+
+   datetime last=StopFailureLastTime(pid);
+   if(last<=0) return true;
+   int adaptive=(int)GVRead(PosKey(pid,"STOP_FAIL_RETRY_SEC"),InpStopUpdateRetrySeconds);
+   if(adaptive<1) adaptive=InpStopUpdateRetrySeconds;
+   return (now-last>=adaptive);
+}
+
+int ActualProtectionStage(ulong ticket)
+{
+   if(!PositionSelectByTicket(ticket)) return -1;
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double sl=PositionGetDouble(POSITION_SL);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(sl<=0 || R<=0) return -1;
+   double locked=(bull?sl-entry:entry-sl)/R;
+   if(locked>=InpStrongLockR-0.05) return 3;
+   if(locked>=InpProfitLockR-0.05) return 2;
+   if(locked>=-0.02) return 1;
+   return 0;
+}
+
+int ExpectedProtectionStage(double rNow)
+{
+   if(!InpUseAdvancedStopManagement) return 0;
+   if(rNow>=InpStrongLockTriggerR) return 3;
+   if(rNow>=InpProfitLockTriggerR) return 2;
+   if(rNow>=InpBETriggerR) return 1;
+   return 0;
+}
+
+void StopFailurePauseNewEntries(const string reason)
+{
+   if(!InpPauseNewEntriesOnStopFailure) return;
+   GVWrite(SysKey("PAUSED"),1);
+   g_manualPaused=true;
+   GlobalVariablesFlush();
+   Print("GPT_EA STOP SAFETY PAUSE: ",reason);
+}
+
+void RegisterStopUpdateFailure(ulong ticket,const string reason,bool critical=false,double requestedSL=0,double rNow=0)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double sl=PositionGetDouble(POSITION_SL);
+   datetime now=TimeTradeServer();
+
+   int count=StopFailureCount(pid)+1;
+   datetime first=StopFailureFirstTime(pid);
+   if(first<=0) first=now;
+   GVWrite(PosKey(pid,"STOP_FAIL_COUNT"),count);
+   GVWrite(PosKey(pid,"STOP_FAIL_FIRST"),(double)first);
+   GVWrite(PosKey(pid,"STOP_FAIL_LAST"),(double)now);
+   GVWrite(PosKey(pid,"STOP_FAIL_CRITICAL"),critical?1:0);
+
+   int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
+   if(count==1 || count==InpStopFailureWarnAfter || count==InpStopFailurePauseAfter || critical)
+   {
+      AppendJournal(critical?"STOP_FAIL_CRITICAL":"STOP_UPDATE_FAIL",sym,kind,0,pid,entry,sl,0,0,
+                    GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),reason);
+   }
+
+   RecordStopFailureObservation(ticket,critical?"CRITICAL_PROTECTION":"STOP_UPDATE",reason,critical,requestedSL,rNow);
+
+   PrintFormat("%s: stop-update failure #%d | critical=%s | %s",sym,count,critical?"YES":"NO",reason);
+
+   bool warn=(critical || (InpStopFailureWarnAfter>0 && count==InpStopFailureWarnAfter));
+   if(warn && InpAlertOnStopFailureEscalation)
+   {
+      string msg=StringFormat("GPT_EA %s stop protection issue: %s",sym,reason);
+      if(InpEnableAlerts) Alert(msg);
+      if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(StringSubstr(msg,0,(int)MathMin(250,StringLen(msg))));
+   }
+
+   if(critical || (InpStopFailurePauseAfter>0 && count>=InpStopFailurePauseAfter))
+      StopFailurePauseNewEntries(sym+": "+reason);
+
+   SafeUniversalCheckpointNow();
+}
+
+void ClearStopFailureState(ulong ticket,const string note="protection recovered")
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   int oldCount=StopFailureCount(pid);
+   if(oldCount<=0) return;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double sl=PositionGetDouble(POSITION_SL);
+   int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
+
+   RecordStopRecoveryObservation(ticket,"STOP_RECOVERY",note);
+
+   GVWrite(PosKey(pid,"STOP_FAIL_COUNT"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_FIRST"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_LAST"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_CRITICAL"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),0);
+   GVWrite(PosKey(pid,"STOP_FAIL_CLASS_HASH"),0);
+
+   AppendJournal("STOP_UPDATE_RECOVERED",sym,kind,0,pid,entry,sl,0,0,
+                 GVRead(PosKey(pid,"MAE"),0),GVRead(PosKey(pid,"MFE"),0),note);
+   PrintFormat("%s: stop protection recovered after %d failed update(s).",sym,oldCount);
+   SafeUniversalCheckpointNow();
+}
+
+bool TrailingImprovementStillExpected(ulong ticket,double rNow,string &why)
+{
+   why="";
+   if(!InpUseATRTrailing || rNow<InpTrailStartR) return false;
+   if(!PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",0));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return false;
+
+   MqlTick t; if(!GetTickSafe(sym,t)) return false;
+   double px=(bull?t.bid:t.ask);
+   double atr=0,hi=0,lo=0;
+   int lookback=(int)MathMax(3,InpTrailStructureBarsM5);
+   if(!ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) || atr<=0 ||
+      !RecentHighLow(sym,PERIOD_M5,1,lookback,hi,lo)) return false;
+
+   double atrStop=(bull?px-InpTrailATRMultiplier*atr:px+InpTrailATRMultiplier*atr);
+   double structureStop=(bull?lo-InpTrailStructureBufferATR*atr:hi+InpTrailStructureBufferATR*atr);
+   double floorStop=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+   double candidate=(bull?MathMax(floorStop,MathMin(atrStop,structureStop)):MathMin(floorStop,MathMax(atrStop,structureStop)));
+   candidate=NormalizePriceToTick(sym,candidate);
+   double minStep=MathMax(PointFor(sym),InpTrailMinStepR*MathMax(R,PointFor(sym)));
+   if(!StopImproves(bull,currentSL,candidate,minStep)) return false;
+
+   string safeWhy="";
+   if(!StopBrokerSafe(sym,bull,candidate,safeWhy)) return false;
+   why=StringFormat("broker-valid trailing improvement to %.*f remained unapplied",DigitsFor(sym),candidate);
+   return true;
+}
+
+bool ExpectedFixedProtectionCandidate(ulong ticket,int expected,double &candidate,string &geometryWhy)
+{
+   candidate=0; geometryWhy="";
+   if(expected<1 || expected>3 || !PositionSelectByTicket(ticket)) return false;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double rNow=0,R=0,entry=0,px=0; bool bull=true;
+   if(!CurrentPositionR(ticket,rNow,R,entry,px,bull) || R<=0) return false;
+
+   if(expected==1)
+   {
+      MqlTick t={}; if(!GetTickSafe(sym,t)) return false;
+      double atr=0; ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
+      double cost=MathMax(InpBECostATRFrac*atr,(t.ask-t.bid)+DynamicSlippagePoints(sym)*PointFor(sym));
+      double buffer=MathMax(cost,InpBELockMinR*R);
+      candidate=(bull?entry+buffer:entry-buffer);
+   }
+   else if(expected==2)
+      candidate=(bull?entry+InpProfitLockR*R:entry-InpProfitLockR*R);
+   else
+      candidate=(bull?entry+InpStrongLockR*R:entry-InpStrongLockR*R);
+
+   candidate=NormalizePriceToTick(sym,candidate);
+   string brokerWhy="";
+   if(!StopBrokerSafe(sym,bull,candidate,brokerWhy)) geometryWhy=brokerWhy;
+   return candidate>0;
+}
+
+void AuditStopUpdateAttempt(ulong ticket,double rNow,const string context)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(!StopUpdateRetryDue(pid)) return; // a direct/previous failure already scheduled the next controlled retry
+
+   int expected=ExpectedProtectionStage(rNow);
+   if(expected>0)
+   {
+      int actual=ActualProtectionStage(ticket);
+      if(actual<expected)
+      {
+         double sl=PositionGetDouble(POSITION_SL);
+         bool critical=(sl<=0);
+         double requested=0; string geometry="";
+         ExpectedFixedProtectionCandidate(ticket,expected,requested,geometry);
+         string why=StringFormat("%s expected stage %d but actual stage is %d at %.2fR",context,expected,actual,rNow);
+         if(geometry!="") why+=" | "+geometry;
+         RegisterStopUpdateFailure(ticket,why,critical,requested,rNow);
+         return;
+      }
+   }
+
+   string trailWhy="";
+   if(TrailingImprovementStillExpected(ticket,rNow,trailWhy))
+   {
+      RegisterStopUpdateFailure(ticket,context+": "+trailWhy,false,0,rNow);
+      return;
+   }
+
+   ClearStopFailureState(ticket,context+" satisfied");
+}
+
+bool HandleUnprotectedStopFailure(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return true;
+   if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) return true;
+   double sl=PositionGetDouble(POSITION_SL);
+   if(sl>0)
+   {
+      ClearStopFailureState(ticket,"protective SL restored");
+      return true;
+   }
+
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   if(StopUpdateRetryDue(pid)) RegisterStopUpdateFailure(ticket,reason,true,0,0);
+
+   datetime first=StopFailureFirstTime(pid);
+   datetime now=TimeTradeServer();
+   int elapsed=(first>0?(int)(now-first):0);
+   if(!InpEmergencyCloseUnprotected || elapsed<MathMax(1,InpUnprotectedEmergencySeconds)) return false;
+
+   int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
+   double mae=GVRead(PosKey(pid,"MAE"),0);
+   double mfe=GVRead(PosKey(pid,"MFE"),0);
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetDeviationInPoints(DynamicSlippagePoints(sym));
+
+   RecordStopObservationEvent(ticket,"EMERGENCY_CLOSE_ATTEMPT","UNPROTECTED_POSITION",reason,true,0,0);
+   if(trade.PositionClose(ticket,DynamicSlippagePoints(sym)))
+   {
+      AppendJournal("EMERGENCY_CLOSE_UNPROTECTED",sym,kind,0,pid,entry,0,0,0,mae,mfe,reason);
+      PrintFormat("%s: emergency close sent after %d sec without a protective SL.",sym,elapsed);
+      SafeUniversalCheckpointNow();
+      return true;
+   }
+
+   RecordStopObservationEvent(ticket,"EMERGENCY_CLOSE_FAILED","UNPROTECTED_POSITION",reason,true,0,0);
+   Print(sym,": emergency close of unprotected position failed - ",trade.ResultRetcodeDescription());
+   return false;
+}
+
+string StopFailurePolicySummary()
+{
+   return StringFormat("default retry %ds | warn %d | pause %d | unprotected emergency %ds | emergency close %s | broker-adaptive retry ON",
+      InpStopUpdateRetrySeconds,InpStopFailureWarnAfter,InpStopFailurePauseAfter,
+      InpUnprotectedEmergencySeconds,InpEmergencyCloseUnprotected?"ON":"OFF");
+}
+
+void StopFailurePolicyInit()
+{
+   RefreshStopFailurePolicyConfigGate();
+   Print("GPT_EA stop failure policy: ",StopFailurePolicySummary());
+}
+
+void StopFailurePolicyTimer()
+{
+   RefreshStopFailurePolicyConfigGate();
+}
+// ===== END INLINED GPT_EA_Part14_StopFailurePolicy.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part18_StopBrokerObservability.mqh =====
+// ============================================================================
+// GPT_EA Part 18 - Broker-specific stop failure handling and observability
+// ============================================================================
+
+input bool   InpWriteStopFailureObservability      = true;
+input string InpStopFailureObservabilityFile       = "GPT_EA_StopFailures.csv";
+input bool   InpStopObservabilityFlushEachEvent    = true;
+input bool   InpBlockNewEntriesOnPartialProtection = true;
+input bool   InpBlockOnCriticalStopState           = true;
+input bool   InpBlockOnOperatorStopState           = true;
+input int    InpPartialProtectionMaxSeconds        = 45;
+input int    InpMarketClosedStopRetrySeconds       = 60;
+input int    InpConnectionStopRetrySeconds         = 30;
+input int    InpFreezeStopRetrySeconds             = 10;
+input int    InpRequoteStopRetrySeconds            = 3;
+input int    InpRateLimitStopRetrySeconds          = 30;
+input int    InpStopRateLimitMaxBackoffSeconds     = 180;
+
+enum StopFailureClassCode
+{
+   STOP_CLASS_NONE=0,
+   STOP_CLASS_INVALID_STOPS=1,
+   STOP_CLASS_FROZEN=2,
+   STOP_CLASS_MARKET_CLOSED=3,
+   STOP_CLASS_REQUOTE_PRICE_CHANGED=4,
+   STOP_CLASS_NO_QUOTES=5,
+   STOP_CLASS_CONNECTION=6,
+   STOP_CLASS_RATE_LIMIT=7,
+   STOP_CLASS_TRADING_DISABLED=8,
+   STOP_CLASS_INVALID_VOLUME=9,
+   STOP_CLASS_INVALID_PRICE=10,
+   STOP_CLASS_INVALID_FILL=11,
+   STOP_CLASS_STOP_LEVEL_DISTANCE=12,
+   STOP_CLASS_NO_CHANGES=13,
+   STOP_CLASS_POSITION_CLOSED=14,
+   STOP_CLASS_PROTECTION_MISSING=15,
+   STOP_CLASS_PARTIAL_PROTECTION=16,
+   STOP_CLASS_TRADE_CONTEXT_LOCKED=17,
+   STOP_CLASS_OTHER=99
+};
+
+enum StopFailureActionCode
+{
+   STOP_ACTION_NONE=0,
+   STOP_ACTION_RETRY_FRESH_PRICE=1,
+   STOP_ACTION_WAIT_DISTANCE_CLEAR=2,
+   STOP_ACTION_WAIT_MARKET_OPEN=3,
+   STOP_ACTION_WAIT_CONNECTION_OR_QUOTE=4,
+   STOP_ACTION_BACKOFF=5,
+   STOP_ACTION_OPERATOR_OR_BROKER_CHANGE=6,
+   STOP_ACTION_CRITICAL_PROTECT_OR_CLOSE=7,
+   STOP_ACTION_NOOP=8,
+   STOP_ACTION_STOP_POSITION_MANAGEMENT=9
+};
+
+string StopFailureClassText(int code)
+{
+   switch(code)
+   {
+      case STOP_CLASS_INVALID_STOPS: return "INVALID_STOPS";
+      case STOP_CLASS_FROZEN: return "FROZEN";
+      case STOP_CLASS_MARKET_CLOSED: return "MARKET_CLOSED";
+      case STOP_CLASS_REQUOTE_PRICE_CHANGED: return "REQUOTE_PRICE_CHANGED";
+      case STOP_CLASS_NO_QUOTES: return "NO_QUOTES";
+      case STOP_CLASS_CONNECTION: return "CONNECTION";
+      case STOP_CLASS_RATE_LIMIT: return "RATE_LIMIT";
+      case STOP_CLASS_TRADING_DISABLED: return "TRADING_DISABLED";
+      case STOP_CLASS_INVALID_VOLUME: return "INVALID_VOLUME";
+      case STOP_CLASS_INVALID_PRICE: return "INVALID_PRICE";
+      case STOP_CLASS_INVALID_FILL: return "INVALID_FILL";
+      case STOP_CLASS_STOP_LEVEL_DISTANCE: return "STOP_LEVEL_DISTANCE";
+      case STOP_CLASS_NO_CHANGES: return "NO_CHANGES";
+      case STOP_CLASS_POSITION_CLOSED: return "POSITION_CLOSED";
+      case STOP_CLASS_PROTECTION_MISSING: return "PROTECTION_MISSING";
+      case STOP_CLASS_PARTIAL_PROTECTION: return "PARTIAL_PROTECTION";
+      case STOP_CLASS_TRADE_CONTEXT_LOCKED: return "TRADE_CONTEXT_LOCKED";
+      case STOP_CLASS_NONE: return "NONE";
+      default: return "OTHER_TRANSIENT_OR_BROKER_REJECTION";
+   }
+}
+
+string StopFailureActionText(int code)
+{
+   switch(code)
+   {
+      case STOP_ACTION_RETRY_FRESH_PRICE: return "RETRY_FRESH_PRICE";
+      case STOP_ACTION_WAIT_DISTANCE_CLEAR: return "WAIT_DISTANCE_CLEAR";
+      case STOP_ACTION_WAIT_MARKET_OPEN: return "WAIT_MARKET_OPEN";
+      case STOP_ACTION_WAIT_CONNECTION_OR_QUOTE: return "WAIT_CONNECTION_OR_QUOTE";
+      case STOP_ACTION_BACKOFF: return "BACKOFF";
+      case STOP_ACTION_OPERATOR_OR_BROKER_CHANGE: return "OPERATOR_OR_BROKER_CHANGE";
+      case STOP_ACTION_CRITICAL_PROTECT_OR_CLOSE: return "CRITICAL_PROTECT_OR_CLOSE";
+      case STOP_ACTION_NOOP: return "NOOP";
+      case STOP_ACTION_STOP_POSITION_MANAGEMENT: return "STOP_POSITION_MANAGEMENT";
+      default: return "NONE";
+   }
+}
+
+int StopFailureClassCodeFrom(uint retcode,const string description,const string reason)
+{
+   string u=description+" "+reason; StringToUpper(u);
+   if(StringFind(u,"TP1 PARTIAL")>=0 || StringFind(u,"PARTIAL PROTECTION")>=0) return STOP_CLASS_PARTIAL_PROTECTION;
+   if(StringFind(u,"PROTECTIVE SL MISSING")>=0 || StringFind(u,"NO PROTECTIVE SL")>=0 || StringFind(u,"SL=0")>=0) return STOP_CLASS_PROTECTION_MISSING;
+   if(retcode==10025 || StringFind(u,"NO CHANGES")>=0) return STOP_CLASS_NO_CHANGES;
+   if(retcode==10036 || StringFind(u,"POSITION CLOSED")>=0) return STOP_CLASS_POSITION_CLOSED;
+   if(retcode==10029 || StringFind(u,"FROZEN")>=0 || StringFind(u,"FREEZE")>=0) return STOP_CLASS_FROZEN;
+   if(retcode==10016 || StringFind(u,"INVALID STOPS")>=0) return STOP_CLASS_INVALID_STOPS;
+   if(StringFind(u,"STOP LEVEL")>=0 || StringFind(u,"MINIMUM STOP")>=0 || StringFind(u,"STOP DISTANCE")>=0) return STOP_CLASS_STOP_LEVEL_DISTANCE;
+   if(retcode==10018 || StringFind(u,"MARKET CLOSED")>=0 || StringFind(u,"SESSION CLOSED")>=0) return STOP_CLASS_MARKET_CLOSED;
+   if(retcode==10004 || retcode==10020 || StringFind(u,"REQUOTE")>=0 || StringFind(u,"PRICE CHANGED")>=0) return STOP_CLASS_REQUOTE_PRICE_CHANGED;
+   if(retcode==10021 || StringFind(u,"PRICE OFF")>=0 || StringFind(u,"NO QUOTE")>=0 || StringFind(u,"NO PRICES")>=0) return STOP_CLASS_NO_QUOTES;
+   if(retcode==10031 || StringFind(u,"CONNECTION")>=0 || StringFind(u,"DISCONNECTED")>=0) return STOP_CLASS_CONNECTION;
+   if(retcode==10024 || StringFind(u,"TOO MANY")>=0 || StringFind(u,"RATE LIMIT")>=0 || StringFind(u,"FREQUENT REQUEST")>=0) return STOP_CLASS_RATE_LIMIT;
+   if(retcode==10028 || StringFind(u,"LOCKED")>=0 || StringFind(u,"TRADE CONTEXT")>=0) return STOP_CLASS_TRADE_CONTEXT_LOCKED;
+   if(retcode==10017 || retcode==10026 || retcode==10027 || StringFind(u,"TRADE DISABLED")>=0 || StringFind(u,"AUTOTRADING DISABLED")>=0) return STOP_CLASS_TRADING_DISABLED;
+   if(retcode==10014 || StringFind(u,"INVALID VOLUME")>=0) return STOP_CLASS_INVALID_VOLUME;
+   if(retcode==10015 || StringFind(u,"INVALID PRICE")>=0) return STOP_CLASS_INVALID_PRICE;
+   if(retcode==10030 || StringFind(u,"INVALID FILL")>=0 || StringFind(u,"FILLING")>=0) return STOP_CLASS_INVALID_FILL;
+   return STOP_CLASS_OTHER;
+}
+
+string StopFailureClassName(uint retcode,const string description,const string reason)
+{
+   return StopFailureClassText(StopFailureClassCodeFrom(retcode,description,reason));
+}
+
+int StopFailureActionForClass(int cls)
+{
+   if(cls==STOP_CLASS_INVALID_STOPS || cls==STOP_CLASS_FROZEN || cls==STOP_CLASS_STOP_LEVEL_DISTANCE) return STOP_ACTION_WAIT_DISTANCE_CLEAR;
+   if(cls==STOP_CLASS_MARKET_CLOSED) return STOP_ACTION_WAIT_MARKET_OPEN;
+   if(cls==STOP_CLASS_CONNECTION || cls==STOP_CLASS_NO_QUOTES) return STOP_ACTION_WAIT_CONNECTION_OR_QUOTE;
+   if(cls==STOP_CLASS_REQUOTE_PRICE_CHANGED || cls==STOP_CLASS_INVALID_PRICE) return STOP_ACTION_RETRY_FRESH_PRICE;
+   if(cls==STOP_CLASS_RATE_LIMIT || cls==STOP_CLASS_TRADE_CONTEXT_LOCKED) return STOP_ACTION_BACKOFF;
+   if(cls==STOP_CLASS_TRADING_DISABLED || cls==STOP_CLASS_INVALID_FILL || cls==STOP_CLASS_INVALID_VOLUME) return STOP_ACTION_OPERATOR_OR_BROKER_CHANGE;
+   if(cls==STOP_CLASS_PROTECTION_MISSING || cls==STOP_CLASS_PARTIAL_PROTECTION) return STOP_ACTION_CRITICAL_PROTECT_OR_CLOSE;
+   if(cls==STOP_CLASS_NO_CHANGES) return STOP_ACTION_NOOP;
+   if(cls==STOP_CLASS_POSITION_CLOSED) return STOP_ACTION_STOP_POSITION_MANAGEMENT;
+   return STOP_ACTION_RETRY_FRESH_PRICE;
+}
+
+int StopFailureRetrySecondsForClassCode(int cls,int failureCount=1)
+{
+   if(cls==STOP_CLASS_MARKET_CLOSED) return MathMax(10,InpMarketClosedStopRetrySeconds);
+   if(cls==STOP_CLASS_CONNECTION || cls==STOP_CLASS_NO_QUOTES) return MathMax(5,InpConnectionStopRetrySeconds);
+   if(cls==STOP_CLASS_FROZEN || cls==STOP_CLASS_INVALID_STOPS || cls==STOP_CLASS_STOP_LEVEL_DISTANCE) return MathMax(3,InpFreezeStopRetrySeconds);
+   if(cls==STOP_CLASS_REQUOTE_PRICE_CHANGED || cls==STOP_CLASS_INVALID_PRICE) return MathMax(1,InpRequoteStopRetrySeconds);
+   if(cls==STOP_CLASS_RATE_LIMIT || cls==STOP_CLASS_TRADE_CONTEXT_LOCKED)
+   {
+      int multiplier=(int)MathMax(1,MathMin(6,failureCount));
+      return MathMin(MathMax(5,InpStopRateLimitMaxBackoffSeconds),MathMax(5,InpRateLimitStopRetrySeconds)*multiplier);
+   }
+   if(cls==STOP_CLASS_TRADING_DISABLED || cls==STOP_CLASS_INVALID_FILL || cls==STOP_CLASS_INVALID_VOLUME) return MathMax(30,InpMarketClosedStopRetrySeconds);
+   if(cls==STOP_CLASS_PROTECTION_MISSING || cls==STOP_CLASS_PARTIAL_PROTECTION) return MathMax(1,InpStopUpdateRetrySeconds);
+   if(cls==STOP_CLASS_NO_CHANGES || cls==STOP_CLASS_POSITION_CLOSED) return 0;
+   return MathMax(1,InpStopUpdateRetrySeconds);
+}
+
+int StopFailureRetrySecondsForClass(const string cls)
+{
+   int code=STOP_CLASS_OTHER;
+   if(cls=="MARKET_CLOSED") code=STOP_CLASS_MARKET_CLOSED;
+   else if(cls=="CONNECTION") code=STOP_CLASS_CONNECTION;
+   else if(cls=="NO_QUOTES") code=STOP_CLASS_NO_QUOTES;
+   else if(cls=="FROZEN") code=STOP_CLASS_FROZEN;
+   else if(cls=="INVALID_STOPS") code=STOP_CLASS_INVALID_STOPS;
+   else if(cls=="STOP_LEVEL_DISTANCE") code=STOP_CLASS_STOP_LEVEL_DISTANCE;
+   else if(cls=="REQUOTE_PRICE_CHANGED") code=STOP_CLASS_REQUOTE_PRICE_CHANGED;
+   else if(cls=="INVALID_PRICE") code=STOP_CLASS_INVALID_PRICE;
+   else if(cls=="RATE_LIMIT") code=STOP_CLASS_RATE_LIMIT;
+   else if(cls=="TRADE_CONTEXT_LOCKED") code=STOP_CLASS_TRADE_CONTEXT_LOCKED;
+   else if(cls=="TRADING_DISABLED") code=STOP_CLASS_TRADING_DISABLED;
+   else if(cls=="INVALID_FILL") code=STOP_CLASS_INVALID_FILL;
+   else if(cls=="INVALID_VOLUME") code=STOP_CLASS_INVALID_VOLUME;
+   else if(cls=="PROTECTION_MISSING") code=STOP_CLASS_PROTECTION_MISSING;
+   else if(cls=="PARTIAL_PROTECTION") code=STOP_CLASS_PARTIAL_PROTECTION;
+   else if(cls=="NO_CHANGES") code=STOP_CLASS_NO_CHANGES;
+   else if(cls=="POSITION_CLOSED") code=STOP_CLASS_POSITION_CLOSED;
+   return StopFailureRetrySecondsForClassCode(code,1);
+}
+
+bool StopFailureClassIsPermanentUntilOperatorOrSessionChange(const string cls)
+{
+   return (cls=="TRADING_DISABLED" || cls=="INVALID_FILL" || cls=="INVALID_VOLUME");
+}
+
+bool StopFailureActionRequiresOperator(int action)
+{
+   return (action==STOP_ACTION_OPERATOR_OR_BROKER_CHANGE);
+}
+
+int StopQuoteAgeSeconds(const string sym)
+{
+   MqlTick t={}; if(!SymbolInfoTick(sym,t) || t.time<=0) return 999999;
+   datetime now=TimeTradeServer();
+   return (int)MathMax(0,now-(datetime)t.time);
+}
+
+void EnsureStopFailureObservabilityHeader()
+{
+   if(!InpWriteStopFailureObservability) return;
+   bool exists=FileIsExist(InpStopFailureObservabilityFile,FILE_COMMON);
+   int h=FileOpen(InpStopFailureObservabilityFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","event","broker","server","login","account_mode","leverage","symbol","canonical","position_id","ticket","side","context","class_code","class","action_code","action","retcode","retcode_text","failure_count","critical","current_sl","requested_or_reference_sl","entry","r_now","spread_pts","quote_age_sec","stops_level_pts","freeze_level_pts","trade_mode","execution_mode","terminal_connected","tp1_partial","tp1_done","tp2_partial","protection_stage","retry_seconds","next_retry_time","reason");
+   if(InpStopObservabilityFlushEachEvent) FileFlush(h);
+   FileClose(h);
+}
+
+void RecordStopObservationEvent(ulong ticket,const string eventName,const string context,const string reason,bool critical,double requestedSL=0,double rNow=0)
+{
+   if(!InpWriteStopFailureObservability || !PositionSelectByTicket(ticket)) return;
+   EnsureStopFailureObservabilityHeader();
+
+   string sym=PositionGetString(POSITION_SYMBOL);
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   uint ret=(uint)trade.ResultRetcode();
+   string desc=trade.ResultRetcodeDescription();
+
+   bool recoveryEvent=(eventName=="STOP_PROTECTION_RECOVERED");
+   int cls=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_CLASS_CODE"),STOP_CLASS_NONE):StopFailureClassCodeFrom(ret,desc,reason));
+   int action=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_ACTION_CODE"),STOP_ACTION_NONE):StopFailureActionForClass(cls));
+   int count=StopFailureCount(pid);
+   int retry=(recoveryEvent?(int)GVRead(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0):StopFailureRetrySecondsForClassCode(cls,MathMax(1,count)));
+   datetime next=(recoveryEvent?(datetime)GVRead(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0):(retry>0?TimeTradeServer()+retry:0));
+
+   if(!recoveryEvent)
+   {
+      GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),cls);
+      GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),action);
+      GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),retry);
+      GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),(double)next);
+   }
+
+   double pt=PointFor(sym); MqlTick t={}; GetTickSafe(sym,t);
+   double spread=(pt>0?(t.ask-t.bid)/pt:0);
+   string canonical=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+
+   int h=FileOpen(InpStopFailureObservabilityFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"stop_failure_observability_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,
+      AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),(string)AccountInfoInteger(ACCOUNT_LOGIN),
+      (string)AccountInfoInteger(ACCOUNT_MARGIN_MODE),(string)AccountInfoInteger(ACCOUNT_LEVERAGE),sym,canonical,
+      (string)pid,(string)ticket,bull?"BUY":"SELL",context,(string)cls,StopFailureClassText(cls),(string)action,StopFailureActionText(action),
+      (string)ret,desc,(string)count,critical?"1":"0",DoubleToString(PositionGetDouble(POSITION_SL),DigitsFor(sym)),
+      DoubleToString(requestedSL,DigitsFor(sym)),DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN),DigitsFor(sym)),DoubleToString(rNow,3),
+      DoubleToString(spread,1),(string)StopQuoteAgeSeconds(sym),(string)SymbolInfoInteger(sym,SYMBOL_TRADE_STOPS_LEVEL),
+      (string)SymbolInfoInteger(sym,SYMBOL_TRADE_FREEZE_LEVEL),(string)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE),
+      (string)SymbolInfoInteger(sym,SYMBOL_TRADE_EXEMODE),TerminalInfoInteger(TERMINAL_CONNECTED)?"1":"0",
+      PositionFlag(pid,ticket,"TP1PARTIAL")?"1":"0",PositionFlag(pid,ticket,"TP1DONE")?"1":"0",
+      PositionFlag(pid,ticket,"TP2PARTIAL")?"1":"0",(string)ActualProtectionStage(ticket),(string)retry,
+      (next>0?TimeToString(next,TIME_DATE|TIME_SECONDS):""),reason);
+   if(InpStopObservabilityFlushEachEvent) FileFlush(h);
+   FileClose(h);
+
+   if(!recoveryEvent && StopFailureActionRequiresOperator(action) && InpBlockOnOperatorStopState)
+      StopFailurePauseNewEntries(sym+": broker stop state "+StopFailureClassText(cls)+" requires operator/broker condition change.");
+}
+
+void RecordStopFailureObservation(ulong ticket,const string context,const string reason,bool critical,double requestedSL=0,double rNow=0)
+{
+   RecordStopObservationEvent(ticket,critical?"CRITICAL_FAILURE":"STOP_UPDATE_FAILURE",context,reason,critical,requestedSL,rNow);
+}
+
+void RecordStopRecoveryObservation(ulong ticket,const string context,const string note)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   RecordStopObservationEvent(ticket,"STOP_PROTECTION_RECOVERED",context,note,false,PositionGetDouble(POSITION_SL),0);
+}
+
+void RecordPartialProtectionObservation(ulong ticket,const string eventName,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   RecordStopObservationEvent(ticket,eventName,"PARTIAL_PROTECTION",reason,eventName=="PARTIAL_PROTECTION_HAZARD",PositionGetDouble(POSITION_SL),0);
+
+   if((eventName=="PARTIAL_PROTECTION_COMPLETED" || eventName=="PARTIAL_PROTECTION_RECOVERED") &&
+      StopFailureCount(pid)<=0 && GVRead(PosKey(pid,"STOP_FAIL_CRITICAL"),0)<=0.5)
+   {
+      GVWrite(PosKey(pid,"STOP_FAIL_CLASS_CODE"),STOP_CLASS_NONE);
+      GVWrite(PosKey(pid,"STOP_FAIL_ACTION_CODE"),STOP_ACTION_NONE);
+      GVWrite(PosKey(pid,"STOP_FAIL_RETRY_SEC"),0);
+      GVWrite(PosKey(pid,"STOP_FAIL_NEXT_RETRY"),0);
+   }
+}
+
+bool PartialProtectionHazardActive(string &why)
+{
+   why="No partial-protection hazard.";
+   datetime now=TimeTradeServer();
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      bool partial=PositionFlag(pid,tk,"TP1PARTIAL");
+      bool done=PositionFlag(pid,tk,"TP1DONE");
+      if(!partial || done) continue;
+      datetime tp1=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(tk,"TP1_TIME",0));
+      int elapsed=(tp1>0?(int)(now-tp1):0);
+      if(elapsed>=MathMax(1,InpPartialProtectionMaxSeconds))
+      {
+         why=StringFormat("%s has TP1 partial completed but breakeven protection remains incomplete for %d sec.",PositionGetString(POSITION_SYMBOL),elapsed);
+         return true;
+      }
+   }
+   return false;
+}
+
+bool StopPortfolioProtectionHazardActive(string &why)
+{
+   why="Stop portfolio protection state clear.";
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      string sym=PositionGetString(POSITION_SYMBOL);
+      double sl=PositionGetDouble(POSITION_SL);
+      if(sl<=0)
+      {
+         why=sym+": open GPT_EA position has no protective SL.";
+         return true;
+      }
+      if(InpBlockOnCriticalStopState && GVRead(PosKey(pid,"STOP_FAIL_CRITICAL"),0)>0.5)
+      {
+         why=sym+": critical stop failure state remains active.";
+         return true;
+      }
+      int action=(int)GVRead(PosKey(pid,"STOP_FAIL_ACTION_CODE"),STOP_ACTION_NONE);
+      if(InpBlockOnOperatorStopState && StopFailureActionRequiresOperator(action))
+      {
+         why=sym+": stop failure requires operator/broker condition change.";
+         return true;
+      }
+      if(InpStopFailurePauseAfter>0 && StopFailureCount(pid)>=InpStopFailurePauseAfter)
+      {
+         why=StringFormat("%s: repeated stop failures reached pause threshold (%d).",sym,StopFailureCount(pid));
+         return true;
+      }
+   }
+   return false;
+}
+
+bool StopObservabilityAllowsNewEntries(string &why)
+{
+   string portfolioWhy="";
+   if(StopPortfolioProtectionHazardActive(portfolioWhy)){ why=portfolioWhy; return false; }
+   if(InpBlockNewEntriesOnPartialProtection && PartialProtectionHazardActive(why)) return false;
+   why="Stop observability/release gate clear.";
+   return true;
+}
+
+void ObservePartialProtectionState()
+{
+   datetime now=TimeTradeServer();
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      bool partial=PositionFlag(pid,tk,"TP1PARTIAL");
+      bool done=PositionFlag(pid,tk,"TP1DONE");
+      bool logged=(GVRead(PosKey(pid,"PARTIAL_PROTECT_HAZARD_LOGGED"),0)>0.5);
+
+      if(partial && !done)
+      {
+         datetime tp1=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(tk,"TP1_TIME",0));
+         int elapsed=(tp1>0?(int)(now-tp1):0);
+         if(elapsed>=MathMax(1,InpPartialProtectionMaxSeconds))
+         {
+            string why=StringFormat("TP1 partial completed but required breakeven protection has remained incomplete for %d sec.",elapsed);
+            if(!logged)
+            {
+               GVWrite(PosKey(pid,"PARTIAL_PROTECT_HAZARD_LOGGED"),1);
+               RecordPartialProtectionObservation(tk,"PARTIAL_PROTECTION_HAZARD",why);
+               Print("GPT_EA PARTIAL PROTECTION HAZARD: ",PositionGetString(POSITION_SYMBOL)," - ",why);
+            }
+            if(InpBlockNewEntriesOnPartialProtection) StopFailurePauseNewEntries(PositionGetString(POSITION_SYMBOL)+": "+why);
+         }
+      }
+      else if(done && logged)
+      {
+         RecordPartialProtectionObservation(tk,"PARTIAL_PROTECTION_RECOVERED","TP1 partial and required protection are now complete.");
+         GVWrite(PosKey(pid,"PARTIAL_PROTECT_HAZARD_LOGGED"),0);
+      }
+   }
+}
+
+string StopObservabilityHealthSummary()
+{
+   string why="";
+   if(!StopObservabilityAllowsNewEntries(why)) return "BLOCKED: "+why;
+   return "CLEAR";
+}
+
+void StopFailureObservabilityInit()
+{
+   EnsureStopFailureObservabilityHeader();
+   ObservePartialProtectionState();
+   Print("GPT_EA stop observability: ",StopObservabilityHealthSummary());
+}
+
+void StopFailureObservabilityTimer()
+{
+   ObservePartialProtectionState();
+}
+// ===== END INLINED GPT_EA_Part18_StopBrokerObservability.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part28_ReleaseCertification.mqh =====
+// ============================================================================
+// GPT_EA Part 28 - Live release certification / evidence gate
+// ============================================================================
+// This gate does not replace testing. It prevents a REAL account from being
+// armed unless the operator explicitly attests that the release evidence for
+// the current release ID has been completed, validated and archived.
+
+input bool   InpRequireReleaseEvidenceOnReal          = true;
+input string InpReleaseValidationId                   = "";
+input bool   InpReleaseMetaEditorCompilePassed        = false;
+input bool   InpReleaseArtifactIdentityArchived       = false;
+input bool   InpReleaseStrategyTesterPassed           = false;
+input bool   InpReleaseIntelligenceMatrixPassed       = false;
+input bool   InpReleaseAdaptivePortfolioPassed        = false;
+input bool   InpReleaseExecutionLearningPassed        = false;
+input bool   InpReleaseChampionChallengerPassed       = false;
+input bool   InpReleaseLifecycleIntegrityPassed       = false;
+input bool   InpReleaseBrokerMatrixPassed             = false;
+input bool   InpReleaseDeploymentProfilePassed        = false;
+input bool   InpReleaseRecoveryTestsPassed            = false;
+input bool   InpReleaseStopMatrixPassed               = false;
+input bool   InpReleaseBrokerStopPolicyPassed         = false;
+input bool   InpReleasePartialProtectionPassed        = false;
+input bool   InpReleaseStopObservabilityPassed        = false;
+input bool   InpReleaseLiveNewsIntermarketPassed      = false;
+input bool   InpReleaseWebFailureInjectionPassed      = false;
+input bool   InpReleaseDemoSoakPassed                 = false;
+input bool   InpReleaseOperatorReviewPassed           = false;
+
+// Concrete compile/artifact identity.
+input string InpReleaseSourceCommitSha                = "";
+input string InpReleaseEx5Sha256                      = "";
+input string InpReleaseSetSha256                      = ""; // 64 hex or literal NONE
+input string InpReleaseCompileEvidenceId              = "";
+input string InpReleaseMetaEditorBuild                = "";
+input string InpReleaseMT5Build                       = "";
+
+// Versioned demo-soak evidence.
+input string InpReleaseSoakSchemaVersion              = "";
+input string InpReleaseSoakEvidenceId                 = "";
+input string InpReleaseSoakEvidenceDigest             = "";
+input int    InpReleaseSoakTradingDays                = 0;
+input int    InpReleaseSoakLondonSessions             = 0;
+input int    InpReleaseSoakNYSessions                 = 0;
+input bool   InpReleaseSoakOverlapObserved            = false;
+input bool   InpReleaseSoakNewsDayObserved            = false;
+input bool   InpReleaseSoakRolloverObserved           = false;
+input bool   InpReleaseSoakRestartObserved            = false;
+input bool   InpReleaseSoakReconnectObserved          = false;
+input int    InpReleaseSoakScheduledScans             = 0;
+input int    InpReleaseSoakContinuousScans            = 0;
+input int    InpReleaseSoakCheckpointUpdates          = 0;
+input int    InpReleaseSoakBackupCheckpointUpdates    = 0;
+input int    InpReleaseSoakZeroToleranceFailures      = 0;
+input int    InpReleaseSoakUnresolvedCriticalStates   = 0;
+input int    InpReleaseSoakDuplicateOrders            = 0;
+input int    InpReleaseSoakDuplicatePartials          = 0;
+input int    InpReleaseSoakSLRegressions              = 0;
+input int    InpReleaseSoakUnprotectedAuthorizations  = 0;
+input int    InpReleaseSoakReleaseGateBypasses        = 0;
+input int    InpReleaseSoakAnalyticsDuplicateFinal    = 0;
+input int    InpReleaseSoakStopJoinFailures           = 0;
+input int    InpReleaseSoakDashboardMismatches        = 0;
+input int    InpReleaseSoakRuntimeCriticalErrors      = 0;
+input int    InpReleaseSoakSecretsExposed             = 0;
+input bool   InpReleaseSoakExecutionLogPresent        = false;
+input bool   InpReleaseSoakStopLogPresent             = false;
+input bool   InpReleaseSoakReleaseLogPresent          = false;
+
+// Final GO/NO-GO review identity.
+input string InpReleaseFinalReviewEvidenceId          = "";
+input string InpReleaseFinalReviewDigest              = "";
+input string InpReleaseFinalDecision                  = ""; // must be GO
+input string InpReleaseFinalReviewer                  = "";
+input string InpReleaseFinalReviewTimestamp           = "";
+
+input bool   InpWriteReleaseEvidenceSnapshot          = true;
+input string InpReleaseEvidenceSnapshotFile           = "GPT_EA_ReleaseEvidence.csv";
+
+const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917";
+const string GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1";
+
+bool ReleaseHexString(const string value,const int expectedLen)
+{
+   if(StringLen(value)!=expectedLen) return false;
+   const string hex="0123456789abcdefABCDEF";
+   for(int i=0;i<expectedLen;i++)
+   {
+      string ch=StringSubstr(value,i,1);
+      if(StringFind(hex,ch)<0) return false;
+   }
+   return true;
+}
+
+bool ReleaseArtifactIdentityAllows(string &why)
+{
+   why="";
+   if(!InpReleaseArtifactIdentityArchived)
+   {
+      why="Artifact identity has not been archived.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseSourceCommitSha,40))
+   {
+      why="Source commit SHA must be an exact 40-character hexadecimal Git commit.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseEx5Sha256,64))
+   {
+      why="EX5 SHA-256 must be an exact 64-character hexadecimal digest.";
+      return false;
+   }
+   if(InpReleaseSetSha256!="NONE" && !ReleaseHexString(InpReleaseSetSha256,64))
+   {
+      why="SET SHA-256 must be 64 hexadecimal characters or literal NONE.";
+      return false;
+   }
+   if(StringLen(InpReleaseCompileEvidenceId)<4)
+   {
+      why="Compile evidence ID/reference is missing.";
+      return false;
+   }
+   if(StringLen(InpReleaseMetaEditorBuild)<1 || StringLen(InpReleaseMT5Build)<1)
+   {
+      why="MetaEditor/MT5 build identity is incomplete.";
+      return false;
+   }
+   why="Artifact identity fields are structurally valid.";
+   return true;
+}
+
+bool ReleaseDemoSoakEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseDemoSoakPassed)
+   {
+      why="Demo-soak acceptance has not been attested.";
+      return false;
+   }
+   if(InpReleaseSoakSchemaVersion!=GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION)
+   {
+      why="Demo-soak schema version is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseSoakEvidenceId)<4)
+   {
+      why="Demo-soak evidence ID/reference is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseSoakEvidenceDigest,64))
+   {
+      why="Demo-soak evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(InpReleaseSoakTradingDays<5)
+   {
+      why="Demo soak requires at least 5 consecutive trading days.";
+      return false;
+   }
+   if(InpReleaseSoakLondonSessions<3 || InpReleaseSoakNYSessions<3)
+   {
+      why="Demo soak requires at least 3 London and 3 New York/U.S. cash sessions.";
+      return false;
+   }
+   if(!InpReleaseSoakOverlapObserved || !InpReleaseSoakNewsDayObserved || !InpReleaseSoakRolloverObserved ||
+      !InpReleaseSoakRestartObserved || !InpReleaseSoakReconnectObserved)
+   {
+      why="Demo soak is missing overlap/news/rollover/restart/reconnect coverage.";
+      return false;
+   }
+   if(InpReleaseSoakScheduledScans<1 || InpReleaseSoakContinuousScans<1)
+   {
+      why="Demo soak must observe both scheduled and continuous scanning.";
+      return false;
+   }
+   if(InpReleaseSoakCheckpointUpdates<1 || InpReleaseSoakBackupCheckpointUpdates<1)
+   {
+      why="Demo soak must observe primary and backup recovery checkpoint updates.";
+      return false;
+   }
+   if(InpReleaseSoakZeroToleranceFailures!=0 || InpReleaseSoakUnresolvedCriticalStates!=0 ||
+      InpReleaseSoakDuplicateOrders!=0 || InpReleaseSoakDuplicatePartials!=0 || InpReleaseSoakSLRegressions!=0 ||
+      InpReleaseSoakUnprotectedAuthorizations!=0 || InpReleaseSoakReleaseGateBypasses!=0 ||
+      InpReleaseSoakAnalyticsDuplicateFinal!=0 || InpReleaseSoakStopJoinFailures!=0 ||
+      InpReleaseSoakDashboardMismatches!=0 || InpReleaseSoakRuntimeCriticalErrors!=0 || InpReleaseSoakSecretsExposed!=0)
+   {
+      why="Demo soak contains a non-zero zero-tolerance, critical, duplicate, protection, release, analytics, observability, runtime or secret-exposure count.";
+      return false;
+   }
+   if(!InpReleaseSoakExecutionLogPresent || !InpReleaseSoakStopLogPresent || !InpReleaseSoakReleaseLogPresent)
+   {
+      why="Demo soak is missing required execution/stop/release evidence logs.";
+      return false;
+   }
+   why="Demo-soak schema and quantitative acceptance fields pass.";
+   return true;
+}
+
+bool ReleaseFinalReviewAllows(string &why)
+{
+   why="";
+   if(!InpReleaseOperatorReviewPassed)
+   {
+      why="Final operator release review has not been attested.";
+      return false;
+   }
+   if(StringLen(InpReleaseFinalReviewEvidenceId)<4)
+   {
+      why="Final GO/NO-GO review evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseFinalReviewDigest,64))
+   {
+      why="Final review digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(InpReleaseFinalDecision!="GO")
+   {
+      why="Final release decision must be literal GO.";
+      return false;
+   }
+   if(StringLen(InpReleaseFinalReviewer)<2 || StringLen(InpReleaseFinalReviewTimestamp)<8)
+   {
+      why="Final reviewer identity/timestamp is incomplete.";
+      return false;
+   }
+   why="Final GO/NO-GO review identity is structurally valid.";
+   return true;
+}
+
+bool ReleaseEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpRequireReleaseEvidenceOnReal)
+   {
+      why="Release-evidence gate disabled by input.";
+      return true;
+   }
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: release-evidence attestation not required.";
+      return true;
+   }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode!=ACCOUNT_TRADE_MODE_REAL)
+   {
+      why="Demo/contest account: release-evidence attestation is informational only.";
+      return true;
+   }
+
+   if(InpReleaseValidationId!=GPT_EA_REQUIRED_RELEASE_VALIDATION_ID)
+   {
+      why="REAL account blocked: release validation ID is missing or stale.";
+      return false;
+   }
+   if(!InpReleaseMetaEditorCompilePassed){ why="REAL account blocked: MetaEditor compile gate has not been attested."; return false; }
+
+   string artifactWhy="";
+   if(!ReleaseArtifactIdentityAllows(artifactWhy))
+   {
+      why="REAL account blocked: "+artifactWhy;
+      return false;
+   }
+
+   if(!InpReleaseStrategyTesterPassed){ why="REAL account blocked: Strategy Tester validation has not been attested."; return false; }
+   if(!InpReleaseIntelligenceMatrixPassed){ why="REAL account blocked: full-intelligence matrix has not been attested."; return false; }
+   if(!InpReleaseAdaptivePortfolioPassed){ why="REAL account blocked: adaptive portfolio/risk-supervisor matrix has not been attested."; return false; }
+   if(!InpReleaseExecutionLearningPassed){ why="REAL account blocked: execution-learning matrix has not been attested."; return false; }
+   if(!InpReleaseChampionChallengerPassed){ why="REAL account blocked: champion/challenger validation has not been attested."; return false; }
+   if(!InpReleaseLifecycleIntegrityPassed){ why="REAL account blocked: lifecycle/integrity/replay validation has not been attested."; return false; }
+   if(!InpReleaseBrokerMatrixPassed){ why="REAL account blocked: broker/account/symbol matrix has not been attested."; return false; }
+   if(!InpReleaseDeploymentProfilePassed){ why="REAL account blocked: deployment profile/drift validation has not been attested."; return false; }
+   if(!InpReleaseRecoveryTestsPassed){ why="REAL account blocked: restart/recovery tests have not been attested."; return false; }
+   if(!InpReleaseStopMatrixPassed){ why="REAL account blocked: HIGH-priority stop-management matrix has not been attested."; return false; }
+   if(!InpReleaseBrokerStopPolicyPassed){ why="REAL account blocked: broker-specific stop policy tests have not been attested."; return false; }
+   if(!InpReleasePartialProtectionPassed){ why="REAL account blocked: partial-protection release test has not been attested."; return false; }
+   if(!InpReleaseStopObservabilityPassed){ why="REAL account blocked: stop observability validation has not been attested."; return false; }
+   if(!InpReleaseLiveNewsIntermarketPassed){ why="REAL account blocked: live news/intermarket validation has not been attested."; return false; }
+   if(!InpReleaseWebFailureInjectionPassed){ why="REAL account blocked: OpenAI/WebRequest failure-injection has not been attested."; return false; }
+
+   string soakWhy="";
+   if(!ReleaseDemoSoakEvidenceAllows(soakWhy))
+   {
+      why="REAL account blocked: "+soakWhy;
+      return false;
+   }
+
+   string reviewWhy="";
+   if(!ReleaseFinalReviewAllows(reviewWhy))
+   {
+      why="REAL account blocked: "+reviewWhy;
+      return false;
+   }
+
+   why="Release evidence attested for "+GPT_EA_REQUIRED_RELEASE_VALIDATION_ID+" | "+artifactWhy+" | "+soakWhy+" | "+reviewWhy;
+   return true;
+}
+
+bool ReleaseSafetyAllowsCertified(const string sym,string &why)
+{
+   string base="";
+   if(!ReleaseSafetyAllows(sym,base))
+   {
+      why=base;
+      return false;
+   }
+
+   string stopHealth="";
+   if(!StopObservabilityAllowsNewEntries(stopHealth))
+   {
+      why="Stop-health release gate failed: "+stopHealth;
+      return false;
+   }
+
+   string evidence="";
+   if(!ReleaseEvidenceAllows(evidence))
+   {
+      why=evidence;
+      return false;
+   }
+   why=base+(base!=""?" | ":"")+stopHealth+(stopHealth!=""?" | ":"")+evidence;
+   return true;
+}
+
+void RefreshCertifiedReleaseState()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllowsCertified("",why);
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All certified release gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
+      Print("GPT_EA CERTIFIED RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked)
+      Print("GPT_EA CERTIFIED RELEASE GATE CLEARED.");
+}
+
+string ReleaseGateSummaryCertified()
+{
+   string why="";
+   if(!ReleaseSafetyAllowsCertified("",why)) return "BLOCKED - "+why;
+   return "PASS - "+why;
+}
+
+void WriteReleaseEvidenceSnapshot()
+{
+   if(!InpWriteReleaseEvidenceSnapshot || (bool)MQLInfoInteger(MQL_TESTER)) return;
+   int h=FileOpen(InpReleaseEvidenceSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE)
+   {
+      Print("Release evidence snapshot open failed: ",GetLastError());
+      return;
+   }
+   if(FileSize(h)==0)
+      FileWrite(h,"time","required_release_id","entered_release_id","account_mode","broker","server",
+         "source_commit","ex5_sha256","set_sha256","compile_evidence_id","metaeditor_build","mt5_build",
+         "compile","artifact_identity","strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger","lifecycle_integrity",
+         "broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy","partial_protection","stop_observability","live_news_intermarket",
+         "web_failure_injection","demo_soak","soak_schema","soak_evidence_id","soak_digest","soak_trading_days","soak_london_sessions","soak_ny_sessions",
+         "soak_overlap","soak_news_day","soak_rollover","soak_restart","soak_reconnect","soak_scheduled_scans","soak_continuous_scans",
+         "soak_checkpoint_updates","soak_backup_updates","soak_zero_tolerance_failures","soak_unresolved_critical","soak_duplicate_orders","soak_duplicate_partials",
+         "soak_sl_regressions","soak_unprotected_authorizations","soak_gate_bypasses","soak_analytics_duplicate_final","soak_stop_join_failures",
+         "soak_dashboard_mismatches","soak_runtime_critical_errors","soak_secrets_exposed","soak_execution_log","soak_stop_log","soak_release_log",
+         "operator_review","final_review_id","final_review_digest","final_decision","final_reviewer","final_review_timestamp","gate_result","reason");
+   FileSeek(h,0,SEEK_END);
+   string why=""; bool ok=ReleaseSafetyAllowsCertified("",why);
+   FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseValidationId,
+      (string)AccountInfoInteger(ACCOUNT_TRADE_MODE),AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER),
+      InpReleaseSourceCommitSha,InpReleaseEx5Sha256,InpReleaseSetSha256,InpReleaseCompileEvidenceId,InpReleaseMetaEditorBuild,InpReleaseMT5Build,
+      InpReleaseMetaEditorCompilePassed?"1":"0",InpReleaseArtifactIdentityArchived?"1":"0",InpReleaseStrategyTesterPassed?"1":"0",
+      InpReleaseIntelligenceMatrixPassed?"1":"0",InpReleaseAdaptivePortfolioPassed?"1":"0",InpReleaseExecutionLearningPassed?"1":"0",
+      InpReleaseChampionChallengerPassed?"1":"0",InpReleaseLifecycleIntegrityPassed?"1":"0",InpReleaseBrokerMatrixPassed?"1":"0",
+      InpReleaseDeploymentProfilePassed?"1":"0",InpReleaseRecoveryTestsPassed?"1":"0",InpReleaseStopMatrixPassed?"1":"0",
+      InpReleaseBrokerStopPolicyPassed?"1":"0",InpReleasePartialProtectionPassed?"1":"0",InpReleaseStopObservabilityPassed?"1":"0",
+      InpReleaseLiveNewsIntermarketPassed?"1":"0",InpReleaseWebFailureInjectionPassed?"1":"0",InpReleaseDemoSoakPassed?"1":"0",
+      InpReleaseSoakSchemaVersion,InpReleaseSoakEvidenceId,InpReleaseSoakEvidenceDigest,(string)InpReleaseSoakTradingDays,
+      (string)InpReleaseSoakLondonSessions,(string)InpReleaseSoakNYSessions,InpReleaseSoakOverlapObserved?"1":"0",
+      InpReleaseSoakNewsDayObserved?"1":"0",InpReleaseSoakRolloverObserved?"1":"0",InpReleaseSoakRestartObserved?"1":"0",
+      InpReleaseSoakReconnectObserved?"1":"0",(string)InpReleaseSoakScheduledScans,(string)InpReleaseSoakContinuousScans,
+      (string)InpReleaseSoakCheckpointUpdates,(string)InpReleaseSoakBackupCheckpointUpdates,(string)InpReleaseSoakZeroToleranceFailures,
+      (string)InpReleaseSoakUnresolvedCriticalStates,(string)InpReleaseSoakDuplicateOrders,(string)InpReleaseSoakDuplicatePartials,
+      (string)InpReleaseSoakSLRegressions,(string)InpReleaseSoakUnprotectedAuthorizations,(string)InpReleaseSoakReleaseGateBypasses,
+      (string)InpReleaseSoakAnalyticsDuplicateFinal,(string)InpReleaseSoakStopJoinFailures,(string)InpReleaseSoakDashboardMismatches,
+      (string)InpReleaseSoakRuntimeCriticalErrors,(string)InpReleaseSoakSecretsExposed,InpReleaseSoakExecutionLogPresent?"1":"0",
+      InpReleaseSoakStopLogPresent?"1":"0",InpReleaseSoakReleaseLogPresent?"1":"0",InpReleaseOperatorReviewPassed?"1":"0",
+      InpReleaseFinalReviewEvidenceId,InpReleaseFinalReviewDigest,InpReleaseFinalDecision,InpReleaseFinalReviewer,InpReleaseFinalReviewTimestamp,
+      ok?"PASS":"BLOCK",why);
+   FileFlush(h); FileClose(h);
+}
+
+void ReleaseCertificationInit()
+{
+   RefreshCertifiedReleaseState();
+   WriteReleaseEvidenceSnapshot();
+   Print("GPT_EA release certification: ",g_releaseBlocked?"BLOCK - ":"PASS - ",g_releaseBlockReason);
+}
+
+void AdvancedSafetyInitCertified()
+{
+   AdvancedSafetyInit();
+   RefreshCertifiedReleaseState();
+}
+
+void AdvancedSafetyTimerCertified()
+{
+   AdvancedSafetyTimer();
+   RefreshCertifiedReleaseState();
+}
+
+void StopFailureObservabilityInitCertified()
+{
+   StopFailureObservabilityInit();
+   ReleaseCertificationInit();
+}
+// ===== END INLINED GPT_EA_Part28_ReleaseCertification.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part29_DeploymentDriftGuard.mqh =====
+// ============================================================================
+// GPT_EA Part 29 - Deployment identity and broker contract drift guard
+// ============================================================================
+
+input bool   InpUseDeploymentDriftGuard          = true;
+input bool   InpRequireExpectedIdentityOnReal    = false;
+input string InpExpectedBrokerCompany            = "";
+input string InpExpectedTradeServer              = "";
+input string InpExpectedAccountCurrency          = "";
+input int    InpExpectedMarginMode               = -1;
+input int    InpExpectedAccountLeverage          = 0;
+input bool   InpBlockOnStructuralSymbolDrift     = true;
+
+struct DeploymentSymbolBaseline
+{
+   string symbol;
+   int digits;
+   double point;
+   double tickSize;
+   double contractSize;
+   double volumeStep;
+   long calcMode;
+   long executionMode;
+   long fillingMode;
+};
+
+DeploymentSymbolBaseline g_deploymentBaseline[];
+bool g_deploymentDriftBlocked=false;
+string g_deploymentDriftReason="Not evaluated";
+
+bool NearlySame(double a,double b,double rel=1e-9)
+{
+   double scale=MathMax(1.0,MathMax(MathAbs(a),MathAbs(b)));
+   return MathAbs(a-b)<=rel*scale;
+}
+
+void CaptureDeploymentBaseline()
+{
+   ArrayResize(g_deploymentBaseline,0);
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i];
+      if(sym=="" || !EnsureSymbol(sym)) continue;
+      int n=ArraySize(g_deploymentBaseline);
+      ArrayResize(g_deploymentBaseline,n+1);
+      g_deploymentBaseline[n].symbol=sym;
+      g_deploymentBaseline[n].digits=(int)SymbolInfoInteger(sym,SYMBOL_DIGITS);
+      g_deploymentBaseline[n].point=SymbolInfoDouble(sym,SYMBOL_POINT);
+      g_deploymentBaseline[n].tickSize=SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE);
+      g_deploymentBaseline[n].contractSize=SymbolInfoDouble(sym,SYMBOL_TRADE_CONTRACT_SIZE);
+      g_deploymentBaseline[n].volumeStep=SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP);
+      g_deploymentBaseline[n].calcMode=SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+      g_deploymentBaseline[n].executionMode=SymbolInfoInteger(sym,SYMBOL_TRADE_EXEMODE);
+      g_deploymentBaseline[n].fillingMode=SymbolInfoInteger(sym,SYMBOL_FILLING_MODE);
+   }
+}
+
+bool ExpectedDeploymentIdentityAllows(string &why)
+{
+   why="";
+   if(!InpUseDeploymentDriftGuard){ why="Deployment drift guard disabled."; return true; }
+
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   bool real=(mode==ACCOUNT_TRADE_MODE_REAL);
+   if(real && InpRequireExpectedIdentityOnReal)
+   {
+      if(InpExpectedBrokerCompany=="" || InpExpectedTradeServer=="" || InpExpectedAccountCurrency=="")
+      {
+         why="REAL account deployment identity required but expected broker/server/currency is incomplete.";
+         return false;
+      }
+   }
+
+   if(InpExpectedBrokerCompany!="" && AccountInfoString(ACCOUNT_COMPANY)!=InpExpectedBrokerCompany)
+   {
+      why="Broker company differs from certified deployment identity.";
+      return false;
+   }
+   if(InpExpectedTradeServer!="" && AccountInfoString(ACCOUNT_SERVER)!=InpExpectedTradeServer)
+   {
+      why="Trade server differs from certified deployment identity.";
+      return false;
+   }
+   if(InpExpectedAccountCurrency!="" && AccountInfoString(ACCOUNT_CURRENCY)!=InpExpectedAccountCurrency)
+   {
+      why="Account currency differs from certified deployment identity.";
+      return false;
+   }
+   if(InpExpectedMarginMode>=0 && AccountInfoInteger(ACCOUNT_MARGIN_MODE)!=InpExpectedMarginMode)
+   {
+      why="Account margin mode differs from certified deployment identity.";
+      return false;
+   }
+   if(InpExpectedAccountLeverage>0 && AccountInfoInteger(ACCOUNT_LEVERAGE)!=InpExpectedAccountLeverage)
+   {
+      why="Account leverage differs from certified deployment identity.";
+      return false;
+   }
+   return true;
+}
+
+bool StructuralSymbolDriftAllows(string &why)
+{
+   why="";
+   if(!InpUseDeploymentDriftGuard || !InpBlockOnStructuralSymbolDrift) return true;
+   for(int i=0;i<ArraySize(g_deploymentBaseline);i++)
+   {
+      string sym=g_deploymentBaseline[i].symbol;
+      if(!EnsureSymbol(sym))
+      {
+         why=sym+" is no longer available after deployment baseline capture.";
+         return false;
+      }
+      int digits=(int)SymbolInfoInteger(sym,SYMBOL_DIGITS);
+      double point=SymbolInfoDouble(sym,SYMBOL_POINT);
+      double tick=SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE);
+      double contract=SymbolInfoDouble(sym,SYMBOL_TRADE_CONTRACT_SIZE);
+      double step=SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP);
+      long calc=SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+      long exec=SymbolInfoInteger(sym,SYMBOL_TRADE_EXEMODE);
+      long fill=SymbolInfoInteger(sym,SYMBOL_FILLING_MODE);
+
+      if(digits!=g_deploymentBaseline[i].digits || !NearlySame(point,g_deploymentBaseline[i].point) ||
+         !NearlySame(tick,g_deploymentBaseline[i].tickSize) || !NearlySame(contract,g_deploymentBaseline[i].contractSize) ||
+         !NearlySame(step,g_deploymentBaseline[i].volumeStep) || calc!=g_deploymentBaseline[i].calcMode ||
+         exec!=g_deploymentBaseline[i].executionMode || fill!=g_deploymentBaseline[i].fillingMode)
+      {
+         why=StringFormat("%s structural broker contract drift detected: digits/point/tick/contract/volume-step/calc/execution/filling profile changed.",sym);
+         return false;
+      }
+   }
+   return true;
+}
+
+bool DeploymentDriftAllows(string &why)
+{
+   string id="";
+   if(!ExpectedDeploymentIdentityAllows(id)){ why=id; return false; }
+   string structural="";
+   if(!StructuralSymbolDriftAllows(structural)){ why=structural; return false; }
+   why="Deployment identity and structural symbol profile stable.";
+   return true;
+}
+
+bool ReleaseSafetyAllowsR6(const string sym,string &why)
+{
+   string certified="";
+   if(!ReleaseSafetyAllowsCertified(sym,certified))
+   {
+      why=certified;
+      return false;
+   }
+   string drift="";
+   if(!DeploymentDriftAllows(drift))
+   {
+      why="Deployment drift gate failed: "+drift;
+      return false;
+   }
+   why=certified+(certified!=""?" | ":"")+drift;
+   return true;
+}
+
+void RefreshR6ReleaseState()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllowsR6("",why);
+   g_deploymentDriftBlocked=!ok && StringFind(why,"Deployment drift gate failed")>=0;
+   g_deploymentDriftReason=(g_deploymentDriftBlocked?why:"Deployment drift gate clear.");
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All R6 release gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
+      Print("GPT_EA R6 RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked)
+      Print("GPT_EA R6 RELEASE GATE CLEARED.");
+}
+
+string ReleaseGateSummaryR6()
+{
+   string why="";
+   return ReleaseSafetyAllowsR6("",why)?"PASS - "+why:"BLOCKED - "+why;
+}
+
+void AdvancedSafetyInitR6()
+{
+   AdvancedSafetyInitCertified();
+   CaptureDeploymentBaseline();
+   RefreshR6ReleaseState();
+}
+
+void AdvancedSafetyTimerR6()
+{
+   AdvancedSafetyTimerCertified();
+   RefreshR6ReleaseState();
+}
+
+void StopFailureObservabilityInitR6()
+{
+   StopFailureObservabilityInit();
+   ReleaseCertificationInit();
+   if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();
+   RefreshR6ReleaseState();
+}
+
+void DeploymentDriftGuardInit()
+{
+   if(ArraySize(g_deploymentBaseline)==0) CaptureDeploymentBaseline();
+   RefreshR6ReleaseState();
+   Print("GPT_EA deployment drift guard: ",g_deploymentDriftBlocked?"BLOCK - ":"PASS - ",g_deploymentDriftReason);
+}
+// ===== END INLINED GPT_EA_Part29_DeploymentDriftGuard.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part28B_CIReleaseEvidence.mqh =====
+// ============================================================================
+// GPT_EA Part 28B - R6 supplemental CI / runner / MT5 / soak evidence binding
+// ============================================================================
+// Supplemental fail-closed release evidence layered on top of Part28/Part29.
+// REAL arming requires runner recovery + acceptance, executed CI provenance,
+// MT5 validation evidence, and the five-day reconciled soak record.
+
+input bool   InpReleaseRunnerRecoveryPassed             = false;
+input string InpReleaseRunnerRecoverySchemaVersion      = "";
+input string InpReleaseRunnerRecoveryEvidenceId         = "";
+input string InpReleaseRunnerRecoveryDigest             = "";
+
+input bool   InpReleaseRunnerRecoveryAcceptancePassed        = false;
+input string InpReleaseRunnerRecoveryAcceptanceSchemaVersion = "";
+input string InpReleaseRunnerRecoveryAcceptanceId            = "";
+input string InpReleaseRunnerRecoveryAcceptanceDigest        = "";
+
+input bool   InpReleaseCIStaticEvidencePassed           = false;
+input string InpReleaseCISchemaVersion                  = "";
+input long   InpReleaseCIRunId                          = 0;
+input int    InpReleaseCIRunAttempt                     = 0;
+input long   InpReleaseCIJobId                          = 0;
+input long   InpReleaseCIRunnerId                       = 0;
+input int    InpReleaseCIStepsExecuted                  = 0;
+input string InpReleaseCIHeadSha                        = "";
+input string InpReleaseCIEvidenceDigest                 = "";
+input string InpReleaseCIConclusion                     = "";
+input string InpReleaseCIArtifactName                   = "";
+input bool   InpReleaseCIArtifactArchived               = false;
+input bool   InpReleaseCIAttestationVerified            = false;
+input string InpReleaseCIBundleSchemaVersion            = "";
+input string InpReleaseCIBundleDigest                   = "";
+input bool   InpReleaseCIBundleValidated                = false;
+
+input bool   InpReleaseMT5ValidationPassed              = false;
+input string InpReleaseMT5ValidationSchemaVersion       = "";
+input string InpReleaseMT5ValidationEvidenceId          = "";
+input string InpReleaseMT5ValidationDigest              = "";
+
+input bool   InpReleaseResilienceHardeningPassed        = false;
+input string InpReleaseResilienceSchemaVersion          = "";
+input string InpReleaseResilienceEvidenceId             = "";
+input string InpReleaseResilienceDigest                 = "";
+input string InpReleaseCertifiedConfigFingerprint       = "";
+
+input string InpReleaseSoakAcceptanceSchemaVersion      = "";
+input string InpReleaseSoakAcceptanceRecordId           = "";
+input string InpReleaseSoakAcceptanceRecordDigest       = "";
+
+input bool   InpWriteR6SupplementalEvidenceSnapshot     = true;
+input string InpR6SupplementalEvidenceSnapshotFile      = "GPT_EA_R6SupplementalEvidence.csv";
+
+const string GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA       = "runner_recovery_evidence_v1";
+const string GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA     = "runner_recovery_acceptance_v1";
+const string GPT_EA_REQUIRED_CI_SCHEMA_VERSION            = "github_actions_static_evidence_v1";
+const string GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA             = "ci_evidence_bundle_v1";
+const string GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA        = "mt5_validation_evidence_v2";
+const string GPT_EA_REQUIRED_RESILIENCE_SCHEMA             = "resilience_hardening_evidence_v1";
+const string GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA           = "five_day_soak_acceptance_v2";
+
+bool ReleaseRunnerRecoveryEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseRunnerRecoveryPassed)
+   {
+      why="GitHub hosted-runner recovery evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseRunnerRecoverySchemaVersion!=GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA)
+   {
+      why="Runner-recovery evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseRunnerRecoveryEvidenceId)<8)
+   {
+      why="Runner-recovery evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseRunnerRecoveryDigest,64))
+   {
+      why="Runner-recovery evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="Hosted-runner recovery evidence PASS.";
+   return true;
+}
+
+bool ReleaseRunnerRecoveryAcceptanceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseRunnerRecoveryAcceptancePassed)
+   {
+      why="Runner-recovery production acceptance matrix has not been attested.";
+      return false;
+   }
+   if(InpReleaseRunnerRecoveryAcceptanceSchemaVersion!=GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA)
+   {
+      why="Runner-recovery acceptance schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseRunnerRecoveryAcceptanceId)<8)
+   {
+      why="Runner-recovery acceptance ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseRunnerRecoveryAcceptanceDigest,64))
+   {
+      why="Runner-recovery acceptance digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="Runner-recovery production acceptance matrix PASS.";
+   return true;
+}
+
+bool ReleaseCIStaticEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseCIStaticEvidencePassed)
+   {
+      why="GitHub Actions static evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseCISchemaVersion!=GPT_EA_REQUIRED_CI_SCHEMA_VERSION)
+   {
+      why="GitHub Actions evidence schema is missing or stale.";
+      return false;
+   }
+   if(InpReleaseCIRunId<=0 || InpReleaseCIRunAttempt<=0 || InpReleaseCIJobId<=0 || InpReleaseCIRunnerId<=0)
+   {
+      why="GitHub Actions evidence must identify an executed run/attempt/job with runner_id > 0.";
+      return false;
+   }
+   if(InpReleaseCIStepsExecuted<7)
+   {
+      why="GitHub Actions evidence shows too few executed workflow steps.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseCIHeadSha,40) || InpReleaseCIHeadSha!=InpReleaseSourceCommitSha)
+   {
+      why="GitHub Actions head SHA is invalid or does not match the certified source commit.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseCIEvidenceDigest,64))
+   {
+      why="GitHub Actions evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(InpReleaseCIConclusion!="success")
+   {
+      why="GitHub Actions conclusion must be literal success.";
+      return false;
+   }
+   if(StringLen(InpReleaseCIArtifactName)<8 || !InpReleaseCIArtifactArchived)
+   {
+      why="GitHub Actions evidence artifact is missing or not archived.";
+      return false;
+   }
+   if(!InpReleaseCIAttestationVerified)
+   {
+      why="GitHub artifact provenance attestation has not been verified.";
+      return false;
+   }
+   if(InpReleaseCIBundleSchemaVersion!=GPT_EA_REQUIRED_CI_BUNDLE_SCHEMA)
+   {
+      why="GitHub Actions CI bundle schema is missing or stale.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseCIBundleDigest,64) || !InpReleaseCIBundleValidated)
+   {
+      why="GitHub Actions final CI evidence bundle has not been validated with a valid SHA-256 digest.";
+      return false;
+   }
+   why="Executed GitHub Actions static evidence, completed-job identity, archive, provenance attestation and final bundle PASS.";
+   return true;
+}
+
+bool ReleaseMT5ValidationEvidenceAllows(string &why)
+{
+   why="";
+   if(!InpReleaseMT5ValidationPassed)
+   {
+      why="MT5/MetaEditor validation evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseMT5ValidationSchemaVersion!=GPT_EA_REQUIRED_MT5_VALIDATION_SCHEMA)
+   {
+      why="MT5 validation evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseMT5ValidationEvidenceId)<8)
+   {
+      why="MT5 validation evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseMT5ValidationDigest,64))
+   {
+      why="MT5 validation evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="MT5/MetaEditor v2 compile, tester, execution-resilience, broker-runtime, protection and live API evidence PASS.";
+   return true;
+}
+
+bool ReleaseResilienceHardeningAllows(string &why)
+{
+   why="";
+   if(!InpReleaseResilienceHardeningPassed)
+   {
+      why="R6 resilience-hardening acceptance matrix has not been attested.";
+      return false;
+   }
+   if(InpReleaseResilienceSchemaVersion!=GPT_EA_REQUIRED_RESILIENCE_SCHEMA)
+   {
+      why="Resilience-hardening evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseResilienceEvidenceId)<8)
+   {
+      why="Resilience-hardening evidence ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseResilienceDigest,64))
+   {
+      why="Resilience-hardening evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   if(StringLen(InpReleaseCertifiedConfigFingerprint)!=8)
+   {
+      why="Certified runtime configuration fingerprint must be exactly 8 hexadecimal characters.";
+      return false;
+   }
+   for(int i=0;i<8;i++)
+   {
+      ushort c=StringGetCharacter(InpReleaseCertifiedConfigFingerprint,i);
+      bool hex=((c>='0'&&c<='9')||(c>='A'&&c<='F')||(c>='a'&&c<='f'));
+      if(!hex){ why="Certified configuration fingerprint contains non-hex characters."; return false; }
+   }
+   why="R6 resilience hardening and certified configuration fingerprint PASS.";
+   return true;
+}
+
+bool ReleaseFiveDaySoakRecordAllows(string &why)
+{
+   why="";
+   if(InpReleaseSoakAcceptanceSchemaVersion!=GPT_EA_REQUIRED_SOAK_RECORD_SCHEMA)
+   {
+      why="Five-day soak acceptance schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseSoakAcceptanceRecordId)<8)
+   {
+      why="Five-day soak acceptance record ID is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseSoakAcceptanceRecordDigest,64))
+   {
+      why="Five-day soak acceptance record digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+   why="Five-day soak acceptance v2 identity/digest structurally PASS.";
+   return true;
+}
+
+bool ReleaseSupplementalR6EvidenceAllows(string &why)
+{
+   why="";
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: supplemental R6 release evidence is informational only.";
+      return true;
+   }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode!=ACCOUNT_TRADE_MODE_REAL)
+   {
+      why="Demo/contest account: supplemental R6 release evidence is informational only.";
+      return true;
+   }
+
+   string runner="";
+   if(!ReleaseRunnerRecoveryEvidenceAllows(runner))
+   {
+      why="REAL account blocked: "+runner;
+      return false;
+   }
+   string runnerAcceptance="";
+   if(!ReleaseRunnerRecoveryAcceptanceAllows(runnerAcceptance))
+   {
+      why="REAL account blocked: "+runnerAcceptance;
+      return false;
+   }
+   string ci="";
+   if(!ReleaseCIStaticEvidenceAllows(ci))
+   {
+      why="REAL account blocked: "+ci;
+      return false;
+   }
+   string mt5="";
+   if(!ReleaseMT5ValidationEvidenceAllows(mt5))
+   {
+      why="REAL account blocked: "+mt5;
+      return false;
+   }
+   string resilience="";
+   if(!ReleaseResilienceHardeningAllows(resilience))
+   {
+      why="REAL account blocked: "+resilience;
+      return false;
+   }
+   string soak="";
+   if(!ReleaseFiveDaySoakRecordAllows(soak))
+   {
+      why="REAL account blocked: "+soak;
+      return false;
+   }
+   why=runner+" | "+runnerAcceptance+" | "+ci+" | "+mt5+" | "+resilience+" | "+soak;
+   return true;
+}
+
+bool ReleaseSafetyAllowsR6Evidence(const string sym,string &why)
+{
+   string base="";
+   if(!ReleaseSafetyAllowsR6(sym,base))
+   {
+      why=base;
+      return false;
+   }
+   string supplemental="";
+   if(!ReleaseSupplementalR6EvidenceAllows(supplemental))
+   {
+      why=supplemental;
+      return false;
+   }
+   why=base+(base!=""?" | ":"")+supplemental;
+   return true;
+}
+
+void RefreshR6EvidenceReleaseState()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllowsR6Evidence("",why);
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All R6 release and supplemental evidence gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
+      Print("GPT_EA R6 EVIDENCE RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked)
+      Print("GPT_EA R6 EVIDENCE RELEASE GATE CLEARED.");
+}
+
+string ReleaseGateSummaryR6Evidence()
+{
+   string why="";
+   return ReleaseSafetyAllowsR6Evidence("",why)?"PASS - "+why:"BLOCKED - "+why;
+}
+
+void WriteR6SupplementalEvidenceSnapshot()
+{
+   if(!InpWriteR6SupplementalEvidenceSnapshot || (bool)MQLInfoInteger(MQL_TESTER)) return;
+   int h=FileOpen(InpR6SupplementalEvidenceSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(FileSize(h)==0)
+      FileWrite(h,"time","required_release_id","source_commit",
+         "runner_recovery_passed","runner_recovery_schema","runner_recovery_id","runner_recovery_digest",
+         "runner_acceptance_passed","runner_acceptance_schema","runner_acceptance_id","runner_acceptance_digest",
+         "ci_passed","ci_schema","ci_run_id","ci_run_attempt","ci_job_id","ci_runner_id","ci_steps","ci_head_sha","ci_digest",
+         "ci_conclusion","ci_artifact","ci_artifact_archived","ci_attestation_verified","ci_bundle_schema","ci_bundle_digest","ci_bundle_validated",
+         "mt5_validation_passed","mt5_validation_schema","mt5_validation_id","mt5_validation_digest",
+         "resilience_passed","resilience_schema","resilience_id","resilience_digest","certified_config_fingerprint",
+         "soak_acceptance_schema","soak_record_id","soak_record_digest","gate_result","reason");
+   FileSeek(h,0,SEEK_END);
+   string why=""; bool ok=ReleaseSafetyAllowsR6Evidence("",why);
+   FileWrite(h,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpReleaseSourceCommitSha,
+      InpReleaseRunnerRecoveryPassed?"1":"0",InpReleaseRunnerRecoverySchemaVersion,InpReleaseRunnerRecoveryEvidenceId,InpReleaseRunnerRecoveryDigest,
+      InpReleaseRunnerRecoveryAcceptancePassed?"1":"0",InpReleaseRunnerRecoveryAcceptanceSchemaVersion,InpReleaseRunnerRecoveryAcceptanceId,InpReleaseRunnerRecoveryAcceptanceDigest,
+      InpReleaseCIStaticEvidencePassed?"1":"0",InpReleaseCISchemaVersion,(string)InpReleaseCIRunId,(string)InpReleaseCIRunAttempt,
+      (string)InpReleaseCIJobId,(string)InpReleaseCIRunnerId,(string)InpReleaseCIStepsExecuted,InpReleaseCIHeadSha,InpReleaseCIEvidenceDigest,
+      InpReleaseCIConclusion,InpReleaseCIArtifactName,InpReleaseCIArtifactArchived?"1":"0",InpReleaseCIAttestationVerified?"1":"0",
+      InpReleaseCIBundleSchemaVersion,InpReleaseCIBundleDigest,InpReleaseCIBundleValidated?"1":"0",
+      InpReleaseMT5ValidationPassed?"1":"0",InpReleaseMT5ValidationSchemaVersion,InpReleaseMT5ValidationEvidenceId,InpReleaseMT5ValidationDigest,
+      InpReleaseResilienceHardeningPassed?"1":"0",InpReleaseResilienceSchemaVersion,InpReleaseResilienceEvidenceId,InpReleaseResilienceDigest,
+      InpReleaseCertifiedConfigFingerprint,
+      InpReleaseSoakAcceptanceSchemaVersion,InpReleaseSoakAcceptanceRecordId,InpReleaseSoakAcceptanceRecordDigest,
+      ok?"PASS":"BLOCK",why);
+   FileFlush(h); FileClose(h);
+}
+
+void AdvancedSafetyInitR6Evidence()
+{
+   AdvancedSafetyInitR6();
+   RefreshR6EvidenceReleaseState();
+}
+
+void AdvancedSafetyTimerR6Evidence()
+{
+   AdvancedSafetyTimerR6();
+   RefreshR6EvidenceReleaseState();
+}
+
+void StopFailureObservabilityInitR6Evidence()
+{
+   StopFailureObservabilityInitR6();
+   RefreshR6EvidenceReleaseState();
+   WriteR6SupplementalEvidenceSnapshot();
+}
+// ===== END INLINED GPT_EA_Part28B_CIReleaseEvidence.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part37A_APICompat.mqh =====
+// ============================================================================
+// GPT_EA Part 37A - API transport compatibility helpers
+// ============================================================================
+
+string APITrim(const string source)
+{
+   string value=source;
+   StringTrimLeft(value);
+   StringTrimRight(value);
+   return value;
+}
+// ===== END INLINED GPT_EA_Part37A_APICompat.mqh =====
 #define Trim APITrim
-#include "GPT_EA_Part37_APITransport.mqh"
+// ===== BEGIN INLINED GPT_EA_Part37_APITransport.mqh =====
+// ============================================================================
+// GPT_EA Part 37 - OpenAI/WebRequest transport abstraction and release guard
+// ============================================================================
+// DIRECT mode is intended for private development/single-terminal operation.
+// PROXY mode keeps the OpenAI API key server-side for distributed deployments.
+// The proxy contract is OpenAI-Responses-compatible: it accepts the same JSON
+// request body and returns the upstream status/body while authenticating MT5
+// with a separate, revocable proxy token.
+
+enum GPTAPITransportMode
+{
+   GPT_API_DIRECT_OPENAI = 0,
+   GPT_API_SECURE_PROXY  = 1
+};
+
+input GPTAPITransportMode InpAPITransportMode              = GPT_API_DIRECT_OPENAI;
+input string              InpAPIProxyEndpoint              = "";
+input string              InpAPIProxyToken                 = ""; // separate scoped proxy credential; never use the OpenAI key here
+input bool                InpAPIRequireHTTPS               = true;
+input bool                InpAPIRequireProxyOnReal         = false;
+input int                 InpAPITransportMaxTimeoutMs      = 20000;
+input int                 InpAPITransportFailureThreshold  = 3;
+input int                 InpAPITransportBackoffSeconds    = 60;
+input int                 InpAPIAuthBackoffSeconds         = 300;
+input bool                InpAPIBlockDuringBackoff         = true;
+input bool                InpAPIWriteHealthLog             = true;
+input string              InpAPIHealthLogFile              = "GPT_EA_APIHealth.csv";
+input bool                InpReleaseAPITransportPassed     = false;
+
+int      g_apiTransportFailures=0;
+datetime g_apiTransportNextRetry=0;
+long     g_apiTransportSequence=0;
+bool     g_apiTransportWasFailing=false;
+
+string APITransportModeText()
+{
+   return InpAPITransportMode==GPT_API_SECURE_PROXY ? "PROXY" : "DIRECT_OPENAI";
+}
+
+bool APIStartsWith(const string value,const string prefix)
+{
+   return StringLen(value)>=StringLen(prefix) && StringSubstr(value,0,StringLen(prefix))==prefix;
+}
+
+bool APITrustedDirectEndpoint(const string endpoint)
+{
+   // Prevent accidentally sending the OpenAI bearer token to an arbitrary host.
+   return endpoint=="https://api.openai.com" || APIStartsWith(endpoint,"https://api.openai.com/");
+}
+
+string APITransportAllowListURL()
+{
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY) return Trim(InpAPIProxyEndpoint);
+   return "https://api.openai.com";
+}
+
+// Active legacy request builders check InpOpenAIAPIKey before calling WebRequest.
+// The entry file macro-rewrites those references to this helper while the files
+// are included. DIRECT returns the real local key. PROXY returns only a harmless
+// non-secret marker when a proxy credential is configured. The resulting legacy
+// Authorization header is discarded by GPTAPIWebRequest before the proxy call.
+string APITransportLegacyCredential()
+{
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY)
+      return StringLen(Trim(InpAPIProxyToken))>=12 ? "PROXY_TRANSPORT_ACTIVE" : "";
+   return InpOpenAIAPIKey;
+}
+
+bool APITransportConfigurationAllows(string &why)
+{
+   why="";
+   if(!InpUseOpenAI)
+   {
+      why="OpenAI disabled; API transport is idle.";
+      return true;
+   }
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: WebRequest transport is unavailable by platform design.";
+      return true;
+   }
+
+   bool real=((ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL);
+   if(real && InpAPIRequireProxyOnReal && InpAPITransportMode!=GPT_API_SECURE_PROXY)
+   {
+      why="REAL account requires secure proxy transport by configuration.";
+      return false;
+   }
+
+   if(InpAPITransportMode==GPT_API_DIRECT_OPENAI)
+   {
+      string endpoint=Trim(InpOpenAIEndpoint);
+      if(endpoint=="")
+      {
+         why="Direct OpenAI endpoint is empty.";
+         return false;
+      }
+      if(InpAPIRequireHTTPS && !APIStartsWith(endpoint,"https://"))
+      {
+         why="Direct OpenAI endpoint must use HTTPS.";
+         return false;
+      }
+      if(!APITrustedDirectEndpoint(endpoint))
+      {
+         why="Direct mode refuses to send the OpenAI bearer key to a non-api.openai.com endpoint.";
+         return false;
+      }
+      if(StringLen(Trim(InpOpenAIAPIKey))<20)
+      {
+         why="Direct mode requires a locally configured OpenAI API key.";
+         return false;
+      }
+      why="DIRECT_OPENAI configured. MT5 allow-list must contain https://api.openai.com.";
+      return true;
+   }
+
+   string proxy=Trim(InpAPIProxyEndpoint);
+   if(proxy=="")
+   {
+      why="Proxy mode selected but InpAPIProxyEndpoint is empty.";
+      return false;
+   }
+   if(InpAPIRequireHTTPS && !APIStartsWith(proxy,"https://"))
+   {
+      why="Proxy endpoint must use HTTPS.";
+      return false;
+   }
+   if(StringLen(Trim(InpAPIProxyToken))<12)
+   {
+      why="Proxy mode requires a scoped proxy token of at least 12 characters.";
+      return false;
+   }
+   if(Trim(InpOpenAIAPIKey)!="" && Trim(InpAPIProxyToken)==Trim(InpOpenAIAPIKey))
+   {
+      why="Proxy token must not reuse the OpenAI API key.";
+      return false;
+   }
+   why="SECURE_PROXY configured. Add the proxy HTTPS origin/endpoint to the MT5 WebRequest allow-list.";
+   return true;
+}
+
+string APIHeaderValueCI(const string headers,const string key)
+{
+   string low=headers;
+   string needle=key;
+   StringToLower(low);
+   StringToLower(needle);
+   needle+=":";
+   int p=StringFind(low,needle);
+   if(p<0) return "";
+   p+=StringLen(needle);
+   int e=StringFind(headers,"\r\n",p);
+   if(e<0) e=StringLen(headers);
+   return Trim(StringSubstr(headers,p,e-p));
+}
+
+void APIStringToResult(const string text,char &result[])
+{
+   int n=StringToCharArray(text,result,0,WHOLE_ARRAY,CP_UTF8);
+   if(n>0) ArrayResize(result,n-1);
+}
+
+string APINewTraceId()
+{
+   g_apiTransportSequence++;
+   return StringFormat("gpt-ea-%I64d-%I64d",(long)TimeLocal(),g_apiTransportSequence);
+}
+
+void APIWriteHealthEvent(const string trace,const int code,const int mqlError,const string requestId,const string outcome)
+{
+   if(!InpAPIWriteHealthLog || (bool)MQLInfoInteger(MQL_TESTER)) return;
+   int h=FileOpen(InpAPIHealthLogFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(FileSize(h)==0)
+      FileWrite(h,"time","transport","trace_id","http_code","mql_error","consecutive_failures","next_retry","request_id","outcome");
+   FileSeek(h,0,SEEK_END);
+   string retryText=(g_apiTransportNextRetry>0?TimeToString(g_apiTransportNextRetry,TIME_DATE|TIME_SECONDS):"");
+   FileWrite(h,TimeToString(TimeLocal(),TIME_DATE|TIME_SECONDS),APITransportModeText(),trace,(string)code,(string)mqlError,
+      (string)g_apiTransportFailures,retryText,requestId,outcome);
+   FileFlush(h);
+   FileClose(h);
+}
+
+void APITransportRecordOutcome(const string trace,const int code,const int mqlError,const string responseHeaders)
+{
+   string requestId=APIHeaderValueCI(responseHeaders,"x-request-id");
+   bool success=(code>=200 && code<300);
+   if(success)
+   {
+      bool recovered=g_apiTransportWasFailing || g_apiTransportFailures>0 || g_apiTransportNextRetry>0;
+      g_apiTransportFailures=0;
+      g_apiTransportNextRetry=0;
+      g_apiTransportWasFailing=false;
+      if(recovered) APIWriteHealthEvent(trace,code,mqlError,requestId,"RECOVERED");
+      return;
+   }
+
+   g_apiTransportWasFailing=true;
+   g_apiTransportFailures++;
+   int threshold=(InpAPITransportFailureThreshold<1?1:InpAPITransportFailureThreshold);
+   int retrySeconds=(InpAPITransportBackoffSeconds<5?5:InpAPITransportBackoffSeconds);
+   int authBackoff=(InpAPIAuthBackoffSeconds<retrySeconds?retrySeconds:InpAPIAuthBackoffSeconds);
+   bool authFailure=(code==401 || code==403);
+   bool rateLimited=(code==429);
+   bool transportFailure=(code==598 || code==599);
+   bool serverFailure=(code>=500 && code<=599);
+
+   if(authFailure)
+      g_apiTransportNextRetry=TimeLocal()+authBackoff;
+   else if(rateLimited || g_apiTransportFailures>=threshold || transportFailure || serverFailure)
+      g_apiTransportNextRetry=TimeLocal()+retrySeconds;
+
+   string outcome=authFailure?"AUTH_BLOCK":(rateLimited?"RATE_LIMIT":(transportFailure?"TRANSPORT_FAIL":(serverFailure?"SERVER_FAIL":"HTTP_FAIL")));
+   APIWriteHealthEvent(trace,code,mqlError,requestId,outcome);
+}
+
+int GPTAPIWebRequest(const string method,const string url,const string headers,const int timeout,const char &data[],char &result[],string &result_headers)
+{
+   ArrayResize(result,0);
+   result_headers="";
+   GVWrite(SysKey("MODEL_REQ"),GVRead(SysKey("MODEL_REQ"),0)+1);
+
+   string config="";
+   if(!APITransportConfigurationAllows(config))
+   {
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+      APIStringToResult("API transport configuration blocked: "+config,result);
+      return 598;
+   }
+
+   datetime now=TimeLocal();
+   if(InpAPIBlockDuringBackoff && g_apiTransportNextRetry>now)
+   {
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+      APIStringToResult(StringFormat("API transport backoff active until %s.",TimeToString(g_apiTransportNextRetry,TIME_DATE|TIME_SECONDS)),result);
+      result_headers="X-GPT-EA-Transport: backoff\r\n";
+      return 598;
+   }
+
+   string trace=APINewTraceId();
+   if(ChaosInjectAPITimeout())
+   {
+      APIStringToResult("CHAOS: synthetic API timeout before network transport.",result);
+      result_headers="X-GPT-EA-Transport: chaos-timeout\r\n";
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+      APITransportRecordOutcome(trace,599,0,result_headers);
+      return 599;
+   }
+   string target=url;
+   string outgoingHeaders=headers;
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY)
+   {
+      target=Trim(InpAPIProxyEndpoint);
+      // Deliberately discard the caller's OpenAI Authorization header. The
+      // proxy injects its server-side OpenAI credential instead.
+      outgoingHeaders="Content-Type: application/json\r\n";
+      outgoingHeaders+="Accept: application/json\r\n";
+      outgoingHeaders+="X-GPT-EA-Token: "+InpAPIProxyToken+"\r\n";
+      outgoingHeaders+="X-GPT-EA-Request-Id: "+trace+"\r\n";
+      outgoingHeaders+="X-GPT-EA-Upstream: openai-responses\r\n";
+   }
+   else
+   {
+      int hlen=StringLen(outgoingHeaders);
+      if(hlen>=2 && StringSubstr(outgoingHeaders,hlen-2,2)!="\r\n") outgoingHeaders+="\r\n";
+      outgoingHeaders+="X-Client-Request-Id: "+trace+"\r\n";
+   }
+
+   int maxTimeout=(InpAPITransportMaxTimeoutMs<1000?1000:InpAPITransportMaxTimeoutMs);
+   int effectiveTimeout=(timeout<1000?1000:timeout);
+   if(effectiveTimeout>maxTimeout) effectiveTimeout=maxTimeout;
+
+   ulong transportStart=GetTickCount64();
+   ResetLastError();
+   int code=WebRequest(method,target,outgoingHeaders,effectiveTimeout,data,result,result_headers);
+   double transportLatency=(double)(GetTickCount64()-transportStart);
+   double oldLatency=GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0);
+   GVWrite(SysKey("MODEL_LATENCY_EWMA_MS"),(oldLatency<=0?transportLatency:0.20*transportLatency+0.80*oldLatency));
+   GVWrite(SysKey("MODEL_LAST_LATENCY_MS"),transportLatency);
+   int mqlError=(code==-1?GetLastError():0);
+   if(code==-1)
+   {
+      APIStringToResult(StringFormat("MT5 WebRequest transport failure %d. Verify internet/TLS and the MT5 WebRequest allow-list for %s.",
+                        mqlError,APITransportAllowListURL()),result);
+      code=599; // internal synthetic HTTP-like status so downstream code gets deterministic failure text
+   }
+
+   if(code<200 || code>=300)
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
+   else
+      GVWrite(SysKey("MODEL_LAST_TRANSPORT_OK"),(double)TimeTradeServer());
+   APITransportRecordOutcome(trace,code,mqlError,result_headers);
+   return code;
+}
+
+bool APITransportReleaseEvidenceAllows(string &why)
+{
+   why="";
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: API transport evidence is informational only.";
+      return true;
+   }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode!=ACCOUNT_TRADE_MODE_REAL)
+   {
+      why="Demo/contest account: API transport evidence is informational only.";
+      return true;
+   }
+   if(!InpReleaseAPITransportPassed)
+   {
+      why="REAL account blocked: API transport/WebRequest test matrix has not been attested.";
+      return false;
+   }
+   string config="";
+   if(!APITransportConfigurationAllows(config))
+   {
+      why="REAL account blocked: "+config;
+      return false;
+   }
+   why="API transport release evidence PASS | "+config;
+   return true;
+}
+
+bool ReleaseSafetyAllowsR7API(const string sym,string &why)
+{
+   string base="";
+   if(!ReleaseSafetyAllowsR6Evidence(sym,base))
+   {
+      why=base;
+      return false;
+   }
+   string api="";
+   if(!APITransportReleaseEvidenceAllows(api))
+   {
+      why=api;
+      return false;
+   }
+   why=base+(base!=""?" | ":"")+api;
+   return true;
+}
+
+void RefreshR7APIReleaseState()
+{
+   bool oldBlocked=g_releaseBlocked;
+   string oldReason=g_releaseBlockReason;
+   string why="";
+   bool ok=ReleaseSafetyAllowsR7API("",why);
+   g_releaseBlocked=!ok;
+   g_releaseBlockReason=(ok?"All R7 API/release evidence gates pass.":why);
+   if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason))
+      Print("GPT_EA R7 API RELEASE BLOCK: ",g_releaseBlockReason);
+   else if(!g_releaseBlocked && oldBlocked)
+      Print("GPT_EA R7 API RELEASE GATE CLEARED.");
+}
+
+string ReleaseGateSummaryR7API()
+{
+   string why="";
+   return ReleaseSafetyAllowsR7API("",why)?"PASS - "+why:"BLOCKED - "+why;
+}
+
+void AdvancedSafetyInitR7API()
+{
+   AdvancedSafetyInitR6Evidence();
+   RefreshR7APIReleaseState();
+}
+
+void AdvancedSafetyTimerR7API()
+{
+   AdvancedSafetyTimerR6Evidence();
+   RefreshR7APIReleaseState();
+}
+
+void StopFailureObservabilityInitR7API()
+{
+   StopFailureObservabilityInitR6Evidence();
+   RefreshR7APIReleaseState();
+}
+// ===== END INLINED GPT_EA_Part37_APITransport.mqh =====
 #undef Trim
 #include "GPT_EA_Part38_LegalLicenseGate.mqh"
 #include "GPT_EA_Part39_CustomerRiskAcknowledgement.mqh"

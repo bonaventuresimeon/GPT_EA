@@ -16,6 +16,24 @@ COMPAT=(MQH/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (MQH/
 TEMPLATE=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
 errors=[]
 
+# User-facing OpenAI inputs must remain at the very top of the MT5 Inputs list,
+# directly after the ALL/universe selector. The key default must remain blank.
+ordered=[
+    'input string InpSymbols                 = "ALL";',
+    'input bool   InpUseOpenAI               = true;',
+    'input string InpOpenAIAPIKey            = "";',
+    'input string InpOpenAIModel             = "gpt-5.6-sol";',
+    'input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";',
+]
+positions=[MAIN.find(token) for token in ordered]
+if any(p<0 for p in positions) or positions!=sorted(positions):
+    errors.append("OpenAI Symbols/Use/Key/Model/Endpoint inputs are not in the required top-of-input order")
+risk_pos=MAIN.find("input double InpRiskPercent")
+if risk_pos<0 or positions[-1]>risk_pos:
+    errors.append("OpenAI Key/Model/Endpoint must appear before the trading/risk inputs")
+if MAIN.count('input string InpOpenAIAPIKey')!=1:
+    errors.append("InpOpenAIAPIKey must have exactly one user input declaration")
+
 for token in [
     '#include "GPT_EA_Part37A_APICompat.mqh"',
     '#include "GPT_EA_Part37_APITransport.mqh"',

@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.21"
+#property version   "1.22"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -67,6 +67,21 @@ CTrade trade;
 
 // ----------------------------- Inputs -----------------------------
 input string InpSymbols                 = "ALL";        // ALL = every tradeable broker symbol; AUTO = curated major universe; or comma-separated manual list
+
+// ---------------------- OpenAI — primary user inputs ----------------------
+// Kept directly below InpSymbols so Key / Model / Endpoint are always visible at the top of MT5 Inputs.
+input bool   InpUseOpenAI               = true;
+input string InpOpenAIAPIKey            = "";         // Direct mode only. Keep blank in source/Git; enter locally or use the key file.
+input string InpOpenAIModel             = "gpt-5.6-sol";
+input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
+input int    InpOpenAITimeoutMs         = 15000;
+input bool   InpOpenAIKeyPreferFile     = true;       // Prefer a local key file over the EA input field.
+input bool   InpOpenAIKeyUseCommonFile  = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
+input string InpOpenAIKeyFile           = "GPT_EA_OpenAI.key"; // One-line local secret file; never add it to Git.
+input bool   InpAIReviewHighConfidenceOnly = true;
+input int    InpAIMaxOutputChars        = 1800;
+
+// -------------------------- Trading / risk inputs --------------------------
 input double InpRiskPercent             = 1.00;       // % of equity/balance risked per trade
 input bool   InpUseEquity               = true;
 input bool   InpRequireApproval         = true;       // signal must be approved before execution
@@ -118,18 +133,6 @@ input int    InpLondonHourlyEnd         = 17;
 input int    InpPreUSOpenMinute         = 25;         // 09:25 America/New_York
 input int    InpUSOpenHourNY            = 9;
 input int    InpUSOpenMinuteNY          = 30;
-
-// -------------------------- OpenAI API ---------------------------
-input bool   InpUseOpenAI               = true;
-input string InpOpenAIAPIKey            = "";         // Optional direct-mode fallback. Never commit a real key to GitHub.
-input bool   InpOpenAIKeyPreferFile      = true;       // Prefer a local key file over the EA input field.
-input bool   InpOpenAIKeyUseCommonFile   = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
-input string InpOpenAIKeyFile            = "GPT_EA_OpenAI.key"; // One-line local secret file; never add it to Git.
-input string InpOpenAIModel             = "gpt-5.6-luna";
-input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
-input int    InpOpenAITimeoutMs         = 15000;
-input bool   InpAIReviewHighConfidenceOnly = true;
-input int    InpAIMaxOutputChars         = 1800;
 
 // ----------------------------- Types ------------------------------
 enum SetupKind { SETUP_NONE=0, SETUP_PULLBACK=1, SETUP_BREAKOUT_RETEST=2, SETUP_BREAKOUT=3 };
@@ -896,26 +899,26 @@ input bool   InpBlockIfAIUnavailable        = false;
 input bool   InpDrawDashboard               = true;
 input bool   InpDrawTradeLevels             = true;
 input bool   InpPolishChart                 = true;
-input int    InpDashboardX                  = 18;
-input int    InpDashboardY                  = 20;
+input int    InpDashboardX                  = 12;
+input int    InpDashboardY                  = 12;
 input bool   InpElegantChartDashboard       = true;
 input bool   InpDrawLiveManagementLevels    = true;
 input bool   InpDrawTrailingMovement        = true;
 input bool   InpShowStopMovementRules        = true;
 input bool   InpShowCompactTradeTimeline     = true;
 input int    InpTrailMovementSegments       = 12;
-input int    InpDashboardWidth              = 620;
-input int    InpDashboardHeight             = 520;
-input int    InpDashboardRefreshMs           = 750;
+input int    InpDashboardWidth              = 540;
+input int    InpDashboardHeight             = 560;
+input int    InpDashboardRefreshMs           = 500;
 input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
 input bool   InpPremiumDashboard             = true;
 input bool   InpPremiumUIAnimations          = true;
-input bool   InpDashboardTransparent          = true;   // transparent cards/panel over a reserved chart gutter
-input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so dashboard never covers price action
-input int    InpDashboardMinWidth             = 340;
-input int    InpDashboardMaxWidth             = 560;
-input int    InpDashboardChartGap             = 14;
+input bool   InpDashboardTransparent          = true;   // glass inner cards only; outer HUD frame always remains boxed/opaque
+input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so the HUD never covers price action
+input int    InpDashboardMinWidth             = 400;
+input int    InpDashboardMaxWidth             = 600;
+input int    InpDashboardChartGap             = 16;
 input int    InpDashboardClosedHoldSeconds    = 12;
 input int    InpApprovalHeroX                = 20;
 input int    InpApprovalHeroY                = 20;
@@ -984,6 +987,10 @@ string DASH_TIMELINE_CARD="GPT_EA_DASH_TIMELINE_CARD";
 string DASH_TIMELINE_LABEL="GPT_EA_DASH_TIMELINE_LABEL";
 string DASH_ACTION_CARD="GPT_EA_DASH_ACTION_CARD";
 string DASH_ACTION_LABEL="GPT_EA_DASH_ACTION_LABEL";
+string DASH_HEADER_BG="GPT_EA_DASH_HEADER_BG";
+string DASH_FOOTER_BG="GPT_EA_DASH_FOOTER_BG";
+string DASH_TOP_RAIL="GPT_EA_DASH_TOP_RAIL";
+string DASH_INNER_FRAME="GPT_EA_DASH_INNER_FRAME";
 
 string APP_PANEL="GPT_EA_APPROVAL_PANEL";
 string APP_ACCENT="GPT_EA_APPROVAL_ACCENT";
@@ -1434,10 +1441,11 @@ void SetPremiumRect(const string name,const ENUM_BASE_CORNER corner,const int x,
                     const color bg,const color border,const long z=0)
 {
    if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE_LABEL,0,0,0);
-   // Only the outer shell may be transparent. Information cards must remain opaque
-   // so text never collapses into price candles or other chart objects.
-   bool transparentShell=(name==DASH_PANEL);
-   color effectiveBG=(InpDashboardTransparent && transparentShell ? clrNONE : bg);
+   // The premium HUD enclosure always remains opaque and chart-matched.
+   // Optional transparency is limited to inner information cards ("glass" mode).
+   bool glassCard=(name==DASH_MARKET_CARD || name==DASH_TRADE_CARD || name==DASH_RISK_CARD ||
+                   name==DASH_RULES_CARD || name==DASH_TIMELINE_CARD || name==DASH_ACTION_CARD);
+   color effectiveBG=(InpDashboardTransparent && glassCard ? clrNONE : bg);
    ObjectSetInteger(0,name,OBJPROP_CORNER,corner);
    ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
    ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
@@ -1468,6 +1476,21 @@ void SetPremiumLabel(const string name,const ENUM_BASE_CORNER corner,const int x
    ObjectSetInteger(0,name,OBJPROP_ANCHOR,(corner==CORNER_RIGHT_UPPER||corner==CORNER_RIGHT_LOWER)?ANCHOR_RIGHT_UPPER:ANCHOR_LEFT_UPPER);
    ObjectSetString(0,name,OBJPROP_FONT,font);
    ObjectSetString(0,name,OBJPROP_TEXT,text);
+}
+
+void RenderPremiumHUDFrame(const int panelW,const int panelH,const color accent)
+{
+   // Match the live chart palette: ApplyChartPolish() uses C'11,15,22'.
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,
+                  C'11,15,22',C'49,69,91',1);
+   SetPremiumRect(DASH_INNER_FRAME,CORNER_RIGHT_UPPER,InpDashboardX+5,InpDashboardY+5,panelW-10,panelH-10,
+                  C'11,15,22',C'26,38,52',2);
+   SetPremiumRect(DASH_HEADER_BG,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+6,panelW-12,72,
+                  C'13,19,28',C'30,44,61',2);
+   SetPremiumRect(DASH_TOP_RAIL,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+6,panelW-12,3,
+                  accent,accent,4);
+   SetPremiumRect(DASH_FOOTER_BG,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+panelH-38,panelW-12,32,
+                  C'9,14,21',C'30,44,61',2);
 }
 
 void SetApprovalFeedback(const string text,const int kind)
@@ -1570,18 +1593,23 @@ void DashboardLayout(const bool live,int &panelW,int &panelH,bool &compact)
    if(chartW<=0) chartW=1200;
    if(chartH<=0) chartH=650;
 
-   int minW=(int)MathMax(320,InpDashboardMinWidth);
+   int minW=(int)MathMax(360,InpDashboardMinWidth);
    int maxW=(int)MathMax(minW,InpDashboardMaxWidth);
    int preferred=(int)MathMax(minW,MathMin(maxW,InpDashboardWidth));
-   int byChart=(int)MathMax(320.0,MathFloor((double)chartW*0.46)-(double)(InpDashboardX*2+InpDashboardChartGap));
+   int byChart=(int)MathMax((double)minW,MathFloor((double)chartW*0.44)-(double)(InpDashboardX*2+InpDashboardChartGap));
    panelW=(int)MathMin(preferred,byChart);
-   if(panelW<320) panelW=320;
+   if(panelW<minW) panelW=minW;
 
-   compact=(chartW<1120 || chartH<650 || panelW<465);
-   int desiredH=(live?(compact?475:620):(compact?455:575));
-   int usableH=chartH-InpDashboardY-6;
-   if(usableH<420) usableH=420;
+   compact=(chartW<1120 || chartH<640 || panelW<470);
+   int minH=(compact?420:500);
+   int maxDesignH=(live?(compact?560:640):(compact?540:610));
+   int requestedH=(int)MathMax(minH,InpDashboardHeight);
+   int desiredH=(int)MathMin(requestedH,maxDesignH);
+   int usableH=chartH-InpDashboardY-8;
+   if(usableH<380) usableH=380;
    panelH=(int)MathMin(desiredH,usableH);
+   if(panelH<380) panelH=380;
+
    ApplyDashboardChartReserve(panelW);
 }
 
@@ -1704,7 +1732,9 @@ void StyleApprovalUI()
 
 void DeleteAdvancedDashboard()
 {
-   ObjectDelete(0,DASH_PANEL); ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_SUBTITLE);
+   ObjectDelete(0,DASH_PANEL); ObjectDelete(0,DASH_INNER_FRAME); ObjectDelete(0,DASH_HEADER_BG);
+   ObjectDelete(0,DASH_FOOTER_BG); ObjectDelete(0,DASH_TOP_RAIL);
+   ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_SUBTITLE);
    ObjectDelete(0,DASH_TEXT); ObjectDelete(0,DASH_STATUS); ObjectDelete(0,DASH_RULES);
    ObjectDelete(0,DASH_TIMELINE); ObjectDelete(0,BTN_SCAN_NOW);
    ClearDashboardSections();
@@ -16871,11 +16901,11 @@ void RenderLiveManagementDashboard(ulong ticket)
    DashboardLayout(true,panelW,panelH,compact);
    color liveAccent=DashboardStateColor(uiState);
    if(rNow<0 && uiState==UI_STATE_TRADE_ACTIVE) liveAccent=C'244,110,110';
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,liveAccent,1);
+   RenderPremiumHUDFrame(panelW,panelH,liveAccent);
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Live Trade Atelier",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  Live Trade HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("%s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
@@ -16889,12 +16919,13 @@ void RenderLiveManagementDashboard(ulong ticket)
    int top=InpDashboardY+header;
    int bottom=InpDashboardY+panelH-controls-3;
    int avail=bottom-top-gap*4;
-   int h1=(int)MathMax(62.0,avail*0.22);
-   int h2=(int)MathMax(66.0,avail*0.23);
-   int h3=(int)MathMax(62.0,avail*0.19);
-   int h4=(int)MathMax(58.0,avail*0.18);
+   int h1=(int)MathMax(compact?48.0:62.0,avail*0.22);
+   int h2=(int)MathMax(compact?52.0:66.0,avail*0.23);
+   int h3=(int)MathMax(compact?48.0:62.0,avail*0.19);
+   int h4=(int)MathMax(compact?44.0:58.0,avail*0.18);
    int h5=avail-h1-h2-h3-h4;
-   if(h5<50) h5=50;
+   int minActionH=(compact?42:50);
+   if(h5<minActionH) h5=minActionH;
    int y=top;
 
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,h1,
@@ -17021,11 +17052,11 @@ void RenderCandidateOperationalDashboard()
 
    int panelW=0,panelH=0; bool compact=false;
    DashboardLayout(false,panelW,panelH,compact);
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(uiState),1);
+   RenderPremiumHUDFrame(panelW,panelH,DashboardStateColor(uiState));
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Market Intelligence",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  Intelligence HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("%s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
                    g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
 
@@ -17042,12 +17073,13 @@ void RenderCandidateOperationalDashboard()
    int top=InpDashboardY+header;
    int bottom=InpDashboardY+panelH-controls-3;
    int avail=bottom-top-gap*4;
-   int h1=(int)MathMax(66.0,avail*0.23);
-   int h2=(int)MathMax(66.0,avail*0.23);
-   int h3=(int)MathMax(60.0,avail*0.19);
-   int h4=(int)MathMax(56.0,avail*0.17);
+   int h1=(int)MathMax(compact?50.0:66.0,avail*0.23);
+   int h2=(int)MathMax(compact?52.0:66.0,avail*0.23);
+   int h3=(int)MathMax(compact?46.0:60.0,avail*0.19);
+   int h4=(int)MathMax(compact?44.0:56.0,avail*0.17);
    int h5=avail-h1-h2-h3-h4;
-   if(h5<50) h5=50;
+   int minActionH=(compact?42:50);
+   if(h5<minActionH) h5=minActionH;
    int y=top;
 
    string structure=(r.structureAligned?"ALIGNED":"MIXED");
@@ -17124,18 +17156,20 @@ void RenderScanningDashboard()
    ClearDashboardSections();
    DeleteTradeMap();
 
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(UI_STATE_SCANNING),1);
+   RenderPremiumHUDFrame(panelW,panelH,DashboardStateColor(UI_STATE_SCANNING));
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Market Intelligence",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  Market Scan HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      _Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      "v1.22 • R8 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
 
    int sx=InpDashboardX+12, sw=panelW-24;
    int y=InpDashboardY+(compact?84:92);
-   int cardH=compact?90:105;
+   int footerTop=InpDashboardY+panelH-38;
+   int availableCards=footerTop-y-12;
+   int cardH=(int)MathMax(compact?72.0:84.0,MathFloor((double)availableCards/3.0));
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
       "SCANNER STATUS",
       "Attached market "+_Symbol+"\nUniverse: broker symbols are scanned dynamically\nRequired TF: D1 • H4 • H1 • M30 • M15 • M5\nData: "+VisualOneLine(g_visualDataState,compact?58:88),
@@ -17175,11 +17209,11 @@ void RenderClosedDashboard()
    DeleteTradeMap();
    DeleteLiveManagementVisuals();
 
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(UI_STATE_CLOSED),1);
+   RenderPremiumHUDFrame(panelW,panelH,DashboardStateColor(UI_STATE_CLOSED));
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Trade Lifecycle",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  Lifecycle HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      (g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      "v1.22 • R8 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
@@ -17502,9 +17536,61 @@ void ScanAll(const string reason)
                scanned,total,g_universalScanCursor,reason);
 }
 
+bool ValidateUserFacingInputs(string &why)
+{
+   why="";
+   string symbols=APITrim(InpSymbols);
+   string model=APITrim(InpOpenAIModel);
+   string endpoint=APITrim(InpOpenAIEndpoint);
+
+   if(symbols==""){ why="InpSymbols cannot be blank."; return false; }
+   if(InpRiskPercent<=0.0 || InpRiskPercent>5.0)
+   { why="InpRiskPercent must be > 0 and <= 5.00."; return false; }
+   if(InpFastEMA<2 || InpSlowEMA<=InpFastEMA)
+   { why="EMA inputs are invalid: InpSlowEMA must be greater than InpFastEMA and both must be >= 2."; return false; }
+   if(InpRSIPeriod<2 || InpATRPeriod<2 || InpSwingBars<5)
+   { why="RSI/ATR/swing periods are below safe minimums."; return false; }
+   if(InpMinConfidence<0 || InpMinConfidence>100 || InpMinAdvancedConfluence<0 || InpMinAdvancedConfluence>100)
+   { why="Confidence/confluence thresholds must stay within 0..100."; return false; }
+   if(InpMinEffectiveRR<1.0)
+   { why="InpMinEffectiveRR must be at least 1.00."; return false; }
+   if(InpApprovalTimeoutSeconds<10)
+   { why="InpApprovalTimeoutSeconds must be at least 10 seconds."; return false; }
+
+   if(InpUseOpenAI)
+   {
+      if(model==""){ why="InpOpenAIModel cannot be blank while OpenAI is enabled."; return false; }
+      if(endpoint=="" || StringFind(endpoint,"https://")!=0)
+      { why="InpOpenAIEndpoint must be a non-empty HTTPS URL while OpenAI is enabled."; return false; }
+      if(InpOpenAITimeoutMs<3000 || InpOpenAITimeoutMs>60000)
+      { why="InpOpenAITimeoutMs must be between 3000 and 60000 ms."; return false; }
+   }
+
+   if(InpDashboardX<0 || InpDashboardY<0)
+   { why="Dashboard X/Y offsets cannot be negative."; return false; }
+   if(InpDashboardMinWidth<360 || InpDashboardMaxWidth<InpDashboardMinWidth)
+   { why="Dashboard width bounds are invalid; minimum must be >= 360 and maximum >= minimum."; return false; }
+   if(InpDashboardWidth<InpDashboardMinWidth || InpDashboardWidth>InpDashboardMaxWidth)
+   { why="InpDashboardWidth must fall inside InpDashboardMinWidth..InpDashboardMaxWidth."; return false; }
+   if(InpDashboardHeight<380 || InpDashboardHeight>900)
+   { why="InpDashboardHeight must be between 380 and 900 pixels."; return false; }
+   if(InpDashboardRefreshMs<100 || InpDashboardRefreshMs>5000)
+   { why="InpDashboardRefreshMs must be between 100 and 5000 ms."; return false; }
+
+   why="OK";
+   return true;
+}
+
 // -------------------------- MT5 event hooks -----------------------
 int OnInit()
 {
+   string inputWhy="";
+   if(!ValidateUserFacingInputs(inputWhy))
+   {
+      Print("GPT_EA INPUT CONFIGURATION BLOCK: ",inputWhy);
+      return INIT_PARAMETERS_INCORRECT;
+   }
+
    if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
    if(!ResolveConfiguredSymbolsUniversal())
    { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
@@ -17527,7 +17613,13 @@ int OnInit()
    StrategyIntelligenceInit();
    NewsIntermarketInit();
 
-   Print("GPT_EA runtime build R7-DASH-DATA-HARDENED-20260918 • source version 1.21");
+   Print("GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122");
+   Print("GPT_EA user inputs OK | Symbols=",InpSymbols,
+         " | OpenAI=",InpUseOpenAI?"ON":"OFF",
+         " | Model=",InpOpenAIModel,
+         " | Endpoint=",InpOpenAIEndpoint,
+         " | HUD=",IntegerToString(InpDashboardWidth),"x",IntegerToString(InpDashboardHeight),
+         " | Risk=",DoubleToString(InpRiskPercent,2),"%");
    Print("GPT_EA Full Intelligence initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
          ", Min strategy=",InpMinStrategyScore,

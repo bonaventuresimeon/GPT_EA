@@ -88,13 +88,13 @@ Tick handling remains execution-free. `OnTick()` only refreshes visual observabi
 
 All scanning, risk authorization, approvals and position management remain on their existing execution paths.
 
-## Transparent responsive layout
+## Boxed elegant HUD layout
 
-Premium mode no longer paints an opaque diagnostic block over live candles. The renderer measures the current chart width/height, constrains the dashboard width, and dynamically reserves a right-side chart gutter with `CHART_SHIFT_SIZE`. Price action is therefore shifted left of the information rail instead of being hidden beneath it.
+Premium mode renders every dashboard element inside one enclosed HUD that matches the MT5 live-chart palette. The outer enclosure uses the same `C'11,15,22'` background as `ApplyChartPolish()`, with an inset frame, header rail, state accent and footer/control rail. Titles, status, intelligence cards, risk/safety content, lifecycle text and buttons all remain inside this box.
 
-Dashboard and section rectangles use transparent fill when `InpDashboardTransparent=true`. Borders, typography and state accents remain visible, while the underlying chart background stays visible. Candidate entry zones plus live risk/reward regions are outline-only rather than filled rectangles.
+`InpDashboardTransparent=true` now means **glass inner cards only**. The outer HUD enclosure never becomes transparent, so dashboard text cannot fall directly onto candles. The renderer still reserves a right-side chart gutter with `CHART_SHIFT_SIZE`, shifting price action left rather than hiding candles beneath the HUD. Candidate entry zones plus live risk/reward regions remain outline-only.
 
-The renderer responds to `CHARTEVENT_CHART_CHANGE`, so resizing the terminal or chart triggers a fresh layout. Narrow/short charts switch to compact typography and tighter cards rather than stacking fixed-size panels on top of each other.
+The renderer responds to `CHARTEVENT_CHART_CHANGE`, recalculates width and height from the actual chart pane, and now honors `InpDashboardHeight`. Narrow/short charts switch to compact typography and tighter cards. The default HUD is 540×560 px with responsive 400–600 px width bounds, 12 px chart offsets and a 16 px chart gap.
 
 The legacy left-side Risk & Performance block, giant strategy-health label and raw `Comment(card)` diagnostic dump are suppressed while the premium dashboard is active. Their underlying analytics remain available to the trading engine, journals and fallback non-premium view.
 
@@ -130,7 +130,7 @@ The visual controls include:
 - `InpDashboardTitleFont`;
 - `InpDashboardBodyFont`.
 
-The default title font is `Segoe Script` for a calligraphic heading while the analytical body uses a more readable UI font.
+The default title font is `Segoe Script` for a calligraphic heading while the analytical body uses a more readable UI font. The HUD header also shows `v1.22 • R8 HUD` so the running visual build can be checked at a glance.
 
 ## Safety invariant
 
@@ -196,3 +196,22 @@ Milestones display:
 - the most recent trailing-stop ratchet time once trailing is active.
 
 The timeline is reconstructed from durable execution/lifecycle keys such as `EXEC_ANALYSIS_TIME`, `EXEC_APPROVAL_TIME`, `EXEC_SENT_TIME`, `EXEC_FILL_TIME`, `TP1_TIME`, `BE_TIME`, `PROFIT_LOCK_TIME`, `STRONG_LOCK_TIME`, `TP2_TIME`, `TRAIL_TIME` and `TRAIL_LAST_TIME`.
+
+
+## v1.22 input ordering
+
+The first MT5 user input is `InpSymbols="ALL"`. Immediately below it, the user-facing OpenAI controls appear in this order:
+
+`InpUseOpenAI → InpOpenAIAPIKey → InpOpenAIModel → InpOpenAIEndpoint → InpOpenAITimeoutMs`.
+
+The source default for `InpOpenAIAPIKey` remains blank. Secrets are entered locally or loaded from `GPT_EA_OpenAI.key`; they must never be committed to Git.
+
+The v1.22 default model is `gpt-5.6-sol` and the direct Responses endpoint remains `https://api.openai.com/v1/responses`.
+
+## v1.22 runtime identity
+
+A correctly compiled and attached v1.22 EX5 prints:
+
+`GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122`
+
+The chart HUD subtitle must also contain `v1.22 • R8 HUD`. If either marker is absent, the terminal is still running an older EX5.

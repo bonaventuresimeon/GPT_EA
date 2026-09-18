@@ -128,7 +128,7 @@ def main()->int:
     mt5=evidence.get("mt5_validation",{})
     require(errors,isinstance(mt5,dict),"release evidence mt5_validation must be an object")
     if isinstance(mt5,dict):
-        require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v1","MT5 validation schema must be current")
+        require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v2","MT5 validation schema must be current")
         require(errors,mt5.get("validated") is True,"MT5 validation evidence must be validated before final review")
         require(errors,bool(HEX64.fullmatch(str(mt5.get("evidence_digest","")))),"MT5 validation digest must be valid")
         require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"MT5 validation evidence ID is required")

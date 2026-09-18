@@ -112,21 +112,36 @@ def validate_record(
         except Exception:
             number = 0
         require(errors, number > 0, f"catalog.{key} must be > 0")
+    total = discovered = rechecked = 0
     try:
         total = int(catalog.get("total_catalog_symbols", 0) or 0)
         discovered = int(catalog.get("discovered_symbols", 0) or 0)
         rechecked = int(catalog.get("selected_rechecked_symbols", 0) or 0)
         require(errors, discovered <= total, "catalog.discovered_symbols cannot exceed total_catalog_symbols")
-        require(errors, rechecked <= discovered, "catalog.selected_rechecked_symbols cannot exceed discovered_symbols")
+        require(errors, rechecked == discovered,
+                "catalog.selected_rechecked_symbols must equal discovered_symbols for full-catalogue acceptance")
     except Exception:
-        pass
+        errors.append("catalog symbol counts must be valid integers")
 
     for key in CATALOG_TRUE:
         require(errors, catalog.get(key) is True, f"catalog.{key} must be true")
-    require(errors, int(catalog.get("ambiguous_mapping_count", -1) or 0) == 0,
+    require(errors, catalog.get("ambiguous_mapping_count") == 0,
             "catalog.ambiguous_mapping_count must be 0")
-    require(errors, int(catalog.get("misclassification_count", -1) or 0) == 0,
+    require(errors, catalog.get("misclassification_count") == 0,
             "catalog.misclassification_count must be 0")
+
+    class_counts = catalog.get("class_counts", {})
+    require(errors, isinstance(class_counts, dict), "catalog.class_counts must be an object")
+    if isinstance(class_counts, dict):
+        counted = 0
+        for name in RISK:
+            raw = class_counts.get(name)
+            require(errors, isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0,
+                    f"catalog.class_counts.{name} must be a non-negative integer")
+            if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+                counted += raw
+        require(errors, counted == rechecked,
+                "sum(catalog.class_counts) must equal catalog.selected_rechecked_symbols")
 
     controls = value.get("controls", {})
     for key in CONTROL_TRUE:
@@ -145,6 +160,11 @@ def validate_record(
         require(errors, row.get("classification_passed") is True,
                 f"asset_classes.{name}.classification_passed must be true")
 
+        count = class_counts.get(name, 0) if isinstance(class_counts, dict) else 0
+        expected_runtime_required = bool(count > 0)
+        require(errors, row.get("broker_runtime_required") is expected_runtime_required,
+                f"asset_classes.{name}.broker_runtime_required must equal whether the release broker exposes that class")
+
         runtime_required = row.get("broker_runtime_required") is True
         if runtime_required:
             require(errors, row.get("broker_runtime_passed") is True,
@@ -159,6 +179,9 @@ def validate_record(
             if name != "OTHER":
                 require(errors, row.get("live_execution_certified") is True,
                         f"asset_classes.{name}.live_execution_certified must be true when the class exists on the release broker")
+            else:
+                require(errors, row.get("live_execution_certified") is False,
+                        "asset_classes.OTHER.live_execution_certified must remain false in universal release evidence; certify proprietary instruments through an explicit future instrument-specific exception contract")
 
         if row.get("live_execution_certified") is True:
             require(errors, row.get("broker_runtime_passed") is True,

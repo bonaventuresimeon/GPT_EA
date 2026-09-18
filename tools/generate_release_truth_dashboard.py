@@ -90,6 +90,18 @@ def assess(data: dict[str, Any]) -> tuple[list[dict[str, str]], str, list[str]]:
     else:
         add("Executed CI / runner", HOLD, "runner evidence is incomplete or unvalidated", "Complete CI bundle/attestation evidence.")
 
+    for label, key, section_key in [
+        ("Release-candidate smoke", "release_candidate_smoke", "release_candidate_smoke"),
+        ("Fail-closed recovery drill", "fail_closed_recovery_drill", "fail_closed_recovery_drill"),
+        ("Demo validation harness", "demo_validation_harness", "demo_validation_harness"),
+    ]:
+        section = data.get(section_key, {})
+        if gates.get(key) is True and section.get("validated") is True and nonzero_hex(section.get("evidence_digest"), 64):
+            add(label, PASS, f"{section_key} evidence validated")
+        else:
+            add(label, HOLD, f"gates.{key}={str(gates.get(key, False)).lower()} / validated={str(section.get('validated', False)).lower()}",
+                "Execute and validate exact-candidate evidence.")
+
     for label, key in [
         ("MT5 validation", "mt5_validation"),
         ("Strategy Tester", "strategy_tester"),
@@ -127,6 +139,18 @@ def assess(data: dict[str, Any]) -> tuple[list[dict[str, str]], str, list[str]]:
         add("R10 privacy sign-off", PASS, f"jurisdiction={privacy.get('jurisdiction','')} telemetry={privacy.get('telemetry_state','')}")
     else:
         add("R10 privacy sign-off", HOLD, "privacy sign-off is missing/unvalidated", "Complete jurisdiction-matched privacy sign-off.")
+
+    security = data.get("security_review", {})
+    if gates.get("security_review") is True and security.get("threat_model_reviewed") is True and security.get("secret_scan_passed") is True and security.get("prompt_injection_review_passed") is True:
+        add("Security review", PASS, "threat model + secret scan + prompt-injection review passed")
+    else:
+        add("Security review", HOLD, "security review evidence is incomplete", "Complete threat-model, secret-scan and prompt-injection review.")
+
+    retention = data.get("evidence_retention", {})
+    if gates.get("evidence_retention") is True and retention.get("reviewed") is True and str(retention.get("jurisdiction", "")).strip():
+        add("Evidence retention", PASS, f"jurisdiction={retention.get('jurisdiction','')} reviewer={retention.get('reviewer','')}")
+    else:
+        add("Evidence retention", HOLD, "retention register/policy review is incomplete", "Approve retention register for target jurisdiction.")
 
     decision = str(final.get("decision", "HOLD")).upper()
     if decision == "NO-GO":

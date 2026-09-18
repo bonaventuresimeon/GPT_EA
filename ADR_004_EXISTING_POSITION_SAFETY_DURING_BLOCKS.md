@@ -16,9 +16,12 @@
 
 # ADR-004: Preserve Existing-Position Safety During New-Entry Blocks
 
+**ADR ID:** ADR-004  
 **Status:** Accepted  
 **Decision date:** 2026-09-18  
 **Scope:** GPT_EA architecture and release governance
+**Supersedes:** None  
+**Superseded by:** None
 
 ## 🎯 Context
 

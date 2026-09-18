@@ -790,6 +790,14 @@ input bool   InpDrawTradeLevels             = true;
 input bool   InpPolishChart                 = true;
 input int    InpDashboardX                  = 18;
 input int    InpDashboardY                  = 20;
+input bool   InpElegantChartDashboard       = true;
+input bool   InpDrawLiveManagementLevels    = true;
+input bool   InpDrawTrailingMovement        = true;
+input int    InpTrailMovementSegments       = 12;
+input int    InpDashboardWidth              = 560;
+input int    InpDashboardHeight             = 410;
+input string InpDashboardTitleFont          = "Segoe Script";
+input string InpDashboardBodyFont           = "Segoe UI";
 
 struct ConfluenceReport
 {
@@ -814,14 +822,35 @@ struct ConfluenceReport
 
 string DASH_PANEL="GPT_EA_DASH_PANEL";
 string DASH_TITLE="GPT_EA_DASH_TITLE";
+string DASH_SUBTITLE="GPT_EA_DASH_SUBTITLE";
 string DASH_TEXT="GPT_EA_DASH_TEXT";
+string DASH_STATUS="GPT_EA_DASH_STATUS";
 string BTN_SCAN_NOW="GPT_EA_SCAN_NOW";
 string LEVEL_ENTRY="GPT_EA_LEVEL_ENTRY";
 string LEVEL_SL="GPT_EA_LEVEL_SL";
+string LEVEL_BE="GPT_EA_LEVEL_BE";
+string LEVEL_LIVE_SL="GPT_EA_LEVEL_LIVE_SL";
 string LEVEL_TP1="GPT_EA_LEVEL_TP1";
 string LEVEL_TP2="GPT_EA_LEVEL_TP2";
 string LEVEL_TP3="GPT_EA_LEVEL_TP3";
 string ZONE_BOX="GPT_EA_ENTRY_ZONE";
+string TAG_ENTRY="GPT_EA_TAG_ENTRY";
+string TAG_SL="GPT_EA_TAG_SL";
+string TAG_BE="GPT_EA_TAG_BE";
+string TAG_TP1="GPT_EA_TAG_TP1";
+string TAG_TP2="GPT_EA_TAG_TP2";
+string TAG_TP3="GPT_EA_TAG_TP3";
+string TAG_TRAIL="GPT_EA_TAG_TRAIL";
+
+TradeSetup g_visualLastSetup;
+ConfluenceReport g_visualLastReport;
+string g_visualLastFilter="";
+bool g_visualLastReady=false;
+bool g_visualHasSetup=false;
+double g_visualTrailLastSL=0.0;
+datetime g_visualTrailLastTime=0;
+ulong g_visualTrailPid=0;
+int g_visualTrailSeq=0;
 
 bool ADXSnapshot(const string sym,ENUM_TIMEFRAMES tf,int period,double &adx,double &pdi,double &mdi)
 {
@@ -1178,52 +1207,95 @@ void DeleteAdvancedDashboard()
 void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const string filterState,bool readyNow)
 {
    if(!InpDrawDashboard) return;
+   g_visualLastSetup=s;
+   g_visualLastReport=r;
+   g_visualLastFilter=filterState;
+   g_visualLastReady=readyNow;
+   g_visualHasSetup=(s.symbol!="");
+
+   int panelW=MathMax(460,InpDashboardWidth);
+   int panelH=MathMax(330,InpDashboardHeight);
    if(ObjectFind(0,DASH_PANEL)<0) ObjectCreate(0,DASH_PANEL,OBJ_RECTANGLE_LABEL,0,0,0);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_XDISTANCE,InpDashboardX);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_YDISTANCE,InpDashboardY);
-   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XSIZE,430);
-   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YSIZE,240);
-   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BGCOLOR,C'16,22,32');
-   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BORDER_COLOR,C'55,72,96');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XSIZE,panelW);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YSIZE,panelH);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BGCOLOR,C'10,16,25');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BORDER_COLOR,C'82,126,168');
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_BACK,false);
    ObjectSetInteger(0,DASH_PANEL,OBJPROP_SELECTABLE,false);
 
    if(ObjectFind(0,DASH_TITLE)<0) ObjectCreate(0,DASH_TITLE,OBJ_LABEL,0,0,0);
    ObjectSetInteger(0,DASH_TITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,DASH_TITLE,OBJPROP_XDISTANCE,InpDashboardX+18);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_XDISTANCE,InpDashboardX+20);
    ObjectSetInteger(0,DASH_TITLE,OBJPROP_YDISTANCE,InpDashboardY+14);
-   ObjectSetInteger(0,DASH_TITLE,OBJPROP_COLOR,C'88,200,255');
-   ObjectSetInteger(0,DASH_TITLE,OBJPROP_FONTSIZE,12);
-   ObjectSetString(0,DASH_TITLE,OBJPROP_FONT,"Arial Bold");
-   ObjectSetString(0,DASH_TITLE,OBJPROP_TEXT,"GPT_EA  •  ADVANCED CONFLUENCE");
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_COLOR,C'225,198,115');
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_FONTSIZE,15);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_FONT,InpDashboardTitleFont);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_TEXT,"GPT EA  •  Intelligent Market Desk");
+
+   if(ObjectFind(0,DASH_SUBTITLE)<0) ObjectCreate(0,DASH_SUBTITLE,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_YDISTANCE,InpDashboardY+46);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_COLOR,C'118,193,235');
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_FONT,InpDashboardBodyFont);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_TEXT,"SCAN / ANALYSIS MODE  •  D1 H4 H1 M30 M15 M5");
+
+   if(ObjectFind(0,DASH_STATUS)<0) ObjectCreate(0,DASH_STATUS,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_YDISTANCE,InpDashboardY+70);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_COLOR,readyNow?C'91,220,156':C'245,184,86');
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_FONTSIZE,10);
+   ObjectSetString(0,DASH_STATUS,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,DASH_STATUS,OBJPROP_TEXT,readyNow?"● EXECUTION CONDITIONS READY":"● EA IS ANALYZING / WAITING");
 
    if(ObjectFind(0,DASH_TEXT)<0) ObjectCreate(0,DASH_TEXT,OBJ_LABEL,0,0,0);
    ObjectSetInteger(0,DASH_TEXT,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,DASH_TEXT,OBJPROP_XDISTANCE,InpDashboardX+18);
-   ObjectSetInteger(0,DASH_TEXT,OBJPROP_YDISTANCE,InpDashboardY+48);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_YDISTANCE,InpDashboardY+96);
    ObjectSetInteger(0,DASH_TEXT,OBJPROP_COLOR,clrWhiteSmoke);
    ObjectSetInteger(0,DASH_TEXT,OBJPROP_FONTSIZE,9);
-   ObjectSetString(0,DASH_TEXT,OBJPROP_FONT,"Arial");
+   ObjectSetString(0,DASH_TEXT,OBJPROP_FONT,InpDashboardBodyFont);
+
    string dir=s.bullish?"LONG":"SHORT";
    string status=(s.valid && r.valid?"HIGH CONFLUENCE":"WAIT / FILTERED");
-   string text=StringFormat("%s  |  %s  |  %s\nSetup: %s  |  Confidence: %d%%  |  Confluence: %d/100\nEntry zone: %.*f - %.*f  |  Preferred: %.*f\nSL: %.*f  |  TP1: %.*f  |  TP2: %.*f  |  TP3: %.*f\nADX: %.1f  |  Volume: %.2fx  |  Opening range: %.2fx\nEntry trigger: %s\n%s",
-      s.symbol,dir,status,s.name,s.confidence,r.score,
+   double rr=(s.effectiveRR1>0?s.effectiveRR1:0);
+   string action=readyNow?"Price is inside the execution area; final approval/revalidation path is active.":
+      "EA is preserving capital while waiting for price, trigger and all hard gates to align.";
+   string text=StringFormat(
+      "%s  •  %s  •  %s\n"
+      "Setup: %s  |  Confidence %d%%  |  Confluence %d/100  |  Eff R:R %.2f\n"
+      "Entry zone  %.*f – %.*f   •   Preferred %.*f\n"
+      "Initial SL  %.*f   •   TP1 %.*f   •   TP2 %.*f   •   TP3 %.*f\n"
+      "ADX %.1f   •   Volume %.2fx   •   Opening-range %.2fx\n"
+      "Structure %s  |  Liquidity sweep %s  |  FVG %s  |  Rejection %s\n"
+      "Filters: %s\n"
+      "EA action: %s",
+      s.symbol,dir,status,s.name,s.confidence,r.score,rr,
       DigitsFor(s.symbol),s.zoneLow,DigitsFor(s.symbol),s.zoneHigh,DigitsFor(s.symbol),s.preferred,
       DigitsFor(s.symbol),s.sl,DigitsFor(s.symbol),s.tp1,DigitsFor(s.symbol),s.tp2,DigitsFor(s.symbol),s.tp3,
-      r.adx,r.volumeRatio,r.openingRangeRatio,(readyNow?"READY":"WAITING"),filterState);
+      r.adx,r.volumeRatio,r.openingRangeRatio,
+      r.structureAligned?"YES":"NO",r.liquiditySweep?"YES":"NO",r.fairValueGap?"YES":"NO",r.rejectionCandle?"YES":"NO",
+      filterState,action);
    ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
 
    if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
    ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+18);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+198);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,120);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,26);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'36,92,160');
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+panelH-42);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,132);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,27);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'34,87,139');
    ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_COLOR,clrWhite);
-   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'88,160,230');
-   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"SCAN NOW");
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'107,173,221');
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"↻  SCAN NOW");
+
    DrawTradeMap(s);
    StyleApprovalUI();
    ChartRedraw();

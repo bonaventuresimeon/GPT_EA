@@ -8,6 +8,9 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT = Path(__file__).resolve().parents[1]
 

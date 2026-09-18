@@ -72,13 +72,24 @@ Part28B additionally requires `InpReleaseCIBundleValidated=true` and the matchin
 
 `runner_id=0`, blank runner name or `steps=[]` is HOLD and cannot be converted manually into PASS.
 
+## 3A. Code readiness versus evidence readiness
+
+Use `RELEASE_READINESS_MODEL.md` to report readiness without overstating certification.
+
+- `CODE_STATIC_READY` proves only that the aggregate repository static suite passed for the exact candidate SHA (locally or through the validated CI bundle).
+- `EVIDENCE_HOLD` means one or more release evidence gates are still incomplete.
+- `EVIDENCE_READY_FOR_FINAL_REVIEW` means all non-operator gates are complete but final GO review is pending.
+- `PRODUCTION_GO` can be emitted only after the active R10 release-evidence validator and R10 final-review validator both pass.
+
+Therefore `CODE_STATIC_READY + EVIDENCE_HOLD` remains a release HOLD.
+
 ## 4. MT5/MetaEditor validation evidence
 
 The exact release candidate must produce a finalized `mt5_validation_evidence_v2` record following `MT5_VALIDATION_EVIDENCE.md` and `MT5_VALIDATION_ACCEPTANCE_MATRIX.md`. It binds compile/load smoke, Strategy Tester, broker geometry, recovery, stop/protection behavior, live-demo WebRequest/news paths, and hashed MT5 artifacts.
 
 MT5 v2 requires M5-001 through M5-053. In addition to the original compile/tester/broker/protection/API checks it proves direct-breakout separation, the atomic intent ledger and exactly-once semantics, broker-versus-EA reconciliation, manual-intervention detection, storage/configuration fail-closed behavior, clock integrity, chaos/fault injection, macro stress, gap/margin stress, decision half-life/latency, model degradation, provenance freshness, learning quarantine and champion rollback.
 
-Run `tools/validate_mt5_validation_evidence.py` and archive its PASS output before setting the Part28B MT5 evidence inputs.
+Run `tools/validate_mt5_validation_evidence.py` and archive its PASS output before setting the Part28B MT5 evidence inputs. `MT5_MINIMUM_PROOF_SET.md` provides the eight-bundle operator view without reducing M5-001 through M5-053.
 
 ## 5. Adaptive/intelligence/broker validation
 

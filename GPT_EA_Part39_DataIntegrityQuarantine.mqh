@@ -16,6 +16,7 @@ input bool   InpQuarantineBrokerAnomaly         = true;
 input bool   InpQuarantineConnectionAnomaly     = true;
 input bool   InpQuarantineChaosSamples          = true;
 input bool   InpQuarantineStorageFailure        = true;
+input bool   InpResetLearningOnGenerationChange  = true;
 
 int IntegrityTextHash(const string text)
 {
@@ -244,10 +245,66 @@ void WriteStrategyConfigRegistry()
    FileFlush(h); FileClose(h);
 }
 
+bool IsLearningAggregateGlobal(const string name)
+{
+   string prefix=SysKey("");
+   if(StringFind(name,prefix)!=0) return false;
+   string suffix=StringSubstr(name,StringLen(prefix));
+   string families[]={
+      "STRAT_","CAL_CONF_","EXEC_STRAT_","EXEC_SESSION_","EXPIRY_",
+      "EVENT_","HEALTH_RECENT_","CC_","SHADOW_","REGIME_","MODEL_"
+   };
+   for(int i=0;i<ArraySize(families);i++)
+      if(StringFind(suffix,families[i])==0) return true;
+   return false;
+}
+
+int ResetLearningAggregateGeneration()
+{
+   int removed=0;
+   for(int i=GlobalVariablesTotal()-1;i>=0;i--)
+   {
+      string name=GlobalVariableName(i);
+      if(!IsLearningAggregateGlobal(name)) continue;
+      if(GlobalVariableDel(name)) removed++;
+   }
+   return removed;
+}
+
+void EnsureLearningGeneration()
+{
+   int current=IntegrityTextHash(CurrentSensitiveConfigText());
+   string key=SysKey("DATA_GENERATION_HASH");
+   int stored=(int)GVRead(key,0);
+   if(stored==0)
+   {
+      GVWrite(key,current);
+      GVWrite(SysKey("LEARNING_GENERATION_EPOCH"),1);
+      GlobalVariablesFlush();
+      return;
+   }
+   if(stored==current) return;
+
+   int removed=0;
+   if(InpResetLearningOnGenerationChange)
+      removed=ResetLearningAggregateGeneration();
+
+   double epoch=GVRead(SysKey("LEARNING_GENERATION_EPOCH"),0)+1;
+   GVWrite(SysKey("DATA_GENERATION_HASH"),current);
+   GVWrite(SysKey("LEARNING_GENERATION_EPOCH"),epoch);
+   GVWrite(SysKey("LEARNING_GENERATION_RESET_TIME"),(double)TimeTradeServer());
+   GlobalVariablesFlush();
+
+   WriteDataIntegrityRow("LEARNING_GENERATION_RESET","",STRATEGY_NO_TRADE,0,
+      StringFormat("material configuration generation changed %08X -> %08X; cleared %d aggregate learning globals; epoch %.0f",
+                   stored,current,removed,epoch));
+}
+
 void DataIntegrityInit()
 {
    EnsureDataIntegrityHeader();
    EnsureLearningQuarantineHeader();
+   EnsureLearningGeneration();
    WriteStrategyConfigRegistry();
    WriteDataIntegrityRow("INIT","",STRATEGY_NO_TRADE,0,"EA data-integrity generation initialized");
 }

@@ -21,9 +21,9 @@ files=[
  "GPT_EA_Part36_DemoSoakEvidence.mqh","GPT_EA_Part39_DataIntegrityQuarantine.mqh",
  "GPT_EA_Part40_ModelClockTrust.mqh","GPT_EA_Part41_PortfolioStressLatency.mqh",
  "GPT_EA_Part42_ExecutionReliability.mqh","GPT_EA_Part43_CausalAttribution.mqh",
- "GPT_EA_Part44_ChaosFaultInjection.mqh","ADAPTIVE_EXECUTION_ARCHITECTURE.md",
- "ADAPTIVE_EXECUTION_TEST_MATRIX.md","R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
- "DEMO_SOAK_EVIDENCE.md","DEMO_SOAK_REPORT_TEMPLATE.md",
+ "GPT_EA_Part44_ChaosFaultInjection.mqh","docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md",
+ "docs/ADAPTIVE_EXECUTION_TEST_MATRIX.md","docs/R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
+ "docs/DEMO_SOAK_EVIDENCE.md","docs/DEMO_SOAK_REPORT_TEMPLATE.md",
 ]
 for f in files:
  if not (ROOT/f).exists(): errors.append(f"missing adaptive/release file: {f}")
@@ -104,11 +104,11 @@ if "ExecutionLearningInitR5();" not in PART35 or "ExecutionLearningTimerR5();" n
 if "DemoSoakEvidenceTimer();" not in PART35 or "ReconcileStaleApprovalWaitStates" not in PART36:
  errors.append("R6 demo-soak/lifecycle reconciliation runtime path is incomplete")
 
-arch=(ROOT/"ADAPTIVE_EXECUTION_ARCHITECTURE.md").read_text(encoding="utf-8") if (ROOT/"ADAPTIVE_EXECUTION_ARCHITECTURE.md").exists() else ""
+arch=(ROOT/"docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md").read_text(encoding="utf-8") if (ROOT/"docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md").exists() else ""
 for i in range(1,21):
  if f"## {i}." not in arch: errors.append(f"adaptive architecture mapping missing item {i}")
 
-tests=(ROOT/"ADAPTIVE_EXECUTION_TEST_MATRIX.md").read_text(encoding="utf-8") if (ROOT/"ADAPTIVE_EXECUTION_TEST_MATRIX.md").exists() else ""
+tests=(ROOT/"docs/ADAPTIVE_EXECUTION_TEST_MATRIX.md").read_text(encoding="utf-8") if (ROOT/"docs/ADAPTIVE_EXECUTION_TEST_MATRIX.md").exists() else ""
 for prefix in ["AR-001","AR-020","AR-030","AR-040","AR-060","AR-080","AR-110","AR-130","AR-160","AR-170","AR-180","AR-190","AR-212"]:
  if prefix not in tests: errors.append(f"adaptive release matrix missing {prefix}")
 

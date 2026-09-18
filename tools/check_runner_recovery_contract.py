@@ -10,14 +10,14 @@ ROOT=Path(__file__).resolve().parents[1]
 errors:list[str]=[]
 
 required=[
-    "ACTIONS_RUNNER_DIAGNOSTICS.md",
-    "RUNNER_RECOVERY_EVIDENCE.md",
+    "docs/ACTIONS_RUNNER_DIAGNOSTICS.md",
+    "docs/RUNNER_RECOVERY_EVIDENCE.md",
     "RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json",
     "RUNNER_RECOVERY_EVIDENCE_SCHEMA.json",
     "tools/validate_runner_recovery_evidence.py",
     "tools/build_runner_recovery_evidence.py",
-    "RUNNER_RECOVERY_TEST_MATRIX.md",
-    "RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md",
+    "docs/RUNNER_RECOVERY_TEST_MATRIX.md",
+    "docs/RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md",
     "RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json",
     "RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json",
     "tools/validate_runner_recovery_acceptance.py",
@@ -43,8 +43,8 @@ if not errors:
 
     validator=(ROOT/"tools/validate_runner_recovery_evidence.py").read_text(encoding="utf-8")
     builder=(ROOT/"tools/build_runner_recovery_evidence.py").read_text(encoding="utf-8")
-    matrix=(ROOT/"RUNNER_RECOVERY_TEST_MATRIX.md").read_text(encoding="utf-8")
-    acceptance_matrix=(ROOT/"RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
+    matrix=(ROOT/"docs/RUNNER_RECOVERY_TEST_MATRIX.md").read_text(encoding="utf-8")
+    acceptance_matrix=(ROOT/"docs/RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
     acceptance_template=json.loads((ROOT/"RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json").read_text(encoding="utf-8"))
     acceptance_validator=(ROOT/"tools/validate_runner_recovery_acceptance.py").read_text(encoding="utf-8")
     acceptance_builder=(ROOT/"tools/build_runner_recovery_acceptance.py").read_text(encoding="utf-8")

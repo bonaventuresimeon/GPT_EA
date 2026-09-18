@@ -1,0 +1,42 @@
+name: MetaEditor Local Compile
+
+on:
+  workflow_dispatch:
+    inputs:
+      syntax_only:
+        description: "Run MetaEditor syntax check only (/s)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  metaeditor-compile:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile GPT_EA with local MetaEditor
+        shell: powershell
+        env:
+          METAEDITOR_PATH: ${{ vars.METAEDITOR_PATH }}
+          MQL5_ROOT: ${{ vars.MQL5_ROOT }}
+        run: |
+          $args = @("-Source", ".\GPT_EA.mq5")
+          if ("${{ inputs.syntax_only }}" -eq "true") { $args += "-SyntaxOnly" }
+          & .\tools\compile_metaeditor.ps1 @args
+
+      - name: Upload compile diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metaeditor-compile-${{ github.sha }}
+          path: |
+            GPT_EA.log
+            metaeditor-first-errors.txt
+          if-no-files-found: warn
+          retention-days: 30

@@ -17,12 +17,12 @@ paths={
     "schema": ROOT/"SOAK_EVIDENCE_SCHEMA.json",
     "five_schema": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
     "five_template": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json",
-    "five_record_doc": ROOT/"FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md",
-    "operator_template": ROOT/"FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
-    "day_checklist": ROOT/"SOAK_DAY_RECONCILIATION_CHECKLIST.md",
-    "evidence_doc": ROOT/"DEMO_SOAK_EVIDENCE.md",
-    "report": ROOT/"DEMO_SOAK_REPORT_TEMPLATE.md",
-    "matrix": ROOT/"R6_LIFECYCLE_SOAK_TEST_MATRIX.md",
+    "five_record_doc": ROOT/"docs/FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md",
+    "operator_template": ROOT/"docs/FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md",
+    "day_checklist": ROOT/"docs/SOAK_DAY_RECONCILIATION_CHECKLIST.md",
+    "evidence_doc": ROOT/"docs/DEMO_SOAK_EVIDENCE.md",
+    "report": ROOT/"docs/DEMO_SOAK_REPORT_TEMPLATE.md",
+    "matrix": ROOT/"docs/R6_LIFECYCLE_SOAK_TEST_MATRIX.md",
     "importer": ROOT/"tools/import_soak_snapshot.py",
     "five_validator": ROOT/"tools/validate_five_day_soak_record.py",
     "soak_validator": ROOT/"tools/validate_soak_evidence.py",
@@ -144,10 +144,10 @@ for token in [
     "import_soak_snapshot.py", "validate_soak_evidence.py", "validate_release_evidence.py",
     "5 consecutive trading days", "checkpoint", "zero-tolerance",
 ]:
-    if token.lower() not in doc.lower(): errors.append(f"DEMO_SOAK_EVIDENCE.md missing concept: {token}")
+    if token.lower() not in doc.lower(): errors.append(f"docs/DEMO_SOAK_EVIDENCE.md missing concept: {token}")
 
 for token in ["Candidate identity","Zero-tolerance reconciliation","Schema and digest","Operator conclusion"]:
-    if token not in report: errors.append(f"DEMO_SOAK_REPORT_TEMPLATE.md missing section: {token}")
+    if token not in report: errors.append(f"docs/DEMO_SOAK_REPORT_TEMPLATE.md missing section: {token}")
 
 operator_doc=paths["operator_template"].read_text(encoding="utf-8")
 day_doc=paths["day_checklist"].read_text(encoding="utf-8")
@@ -158,11 +158,11 @@ for token in ["Day identity","Order/deal/execution reconciliation","Protection a
     if token not in day_doc: errors.append(f"soak-day checklist missing section/token: {token}")
 
 five_doc=paths["five_record_doc"].read_text(encoding="utf-8")
-for token in ["operator_record_path","FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md","validate_five_day_soak_record.py"]:
+for token in ["operator_record_path","docs/FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md","validate_five_day_soak_record.py"]:
     if token not in five_doc: errors.append(f"five-day acceptance record doc missing token: {token}")
 
 for token in ["LS-001","LS-002","LS-008","DS-010","DS-020","DS-030","DS-040","DS-050","DS-070","DS-073","DS-080","DS-085","DS-090","DS-095","DS-096"]:
-    if token not in matrix: errors.append(f"R6_LIFECYCLE_SOAK_TEST_MATRIX.md missing release case: {token}")
+    if token not in matrix: errors.append(f"docs/R6_LIFECYCLE_SOAK_TEST_MATRIX.md missing release case: {token}")
 
 for token in ["canonical_digest", "validate_soak", "evidence_digest", "No release-evidence file was modified"]:
     if token not in importer: errors.append(f"import_soak_snapshot.py missing safety token: {token}")

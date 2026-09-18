@@ -61,11 +61,11 @@ for name in [
         errors.append(f"{name} must default false")
 
 for name in [
-    "PRIVACY_DATA_RETENTION_REVIEW.md",
-    "PRIVACY_SIGN_OFF.md",
+    "docs/PRIVACY_DATA_RETENTION_REVIEW.md",
+    "docs/PRIVACY_SIGN_OFF.md",
     "PRIVACY_SIGN_OFF_TEMPLATE.json",
     "tools/validate_privacy_signoff.py",
-    "COMPILE_EVIDENCE_CHECKLIST.md",
+    "docs/COMPILE_EVIDENCE_CHECKLIST.md",
     "COMPILE_EVIDENCE_TEMPLATE.json",
     "tools/validate_compile_evidence.py",
 ]:

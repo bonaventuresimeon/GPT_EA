@@ -7,10 +7,10 @@ ROOT=Path(__file__).resolve().parents[1]
 MARKER="<!-- GPT_EA_DOC_HEADER -->"
 required_links=[
     "(README.md)",
-    "(ARCHITECTURE.md)",
-    "(ROADMAP.md)",
-    "(PRIVACY_DATA_RETENTION_REVIEW.md)",
-    "(RELEASE_EVIDENCE_PACK.md)",
+    "(docs/ARCHITECTURE.md)",
+    "(docs/ROADMAP.md)",
+    "(docs/PRIVACY_DATA_RETENTION_REVIEW.md)",
+    "(docs/RELEASE_EVIDENCE_PACK.md)",
 ]
 errors=[]
 files=sorted(ROOT.rglob("*.md"))
@@ -29,10 +29,10 @@ for p in files:
             errors.append(f"{rel}: missing navigation link {link}")
 
 for required in [
-    "ARCHITECTURE.md",
-    "ROADMAP.md",
-    "PRIVACY_DATA_RETENTION_REVIEW.md",
-    "RELEASE_EVIDENCE_PACK.md",
+    "docs/ARCHITECTURE.md",
+    "docs/ROADMAP.md",
+    "docs/PRIVACY_DATA_RETENTION_REVIEW.md",
+    "docs/RELEASE_EVIDENCE_PACK.md",
 ]:
     if not (ROOT/required).exists():
         errors.append(f"missing central documentation: {required}")

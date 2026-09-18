@@ -32,7 +32,7 @@ def load_generator():
 def main() -> int:
     ap = argparse.ArgumentParser(description="Detect drift between release evidence and a generated GPT_EA release-truth dashboard.")
     ap.add_argument("evidence", nargs="?", default="RELEASE_EVIDENCE_TEMPLATE.json")
-    ap.add_argument("--dashboard", default="RELEASE_TRUTH_DASHBOARD.md")
+    ap.add_argument("--dashboard", default="docs/RELEASE_TRUTH_DASHBOARD.md")
     ap.add_argument("--output", default=str(OUT_DEFAULT))
     args = ap.parse_args()
 

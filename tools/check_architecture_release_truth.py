@@ -29,7 +29,7 @@ def refs(value: str) -> list[str]:
 
 adr_paths = sorted(
     p for p in ROOT.glob("ADR_[0-9][0-9][0-9]_*.md")
-    if p.name != "ADR_TEMPLATE.md"
+    if p.name != "docs/ADR_TEMPLATE.md"
 )
 
 records: dict[str, dict[str, object]] = {}
@@ -103,7 +103,7 @@ else:
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         if registry.get("schema_version") != "gpt_ea_adr_registry_v1":
             errors.append("ADR_REGISTRY.json schema_version mismatch")
-        if registry.get("policy") != "ADR_SUPERSESSION_POLICY.md":
+        if registry.get("policy") != "docs/ADR_SUPERSESSION_POLICY.md":
             errors.append("ADR_REGISTRY.json policy reference mismatch")
         registry_records = {}
         for item in registry.get("records", []):
@@ -178,25 +178,25 @@ for rid in sorted(graph):
     visit(rid, [])
 
 # Index and policy/template references.
-index = ROOT / "ADR_INDEX.md"
+index = ROOT / "docs/ADR_INDEX.md"
 if not index.exists():
-    errors.append("ADR_INDEX.md missing")
+    errors.append("docs/ADR_INDEX.md missing")
 else:
     text = index.read_text(encoding="utf-8")
     for rid, record in records.items():
         if str(record["file"]) not in text:
             errors.append(f"ADR index missing {rid}: {record['file']}")
-    for token in ("ADR_SUPERSESSION_POLICY.md", "ADR_TEMPLATE.md", "ADR_REGISTRY.json"):
+    for token in ("docs/ADR_SUPERSESSION_POLICY.md", "docs/ADR_TEMPLATE.md", "ADR_REGISTRY.json"):
         if token not in text:
             errors.append(f"ADR index missing governance reference: {token}")
 
-for required in ("ADR_SUPERSESSION_POLICY.md", "ADR_TEMPLATE.md"):
+for required in ("docs/ADR_SUPERSESSION_POLICY.md", "docs/ADR_TEMPLATE.md"):
     if not (ROOT / required).exists():
         errors.append(f"missing ADR governance file: {required}")
 
 # Release-truth baseline contract.
 for required in (
-    "RELEASE_TRUTH_DASHBOARD.md",
+    "docs/RELEASE_TRUTH_DASHBOARD.md",
     "tools/generate_release_truth_dashboard.py",
     "tools/check_release_truth_drift.py",
     "RELEASE_EVIDENCE_TEMPLATE.json",
@@ -204,7 +204,7 @@ for required in (
     if not (ROOT / required).exists():
         errors.append(f"missing release-truth artifact: {required}")
 
-dashboard = ROOT / "RELEASE_TRUTH_DASHBOARD.md"
+dashboard = ROOT / "docs/RELEASE_TRUTH_DASHBOARD.md"
 if dashboard.exists():
     text = dashboard.read_text(encoding="utf-8")
     if "Overall candidate state: ⏸️ HOLD" not in text:
@@ -243,16 +243,16 @@ if generator.exists() and template.exists():
 readme = ROOT / "README.md"
 if readme.exists():
     text = readme.read_text(encoding="utf-8")
-    for token in ("ADR_INDEX.md", "ADR_SUPERSESSION_POLICY.md", "RELEASE_TRUTH_DASHBOARD.md"):
+    for token in ("docs/ADR_INDEX.md", "docs/ADR_SUPERSESSION_POLICY.md", "docs/RELEASE_TRUTH_DASHBOARD.md"):
         if token not in text:
             errors.append(f"README missing governance link: {token}")
 
-architecture = ROOT / "ARCHITECTURE.md"
+architecture = ROOT / "docs/ARCHITECTURE.md"
 if architecture.exists():
     text = architecture.read_text(encoding="utf-8")
-    for token in ("ADR_INDEX.md", "ADR_SUPERSESSION_POLICY.md", "RELEASE_TRUTH_DASHBOARD.md"):
+    for token in ("docs/ADR_INDEX.md", "docs/ADR_SUPERSESSION_POLICY.md", "docs/RELEASE_TRUTH_DASHBOARD.md"):
         if token not in text:
-            errors.append(f"ARCHITECTURE.md missing governance link: {token}")
+            errors.append(f"docs/ARCHITECTURE.md missing governance link: {token}")
 
 if errors:
     print("ARCHITECTURE / RELEASE-TRUTH CHECK: FAILED")

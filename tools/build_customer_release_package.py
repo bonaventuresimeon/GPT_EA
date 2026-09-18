@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, hashlib, json, shutil, subprocess, sys
+import argparse, hashlib, json, shutil, subprocess, sys, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,8 +47,13 @@ def main()->int:
 
     run([sys.executable,str(ROOT/"tools/validate_release_evidence_r10.py"),str(evidence)])
     run([sys.executable,str(ROOT/"tools/validate_final_release_review_r10.py"),str(evidence),str(review)])
-    run([sys.executable,str(ROOT/"tools/generate_release_truth_dashboard.py"),str(evidence),"--output","RELEASE_TRUTH_DASHBOARD.md","--require-pass"])
-    run([sys.executable,str(ROOT/"tools/check_release_truth_drift.py"),str(evidence),"--dashboard","RELEASE_TRUTH_DASHBOARD.md","--output","release-truth-drift-validation.txt"])
+
+    tmp_ctx=tempfile.TemporaryDirectory(prefix="gpt_ea_package_")
+    tmp=Path(tmp_ctx.name)
+    truth_dashboard=tmp/"RELEASE_TRUTH_DASHBOARD.md"
+    drift_output=tmp/"release-truth-drift-validation.txt"
+    run([sys.executable,str(ROOT/"tools/generate_release_truth_dashboard.py"),str(evidence),"--output",str(truth_dashboard),"--require-pass"])
+    run([sys.executable,str(ROOT/"tools/check_release_truth_drift.py"),str(evidence),"--dashboard",str(truth_dashboard),"--output",str(drift_output)])
 
     data=json.loads(evidence.read_text(encoding="utf-8"))
     expected_ex5=str(data.get("build",{}).get("ex5_sha256","")).lower()
@@ -80,8 +85,8 @@ def main()->int:
         if not src.exists(): raise SystemExit(f"ERROR: missing customer document: {rel}")
         dest=out/src.name
         shutil.copy2(src,dest)
-    shutil.copy2(ROOT/"RELEASE_TRUTH_DASHBOARD.md",out/"RELEASE_TRUTH_DASHBOARD.md")
-    shutil.copy2(ROOT/"release-truth-drift-validation.txt",out/"release-truth-drift-validation.txt")
+    shutil.copy2(truth_dashboard,out/"RELEASE_TRUTH_DASHBOARD.md")
+    shutil.copy2(drift_output,out/"release-truth-drift-validation.txt")
     if sig:
         shutil.copy2(sig,out/sig.name)
 
@@ -100,6 +105,7 @@ def main()->int:
     mp.write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
     (out/"PACKAGE_MANIFEST.sha256").write_text(sha256(mp)+"  PACKAGE_MANIFEST.json\n",encoding="utf-8")
     run([sys.executable,str(ROOT/"tools/scan_release_secrets.py"),str(out)])
+    tmp_ctx.cleanup()
     print("CUSTOMER RELEASE PACKAGE: PASS")
     print("OUTPUT="+str(out))
     return 0

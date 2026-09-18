@@ -16290,6 +16290,13 @@ string VisualStopRulesText(const bool bull)
       InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
 }
 
+string VisualTimelineNode(const string label,datetime when,bool done,bool active=false)
+{
+   if(done) return "✓ "+label+" "+VisualClock(when);
+   if(active) return "● "+label+" NEXT";
+   return "○ "+label;
+}
+
 string VisualTradeTimeline(const ulong pid,const ulong ticket)
 {
    datetime analyze=(datetime)GVRead(PosKey(pid,"EXEC_ANALYSIS_TIME"),0);
@@ -16302,11 +16309,30 @@ string VisualTradeTimeline(const ulong pid,const ulong ticket)
    datetime strong=(datetime)GVRead(PosKey(pid,"STRONG_LOCK_TIME"),0);
    datetime tp2=(datetime)GVRead(PosKey(pid,"TP2_TIME"),LegacyTicketRead(ticket,"TP2_TIME",0));
    datetime trail=(datetime)GVRead(PosKey(pid,"TRAIL_TIME"),0);
-   return StringFormat(
-      "ANALYZE %s  →  APPROVE %s  →  SENT %s  →  FILL %s\n"
-      "TP1 %s  →  B.E. %s  →  LOCK %s  →  STRONG %s  →  TP2 %s  →  TRAIL %s",
-      VisualClock(analyze),VisualClock(approve),VisualClock(sent),VisualClock(fill),
-      VisualClock(tp1),VisualClock(be),VisualClock(lock),VisualClock(strong),VisualClock(tp2),VisualClock(trail));
+   datetime trailLast=(datetime)GVRead(PosKey(pid,"TRAIL_LAST_TIME"),0);
+   int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
+   bool tp1done=PositionFlag(pid,ticket,"TP1DONE");
+   bool tp2done=PositionFlag(pid,ticket,"TP2PARTIAL");
+
+   bool nextTP1=!tp1done;
+   bool nextBE=(tp1done && stage<1);
+   bool nextLock=(stage==1);
+   bool nextStrong=(stage==2);
+   bool nextTP2=(stage>=3 && !tp2done);
+   bool nextTrail=(stage>=3 && tp2done && stage<4);
+
+   string top=VisualTimelineNode("ANALYZE",analyze,analyze>0)+
+              "  →  "+VisualTimelineNode("APPROVE",approve,approve>0)+
+              "  →  "+VisualTimelineNode("SENT",sent,sent>0)+
+              "  →  "+VisualTimelineNode("FILL",fill,fill>0);
+   string bottom=VisualTimelineNode("TP1",tp1,tp1done,nextTP1)+
+                 "  →  "+VisualTimelineNode("B.E.",be,stage>=1,nextBE)+
+                 "  →  "+VisualTimelineNode("+0.5R",lock,stage>=2,nextLock)+
+                 "  →  "+VisualTimelineNode("+1R",strong,stage>=3,nextStrong)+
+                 "  →  "+VisualTimelineNode("TP2",tp2,tp2done,nextTP2)+
+                 "  →  "+VisualTimelineNode("TRAIL",trail,stage>=4,nextTrail);
+   if(stage>=4 && trailLast>0) bottom+="  •  last ratchet "+VisualClock(trailLast);
+   return top+"\n"+bottom;
 }
 
 void RenderLiveManagementDashboard(ulong ticket)
@@ -16533,10 +16559,16 @@ void RenderCandidateOperationalDashboard()
 
    ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
 
-   SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+314,sw,90,
-      "PROTECTION RULES IF FILLED",
-      VisualStopRulesText(s.bullish),
-      C'182,137,68');
+   if(InpShowStopMovementRules)
+      SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+314,sw,90,
+         "PROTECTION RULES IF FILLED",
+         VisualStopRulesText(s.bullish),
+         C'182,137,68');
+   else
+   {
+      DeleteVisualObject(DASH_RULES_CARD);
+      DeleteVisualObject(DASH_RULES_LABEL);
+   }
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+412,sw,96,
       "RISK & SAFETY",

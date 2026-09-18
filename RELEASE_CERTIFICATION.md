@@ -22,9 +22,9 @@ The base release validation identity remains:
 
 The active runtime safety chain is layered:
 
-`Part28 base R6 certification → Part29 deployment drift → Part28B runner/CI/MT5/five-day evidence → Part37 API transport guard`.
+`Part28 base R6 certification → Part29 deployment drift → Part28B runner/CI/MT5-v2/resilience/five-day evidence → Part37 API transport → Part38 legal/license → Part39 customer-risk acknowledgement → Part40 privacy release guard`.
 
-The later wrappers do not weaken or replace R6. Every layer must pass simultaneously before REAL-account arming.
+The later wrappers do not weaken or replace R6. Every layer must pass simultaneously before REAL-account arming. The active runtime gate is the R10 privacy wrapper over the complete underlying chain.
 
 ## Default fail-closed behavior
 
@@ -74,7 +74,9 @@ Part28B additionally requires `InpReleaseCIBundleValidated=true` and the matchin
 
 ## 4. MT5/MetaEditor validation evidence
 
-The exact release candidate must produce a finalized `mt5_validation_evidence_v1` record following `MT5_VALIDATION_EVIDENCE.md` and `MT5_VALIDATION_ACCEPTANCE_MATRIX.md`. It binds compile/load smoke, Strategy Tester, broker geometry, recovery, stop/protection behavior, live-demo WebRequest/news paths, and hashed MT5 artifacts.
+The exact release candidate must produce a finalized `mt5_validation_evidence_v2` record following `MT5_VALIDATION_EVIDENCE.md` and `MT5_VALIDATION_ACCEPTANCE_MATRIX.md`. It binds compile/load smoke, Strategy Tester, broker geometry, recovery, stop/protection behavior, live-demo WebRequest/news paths, and hashed MT5 artifacts.
+
+MT5 v2 requires M5-001 through M5-053. In addition to the original compile/tester/broker/protection/API checks it proves direct-breakout separation, the atomic intent ledger and exactly-once semantics, broker-versus-EA reconciliation, manual-intervention detection, storage/configuration fail-closed behavior, clock integrity, chaos/fault injection, macro stress, gap/margin stress, decision half-life/latency, model degradation, provenance freshness, learning quarantine and champion rollback.
 
 Run `tools/validate_mt5_validation_evidence.py` and archive its PASS output before setting the Part28B MT5 evidence inputs.
 
@@ -97,6 +99,22 @@ Before real arming archive PASS evidence for all applicable:
 - stop observability;
 - live news/intermarket validation;
 - WebRequest/OpenAI failure injection.
+
+
+
+## 5A. R6 resilience hardening evidence
+
+The release must also validate `resilience_hardening_evidence_v1` against `R6_RESILIENCE_HARDENING_TEST_MATRIX.md`. RH-001 through RH-048 are mandatory and bind the candidate Git SHA plus the certified configuration fingerprint.
+
+This evidence covers the platform-level guarantees that are intentionally broader than a strategy backtest: direct-breakout correctness, atomic/exactly-once execution, order/deal/position reconciliation, source provenance and `as_of_utc` freshness, clock/model degradation, versioned learning quarantine, statistical champion promotion and rollback, strategy configuration registry, portfolio macro stress, gap/margin protection, decision lifetime, storage/configuration drift, manual intervention, causal attribution and fault-injection recovery.
+
+Part28B may set `InpReleaseResilienceHardeningPassed=true` only from the finalized matching evidence. `InpReleaseCertifiedConfigFingerprint` must equal the runtime fingerprint used by the certified release.
+
+## 5B. Rollback readiness
+
+Before GO, validate `rollback_package` in release evidence. For an established production lineage, archive the previous certified EX5, SET, release evidence, final review, hashes and migration notes as a validated rollback package. For the first certified production release, use the explicit `FIRST_CERTIFIED_RELEASE` mode with operator-reviewed justification.
+
+Rollback readiness is an engineering recovery control; it is not permission to performance-chase by swapping versions after ordinary trading losses.
 
 ## 6. API/WebRequest transport certification
 
@@ -182,9 +200,11 @@ These make the running terminal auditable but do not replace archived release fi
 2. Compile exact candidate; archive EX5/SET hashes and compile log.
 3. Obtain and validate runner-recovery evidence plus the runner-recovery acceptance matrix.
 4. Obtain a green executed GitHub Actions CI evidence bundle for the exact candidate.
-5. Compile/load/test the exact candidate in MT5 and finalize `mt5_validation_evidence_v1`.
-6. Run remaining intelligence/adaptive/broker/recovery/stop matrices.
-7. Validate selected API transport/WebRequest mode on demo.
+5. Compile/load/test the exact candidate in MT5 and finalize `mt5_validation_evidence_v2` with M5-001 through M5-053.
+6. Complete RH-001 through RH-048 and finalize `resilience_hardening_evidence_v1`.
+7. Build/validate rollback readiness for the previous certified release, or explicitly attest the first-certified-release case.
+8. Run remaining intelligence/adaptive/broker/recovery/stop matrices.
+9. Validate selected API transport/WebRequest mode on demo.
 8. Run the exact candidate through the five-day demo soak.
 9. Complete the machine five-day record, daily reconciliation, operator worksheet and soak report.
 10. Finalize the five-day record digest and validate soak evidence.

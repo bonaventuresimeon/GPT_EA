@@ -193,7 +193,7 @@ def validate_runner_acceptance_release_record(ra:dict,build_sha:str,ci_bundle_di
 
 def validate_mt5_release_record(mt5:dict,build:dict,deployment:dict)->tuple[list[str],str]:
     errors:list[str]=[]
-    require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v1","mt5_validation.schema_version must be mt5_validation_evidence_v1")
+    require(errors,mt5.get("schema_version")=="mt5_validation_evidence_v2","mt5_validation.schema_version must be mt5_validation_evidence_v2")
     require(errors,len(str(mt5.get("evidence_id","")).strip())>=8,"mt5_validation.evidence_id is required")
     expected=str(mt5.get("evidence_digest",""))
     require(errors,bool(HEX64.fullmatch(expected)),"mt5_validation.evidence_digest must be SHA-256")

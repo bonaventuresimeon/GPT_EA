@@ -136,3 +136,5 @@ Connection-loss recovery:
 Final reviewer:
 Final timestamp:
 Decision: **HOLD / PASS**
+
+- `DETERMINISTIC_FALLBACK_BOUNDARY=PASS` — unavailable GPT/web transport may be bypassed only in approved deterministic-only mode; available vetoes, BLOCK verdicts, stale/schema/provenance failures and calendar/yield/intermarket conflicts remain blocking.

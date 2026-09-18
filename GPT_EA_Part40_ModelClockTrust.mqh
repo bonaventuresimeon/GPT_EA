@@ -127,6 +127,20 @@ bool DeterministicEmergencyStrategyAllowed(const string sym,StrategyClass c,stri
    return true;
 }
 
+bool DeterministicEmergencyExecutionActive(const string sym,StrategyClass c,string &why)
+{
+   why="";
+   string health="";
+   int mode=CurrentModelTrustMode(health);
+   if(mode!=MODEL_TRUST_DETERMINISTIC_ONLY)
+   { why=health+" | deterministic-only mode not active"; return false; }
+   string det="";
+   if(!DeterministicEmergencyStrategyAllowed(sym,c,det))
+   { why=health+" | "+det; return false; }
+   why=health+" | "+det;
+   return true;
+}
+
 bool ModelClockExecutionAllows(const TradeSetup &s,StrategyClass c,string &why)
 {
    string clock="";

@@ -318,7 +318,7 @@ bool GapRiskAllows(const TradeSetup &s,double lots,string &why)
    return multiple<=MathMax(1.0,InpMaxGapLossMultipleOfPlannedRisk);
 }
 
-bool MarginStressAllows(const TradeSetup &s,double lots,double proposedStress,string &why)
+bool MarginStressAllows(const TradeSetup &s,double lots,double totalStressLoss,string &why)
 {
    why="";
    if(!InpUseMarginStressGate){ why="margin stress disabled"; return true; }
@@ -328,7 +328,7 @@ bool MarginStressAllows(const TradeSetup &s,double lots,double proposedStress,st
    if(!OrderCalcMargin(ot,s.symbol,lots,px,newMargin)){ why="OrderCalcMargin failed in stress test"; return false; }
    double equity=AccountInfoDouble(ACCOUNT_EQUITY);
    double margin=AccountInfoDouble(ACCOUNT_MARGIN);
-   double portfolioStress=CurrentPortfolioScenarioStressLoss()+proposedStress;
+   double portfolioStress=MathMax(0.0,totalStressLoss);
    double stressedEquity=MathMax(0.0,equity-portfolioStress);
    double stressedMargin=margin+newMargin;
    double level=(stressedMargin>0?stressedEquity/stressedMargin*100.0:99999.0);
@@ -384,8 +384,7 @@ bool PortfolioStressLatencyAllows(const TradeSetup &s,double lots,string &why)
    string gap="";
    if(!GapRiskAllows(s,lots,gap)){ why="gap risk BLOCK: "+gap+" | "+age; return false; }
    string margin="";
-   double proposedForMargin=MathMax(proposedStress,MathMax(0.0,macroStress-CurrentPortfolioScenarioStressLoss()));
-   if(!MarginStressAllows(s,lots,proposedForMargin,margin)){ why="margin stress BLOCK: "+margin+" | "+age; return false; }
+   if(!MarginStressAllows(s,lots,total,margin)){ why="margin stress BLOCK: "+margin+" | "+age; return false; }
 
    why=StringFormat("scenario stress %.2f%% equity PASS | asset adverse %.2f | worst macro %s %.2f | %s | %s | %s",
                     pct,assetClassStress,worstMacro,macroStress,gap,margin,age);

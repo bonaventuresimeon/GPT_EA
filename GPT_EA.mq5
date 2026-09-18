@@ -11418,24 +11418,3084 @@ void ExecutionLearningTimerR5()
    for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") RefreshRegimeTransition(g_symbols[i]);
 }
 // ===== END INLINED GPT_EA_Part31B_ExecutionFinalizer.mqh =====
-#include "GPT_EA_Part32_ChampionChallenger.mqh"
-#include "GPT_EA_Part33_LifecycleIntegrityReplay.mqh"
-#include "GPT_EA_Part42_ExecutionReliability.mqh"
-#include "GPT_EA_Part43_CausalAttribution.mqh"
-#include "GPT_EA_Part34_StrategyHealthDashboard.mqh"
-#include "GPT_EA_Part36_DemoSoakEvidence.mqh"
-#include "GPT_EA_Part35_AdaptiveIntegration.mqh"
+// ===== BEGIN INLINED GPT_EA_Part32_ChampionChallenger.mqh =====
+// ============================================================================
+// GPT_EA Part 32 - Champion/challenger shadow validation and counterfactuals
+// ============================================================================
+
+input bool   InpUseChampionChallenger             = true;
+input bool   InpAutoPromoteChallenger             = false; // conservative default: research recommendation only
+input int    InpChampionChallengerMinSamples      = 30;
+input double InpChallengerMinAvgRAdvantage        = 0.10;
+input double InpChallengerMinPFAdvantage          = 0.15;
+input double InpChallengerMaxExtraDrawdownR       = 0.25;
+input double InpChallengerMaxInstabilityR         = 1.50;
+input bool   InpUsePromotionSignificance          = true;
+input double InpPromotionSignificanceZ            = 1.64; // conservative one-sided ~95% lower bound
+input double InpPromotionMinLowerAdvantageR       = 0.02;
+input bool   InpUsePromotionProbationRollback     = true;
+input int    InpPromotionProbationTrades          = 15;
+input int    InpPromotionRollbackMinTrades        = 5;
+input double InpPromotionRollbackMinAvgR          = 0.00;
+input double InpPromotionRollbackMinPF            = 1.00;
+input double InpPromotionRollbackMaxExtraDDR      = 0.50;
+input int    InpRollbackRequalifyNewSamples       = 20;
+input int    InpShadowMaxExpiryM15                = 12;
+input string InpShadowValidationFile              = "GPT_EA_ShadowValidationV2.csv";
+input bool   InpTrackRejectedCounterfactuals      = true;
+
+enum ShadowVariant
+{
+   SHADOW_CHAMPION=0,
+   SHADOW_PULLBACK=1,
+   SHADOW_BREAKOUT_RETEST=2,
+   SHADOW_REJECTED_COUNTERFACTUAL=3
+};
+
+string ShadowVariantName(int v)
+{
+   if(v==SHADOW_PULLBACK) return "CHALLENGER_PULLBACK";
+   if(v==SHADOW_BREAKOUT_RETEST) return "CHALLENGER_BREAKOUT_RETEST";
+   if(v==SHADOW_REJECTED_COUNTERFACTUAL) return "REJECTED_COUNTERFACTUAL";
+   return "CHAMPION";
+}
+
+string ShadowKey(const string sym,int variant,const string suffix)
+{
+   return SymKey(sym,StringFormat("SHADOW_V%d_%s",variant,suffix));
+}
+
+string ShadowStatsKey(StrategyClass c,int variant)
+{
+   return SysKey(StringFormat("CC_STRAT_%d_V%d",(int)c,variant));
+}
+
+bool ShadowGeometryUsable(const TradeSetup &s)
+{
+   if(s.symbol=="" || s.preferred<=0 || s.sl<=0) return false;
+   if(s.bullish && !(s.sl<s.preferred && s.tp1>s.preferred && s.tp2>s.tp1)) return false;
+   if(!s.bullish && !(s.sl>s.preferred && s.tp1<s.preferred && s.tp2<s.tp1)) return false;
+   return true;
+}
+
+void EnsureShadowValidationHeader()
+{
+   if(!InpUseChampionChallenger) return;
+   bool exists=FileIsExist(InpShadowValidationFile,FILE_COMMON);
+   int h=FileOpen(InpShadowValidationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","event","symbol","strategy","variant","side","entry","sl","tp2","expiry_m15","outcome_r","mae_r","mfe_r",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
+   FileClose(h);
+}
+
+void WriteShadowRow(const string eventName,const string sym,StrategyClass c,int variant,bool bull,double entry,double sl,double tp2,int expiry,double outcome,double mae,double mfe,const string reason)
+{
+   if(!InpUseChampionChallenger) return;
+   EnsureShadowValidationHeader();
+   int h=FileOpen(InpShadowValidationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"shadow_validation_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),eventName,sym,StrategyClassName(c),ShadowVariantName(variant),bull?"BUY":"SELL",
+      DoubleToString(entry,DigitsFor(sym)),DoubleToString(sl,DigitsFor(sym)),DoubleToString(tp2,DigitsFor(sym)),expiry,
+      DoubleToString(outcome,3),DoubleToString(mae,3),DoubleToString(mfe,3),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion(c),reason);
+   FileFlush(h); FileClose(h);
+}
+
+bool ShadowVariantActive(const string sym,int variant)
+{
+   return GVRead(ShadowKey(sym,variant,"ACTIVE"),0)>0.5;
+}
+
+void RegisterShadowTrade(const TradeSetup &s,StrategyClass c,int variant,const string reason)
+{
+   if(!InpUseChampionChallenger || !ShadowGeometryUsable(s) || c==STRATEGY_NO_TRADE) return;
+   if(ShadowVariantActive(s.symbol,variant)) return;
+   double R=MathAbs(s.preferred-s.sl); if(R<=PointFor(s.symbol)) return;
+   GVWrite(ShadowKey(s.symbol,variant,"ACTIVE"),1);
+   GVWrite(ShadowKey(s.symbol,variant,"STRATEGY"),(int)c);
+   GVWrite(ShadowKey(s.symbol,variant,"BULL"),s.bullish?1:0);
+   GVWrite(ShadowKey(s.symbol,variant,"ENTRY"),s.preferred);
+   GVWrite(ShadowKey(s.symbol,variant,"SL"),s.sl);
+   GVWrite(ShadowKey(s.symbol,variant,"TP1"),s.tp1);
+   GVWrite(ShadowKey(s.symbol,variant,"TP2"),s.tp2);
+   GVWrite(ShadowKey(s.symbol,variant,"TP3"),s.tp3);
+   GVWrite(ShadowKey(s.symbol,variant,"START"),(double)TimeTradeServer());
+   GVWrite(ShadowKey(s.symbol,variant,"EXP"),MathMax(1,MathMin(InpShadowMaxExpiryM15,s.expiryM15)));
+   GVWrite(ShadowKey(s.symbol,variant,"MAE"),0);
+   GVWrite(ShadowKey(s.symbol,variant,"MFE"),0);
+   GVWrite(ShadowKey(s.symbol,variant,"LASTBAR"),0);
+   WriteShadowRow("OPEN",s.symbol,c,variant,s.bullish,s.preferred,s.sl,s.tp2,s.expiryM15,0,0,0,reason);
+}
+
+void UpdateShadowStability(const string key,double outcome)
+{
+   double ew=GVRead(key+"_EWMA",0);
+   double newE=EWMA(ew,outcome,0.20);
+   double dev=MathAbs(outcome-newE);
+   GVWrite(key+"_EWMA",newE);
+   GVWrite(key+"_DEV",EWMA(GVRead(key+"_DEV",0),dev,0.20));
+}
+
+void FinalizeShadowTrade(const string sym,int variant,double outcome,const string reason)
+{
+   if(!ShadowVariantActive(sym,variant)) return;
+   StrategyClass c=(StrategyClass)(int)GVRead(ShadowKey(sym,variant,"STRATEGY"),0);
+   bool bull=GVRead(ShadowKey(sym,variant,"BULL"),0)>0.5;
+   double entry=GVRead(ShadowKey(sym,variant,"ENTRY"),0),sl=GVRead(ShadowKey(sym,variant,"SL"),0),tp2=GVRead(ShadowKey(sym,variant,"TP2"),0);
+   int exp=(int)GVRead(ShadowKey(sym,variant,"EXP"),0);
+   double mae=GVRead(ShadowKey(sym,variant,"MAE"),0),mfe=GVRead(ShadowKey(sym,variant,"MFE"),0);
+   string key=ShadowStatsKey(c,variant);
+   UpdateStrategyBucket(key,outcome);
+   UpdateShadowStability(key,outcome);
+   WriteShadowRow("CLOSED",sym,c,variant,bull,entry,sl,tp2,exp,outcome,mae,mfe,reason);
+   GVWrite(ShadowKey(sym,variant,"ACTIVE"),0);
+}
+
+void UpdateOneShadowTrade(const string sym,int variant)
+{
+   if(!ShadowVariantActive(sym,variant) || !EnsureSymbol(sym)) return;
+   bool bull=GVRead(ShadowKey(sym,variant,"BULL"),0)>0.5;
+   double entry=GVRead(ShadowKey(sym,variant,"ENTRY"),0),sl=GVRead(ShadowKey(sym,variant,"SL"),0),tp2=GVRead(ShadowKey(sym,variant,"TP2"),0);
+   datetime start=(datetime)GVRead(ShadowKey(sym,variant,"START"),0);
+   int expiry=(int)GVRead(ShadowKey(sym,variant,"EXP"),4);
+   double R=MathAbs(entry-sl); if(R<=0){ FinalizeShadowTrade(sym,variant,0,"invalid shadow geometry"); return; }
+
+   MqlTick t={}; if(!GetTickSafe(sym,t)) return;
+   double px=(bull?t.bid:t.ask);
+   double rNow=(bull?px-entry:entry-px)/R;
+   if(rNow>GVRead(ShadowKey(sym,variant,"MFE"),0)) GVWrite(ShadowKey(sym,variant,"MFE"),rNow);
+   double mae=MathMax(0.0,-rNow); if(mae>GVRead(ShadowKey(sym,variant,"MAE"),0)) GVWrite(ShadowKey(sym,variant,"MAE"),mae);
+
+   // Use the most recently closed M5 bar to catch target/stop touches between timer cycles.
+   MqlRates b[]; ArraySetAsSeries(b,true);
+   bool stopHit=false,targetHit=false;
+   if(CopyRates(sym,PERIOD_M5,1,1,b)>=1)
+   {
+      stopHit=(bull?b[0].low<=sl:b[0].high>=sl);
+      targetHit=(bull?b[0].high>=tp2:b[0].low<=tp2);
+   }
+   if(stopHit && targetHit)
+   {
+      // Conservative ambiguity rule prevents optimistic shadow statistics.
+      FinalizeShadowTrade(sym,variant,-1.0,"same-bar stop/TP2 ambiguity; conservative stop outcome");
+      return;
+   }
+   if(stopHit || (bull?px<=sl:px>=sl)){ FinalizeShadowTrade(sym,variant,-1.0,"shadow stop reached"); return; }
+   if(targetHit || (bull?px>=tp2:px<=tp2))
+   {
+      double targetR=MathAbs(tp2-entry)/R;
+      FinalizeShadowTrade(sym,variant,targetR,"shadow TP2 reached"); return;
+   }
+   if(start>0 && BarsSince(sym,PERIOD_M15,start)>=expiry)
+   {
+      FinalizeShadowTrade(sym,variant,MathMax(-1.0,MathMin(2.5,rNow)),"shadow candle expiry mark-to-market");
+      return;
+   }
+}
+
+void ChampionChallengerMetrics(StrategyClass c,int variant,double &n,double &avg,double &pf,double &dd,double &dev)
+{
+   double wr=0,ml=0; string k=ShadowStatsKey(c,variant);
+   StrategyBucketMetrics(k,n,wr,avg,pf,dd,ml);
+   dev=GVRead(k+"_DEV",0);
+}
+
+bool ChallengerRollbackCooldownAllows(StrategyClass c,int variant,string &why)
+{
+   double rollbackN=GVRead(SysKey(StringFormat("CC_ROLLBACK_N_%d_V%d",(int)c,variant)),0);
+   if(rollbackN<=0){ why="no rollback cooldown"; return true; }
+   double n=0,a=0,pf=0,dd=0,dev=0;
+   ChampionChallengerMetrics(c,variant,n,a,pf,dd,dev);
+   double added=n-rollbackN;
+   if(added<MathMax(1,InpRollbackRequalifyNewSamples))
+   {
+      why=StringFormat("rollback cooldown: %.0f/%d new shadow samples",added,InpRollbackRequalifyNewSamples);
+      return false;
+   }
+   why=StringFormat("rollback cooldown cleared after %.0f new samples",added);
+   return true;
+}
+
+bool ChallengerSignificanceAllows(StrategyClass c,int variant,string &why)
+{
+   why="";
+   if(!InpUsePromotionSignificance){ why="statistical significance gate disabled"; return true; }
+   double cn=0,ca=0,cp=0,cdd=0,cdev=0,nn=0,na=0,np=0,ndd=0,ndev=0;
+   ChampionChallengerMetrics(c,SHADOW_CHAMPION,cn,ca,cp,cdd,cdev);
+   ChampionChallengerMetrics(c,variant,nn,na,np,ndd,ndev);
+   if(cn<2 || nn<2){ why="insufficient sample for significance"; return false; }
+
+   // DEV is an EWMA absolute deviation. Multiplying by 1.253 approximates
+   // sigma from mean absolute deviation and intentionally errs conservatively.
+   double cs=MathMax(0.05,cdev*1.253);
+   double ns=MathMax(0.05,ndev*1.253);
+   double se=MathSqrt(cs*cs/cn+ns*ns/nn);
+   double advantage=na-ca;
+   double lower=advantage-MathMax(0.0,InpPromotionSignificanceZ)*se;
+   why=StringFormat("promotion significance: advantage %.3fR | SE %.3f | lower bound %.3fR vs %.3fR",
+                    advantage,se,lower,InpPromotionMinLowerAdvantageR);
+   return lower>=InpPromotionMinLowerAdvantageR;
+}
+
+void CapturePromotionProbationBaseline(StrategyClass c,int variant)
+{
+   string k=ShadowStatsKey(c,variant);
+   string p=SysKey(StringFormat("CC_PROB_%d_V%d",(int)c,variant));
+   GVWrite(p+"_N",GVRead(k+"_N",0));
+   GVWrite(p+"_SUMR",GVRead(k+"_SUMR",0));
+   GVWrite(p+"_POSR",GVRead(k+"_POSR",0));
+   GVWrite(p+"_NEGR",GVRead(k+"_NEGR",0));
+   GVWrite(p+"_MAXDD",GVRead(k+"_MAXDD",0));
+   GVWrite(p+"_TIME",(double)TimeTradeServer());
+   GVWrite(p+"_PASSED",0);
+}
+
+bool PromotionProbationShouldRollback(StrategyClass c,int variant,string &why)
+{
+   why="";
+   if(!InpUsePromotionProbationRollback || variant==SHADOW_CHAMPION) return false;
+   string k=ShadowStatsKey(c,variant);
+   string p=SysKey(StringFormat("CC_PROB_%d_V%d",(int)c,variant));
+   double baseN=GVRead(p+"_N",-1);
+   if(baseN<0){ CapturePromotionProbationBaseline(c,variant); why="probation baseline initialized"; return false; }
+
+   double n=GVRead(k+"_N",0);
+   double postN=n-baseN;
+   if(postN<MathMax(1,InpPromotionRollbackMinTrades))
+   {
+      why=StringFormat("promotion probation %.0f/%d minimum review trades",postN,InpPromotionRollbackMinTrades);
+      return false;
+   }
+
+   double sum=GVRead(k+"_SUMR",0)-GVRead(p+"_SUMR",0);
+   double pos=GVRead(k+"_POSR",0)-GVRead(p+"_POSR",0);
+   double neg=GVRead(k+"_NEGR",0)-GVRead(p+"_NEGR",0);
+   double avg=(postN>0?sum/postN:0);
+   double pf=(neg>0?pos/neg:(pos>0?99.0:0.0));
+   double ddNow=GVRead(k+"_MAXDD",0),ddBase=GVRead(p+"_MAXDD",0);
+   bool bad=(avg<InpPromotionRollbackMinAvgR ||
+             pf<InpPromotionRollbackMinPF ||
+             ddNow>ddBase+InpPromotionRollbackMaxExtraDDR);
+   why=StringFormat("promotion probation N %.0f | avg %.2fR | PF %.2f | DD %.2f vs base %.2f",
+                    postN,avg,pf,ddNow,ddBase);
+   if(bad) return true;
+   if(postN>=MathMax(InpPromotionRollbackMinTrades,InpPromotionProbationTrades))
+      GVWrite(p+"_PASSED",1);
+   return false;
+}
+
+void EvaluateChampionRollback(StrategyClass c)
+{
+   if(!InpUseChampionChallenger || !InpAutoPromoteChallenger || !InpUsePromotionProbationRollback) return;
+   string promotedKey=SysKey(StringFormat("CC_PROMOTED_%d",(int)c));
+   int current=(int)GVRead(promotedKey,SHADOW_CHAMPION);
+   if(current==SHADOW_CHAMPION) return;
+   string why="";
+   if(PromotionProbationShouldRollback(c,current,why))
+   {
+      double n=0,a=0,pf=0,dd=0,dev=0;
+      ChampionChallengerMetrics(c,current,n,a,pf,dd,dev);
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_N_%d_V%d",(int)c,current)),n);
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_TIME_%d",(int)c)),(double)TimeTradeServer());
+      GVWrite(SysKey(StringFormat("CC_ROLLBACK_VARIANT_%d",(int)c)),current);
+      GVWrite(promotedKey,SHADOW_CHAMPION);
+      Print("GPT_EA champion rollback: ",StrategyClassName(c)," ",ShadowVariantName(current)," -> CHAMPION | ",why);
+   }
+}
+
+bool ChallengerEligibleForPromotion(StrategyClass c,int variant,string &why)
+{
+   why="";
+   if(variant!=SHADOW_PULLBACK && variant!=SHADOW_BREAKOUT_RETEST) return false;
+   string cooldown="";
+   if(!ChallengerRollbackCooldownAllows(c,variant,cooldown)){ why=cooldown; return false; }
+   double cn=0,ca=0,cp=0,cdd=0,cdev=0,nn=0,na=0,np=0,ndd=0,ndev=0;
+   ChampionChallengerMetrics(c,SHADOW_CHAMPION,cn,ca,cp,cdd,cdev);
+   ChampionChallengerMetrics(c,variant,nn,na,np,ndd,ndev);
+   if(cn<InpChampionChallengerMinSamples || nn<InpChampionChallengerMinSamples)
+   {
+      why=StringFormat("developing shadow sample champion %.0f / challenger %.0f; minimum %d",cn,nn,InpChampionChallengerMinSamples);
+      return false;
+   }
+   bool avgOK=(na>=ca+InpChallengerMinAvgRAdvantage);
+   bool pfOK=(np>=cp+InpChallengerMinPFAdvantage);
+   bool ddOK=(ndd<=cdd+InpChallengerMaxExtraDrawdownR);
+   bool stable=(ndev<=InpChallengerMaxInstabilityR);
+   string sig="";
+   bool significant=ChallengerSignificanceAllows(c,variant,sig);
+   why=StringFormat("champ avg %.2f PF %.2f DD %.2f dev %.2f | challenger %s avg %.2f PF %.2f DD %.2f dev %.2f | %s | %s",
+      ca,cp,cdd,cdev,ShadowVariantName(variant),na,np,ndd,ndev,sig,cooldown);
+   return avgOK && pfOK && ddOK && stable && significant;
+}
+
+int PromotedChallengerVariant(StrategyClass c)
+{
+   return (int)GVRead(SysKey(StringFormat("CC_PROMOTED_%d",(int)c)),SHADOW_CHAMPION);
+}
+
+void RefreshChampionChallengerPromotion()
+{
+   if(!InpUseChampionChallenger) return;
+   for(int ci=1;ci<=9;ci++)
+   {
+      StrategyClass c=(StrategyClass)ci;
+      EvaluateChampionRollback(c);
+      int current=(int)GVRead(SysKey(StringFormat("CC_PROMOTED_%d",ci)),SHADOW_CHAMPION);
+      string p="",b="";
+      bool pb=ChallengerEligibleForPromotion(c,SHADOW_PULLBACK,p);
+      bool br=ChallengerEligibleForPromotion(c,SHADOW_BREAKOUT_RETEST,b);
+      int chosen=SHADOW_CHAMPION;
+      if(pb && br)
+      {
+         double n1=0,a1=0,pf1=0,d1=0,v1=0,n2=0,a2=0,pf2=0,d2=0,v2=0;
+         ChampionChallengerMetrics(c,SHADOW_PULLBACK,n1,a1,pf1,d1,v1);
+         ChampionChallengerMetrics(c,SHADOW_BREAKOUT_RETEST,n2,a2,pf2,d2,v2);
+         chosen=(a2>a1?SHADOW_BREAKOUT_RETEST:SHADOW_PULLBACK);
+      }
+      else if(pb) chosen=SHADOW_PULLBACK;
+      else if(br) chosen=SHADOW_BREAKOUT_RETEST;
+      if(!InpAutoPromoteChallenger) chosen=SHADOW_CHAMPION;
+      if(chosen!=current && chosen!=SHADOW_CHAMPION)
+      {
+         CapturePromotionProbationBaseline(c,chosen);
+         GVWrite(SysKey(StringFormat("CC_PREVIOUS_%d",ci)),current);
+         GVWrite(SysKey(StringFormat("CC_PROMOTION_TIME_%d",ci)),(double)TimeTradeServer());
+      }
+      // A rollback performed above is not immediately undone unless the
+      // challenger has cleared its requalification sample cooldown.
+      GVWrite(SysKey(StringFormat("CC_PROMOTED_%d",ci)),chosen);
+      GVWrite(SysKey(StringFormat("CC_PB_ELIGIBLE_%d",ci)),pb?1:0);
+      GVWrite(SysKey(StringFormat("CC_BRT_ELIGIBLE_%d",ci)),br?1:0);
+   }
+}
+
+void ApplyChampionChallengerSelection(TradeSetup &primary,const TradeSetup &pb,const TradeSetup &br,StrategyDecision &d,string &note)
+{
+   note="Champion selector retained.";
+   if(!InpUseChampionChallenger || !InpAutoPromoteChallenger || d.strategy==STRATEGY_NO_TRADE) return;
+   int v=PromotedChallengerVariant(d.strategy);
+   if(v==SHADOW_PULLBACK && ShadowGeometryUsable(pb) && pb.valid)
+   {
+      primary=pb; d.setup=pb; note="Promoted pullback challenger selected after shadow validation."; return;
+   }
+   if(v==SHADOW_BREAKOUT_RETEST && ShadowGeometryUsable(br) && br.valid)
+   {
+      primary=br; d.setup=br; note="Promoted breakout-retest challenger selected after shadow validation."; return;
+   }
+}
+
+void ChampionChallengerScanHook(const TradeSetup &primary,const TradeSetup &pb,const TradeSetup &br,const StrategyDecision &d,bool liveReady,const string reason)
+{
+   if(!InpUseChampionChallenger || d.strategy==STRATEGY_NO_TRADE) return;
+   if(ShadowGeometryUsable(primary)) RegisterShadowTrade(primary,d.strategy,SHADOW_CHAMPION,"selected strategy shadow benchmark");
+   if(ShadowGeometryUsable(pb)) RegisterShadowTrade(pb,d.strategy,SHADOW_PULLBACK,"alternative pullback execution path");
+   if(ShadowGeometryUsable(br)) RegisterShadowTrade(br,d.strategy,SHADOW_BREAKOUT_RETEST,"alternative breakout-retest execution path");
+   if(InpTrackRejectedCounterfactuals && !liveReady && ShadowGeometryUsable(primary))
+      RegisterShadowTrade(primary,d.strategy,SHADOW_REJECTED_COUNTERFACTUAL,"rejected/no-trade counterfactual: "+reason);
+}
+
+string ChampionChallengerSummary(StrategyClass c)
+{
+   if(!InpUseChampionChallenger || c==STRATEGY_NO_TRADE) return "Champion/challenger disabled or no strategy.";
+   double cn=0,ca=0,cp=0,cdd=0,cd=0,pn=0,pa=0,pp=0,pdd=0,pd=0,bn=0,ba=0,bp=0,bdd=0,bd=0;
+   ChampionChallengerMetrics(c,SHADOW_CHAMPION,cn,ca,cp,cdd,cd);
+   ChampionChallengerMetrics(c,SHADOW_PULLBACK,pn,pa,pp,pdd,pd);
+   ChampionChallengerMetrics(c,SHADOW_BREAKOUT_RETEST,bn,ba,bp,bdd,bd);
+   string pwhy="",bwhy=""; bool pe=ChallengerEligibleForPromotion(c,SHADOW_PULLBACK,pwhy),be=ChallengerEligibleForPromotion(c,SHADOW_BREAKOUT_RETEST,bwhy);
+   return StringFormat("Champion/challenger %s | champion N %.0f avg %.2f PF %.2f DD %.2f | PB N %.0f avg %.2f PF %.2f eligible %s | BRT N %.0f avg %.2f PF %.2f eligible %s | promoted %s",
+      StrategyClassName(c),cn,ca,cp,cdd,pn,pa,pp,pe?"YES":"NO",bn,ba,bp,be?"YES":"NO",ShadowVariantName(PromotedChallengerVariant(c)));
+}
+
+void ChampionChallengerInit()
+{
+   EnsureShadowValidationHeader();
+   RefreshChampionChallengerPromotion();
+   Print("GPT_EA champion/challenger shadow engine initialized. Auto-promotion=",InpAutoPromoteChallenger?"ON":"OFF");
+}
+
+void ChampionChallengerTimer()
+{
+   if(!InpUseChampionChallenger) return;
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i]; if(sym=="") continue;
+      for(int v=0;v<=3;v++) UpdateOneShadowTrade(sym,v);
+   }
+   RefreshChampionChallengerPromotion();
+}
+// ===== END INLINED GPT_EA_Part32_ChampionChallenger.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part33_LifecycleIntegrityReplay.mqh =====
+// ============================================================================
+// GPT_EA Part 33 - Trade lifecycle, GPT disagreement/integrity and replay snapshots
+// ============================================================================
+
+input bool   InpUseLifecycleStateMachine          = true;
+input string InpLifecycleJournalFile              = "GPT_EA_LifecycleV2.csv";
+input bool   InpWriteDecisionSnapshots            = true;
+input string InpDecisionSnapshotFile              = "GPT_EA_DecisionSnapshotsV2.csv";
+input int    InpDecisionSnapshotMaxText            = 1600;
+input bool   InpUseGPTDisagreementGate            = true;
+input int    InpGPTStrongDisagreementScore        = 2;
+input bool   InpUseModelOutputIntegrity            = true;
+input int    InpMinimumGPTReviewChars              = 20;
+input int    InpStoredAIReviewMaxAgeSeconds        = 180;
+
+enum TradeLifecycleState
+{
+   LIFE_NONE=0,
+   LIFE_CANDIDATE=1,
+   LIFE_WAIT_CONFIRMATION=2,
+   LIFE_APPROVED=3,
+   LIFE_SENT=4,
+   LIFE_FILLED=5,
+   LIFE_TP1_PARTIAL=6,
+   LIFE_PROTECTED=7,
+   LIFE_RUNNER=8,
+   LIFE_CLOSED=9,
+   LIFE_REJECTED=10,
+   LIFE_INVALIDATED=11
+};
+
+string LifecycleStateName(int s)
+{
+   switch(s)
+   {
+      case LIFE_CANDIDATE: return "CANDIDATE";
+      case LIFE_WAIT_CONFIRMATION: return "WAIT_CONFIRMATION";
+      case LIFE_APPROVED: return "APPROVED";
+      case LIFE_SENT: return "SENT";
+      case LIFE_FILLED: return "FILLED";
+      case LIFE_TP1_PARTIAL: return "TP1_PARTIAL";
+      case LIFE_PROTECTED: return "PROTECTED";
+      case LIFE_RUNNER: return "RUNNER";
+      case LIFE_CLOSED: return "CLOSED";
+      case LIFE_REJECTED: return "REJECTED";
+      case LIFE_INVALIDATED: return "INVALIDATED";
+      default: return "NONE";
+   }
+}
+
+bool LifecycleTransitionAllowed(int from,int to)
+{
+   if(from==to) return true;
+   if(from==LIFE_NONE) return (to==LIFE_CANDIDATE || to==LIFE_FILLED || to==LIFE_CLOSED);
+   if(from==LIFE_CANDIDATE) return (to==LIFE_WAIT_CONFIRMATION || to==LIFE_APPROVED || to==LIFE_REJECTED || to==LIFE_INVALIDATED);
+   if(from==LIFE_WAIT_CONFIRMATION) return (to==LIFE_APPROVED || to==LIFE_REJECTED || to==LIFE_INVALIDATED);
+   if(from==LIFE_APPROVED) return (to==LIFE_SENT || to==LIFE_REJECTED || to==LIFE_INVALIDATED);
+   if(from==LIFE_SENT) return (to==LIFE_FILLED || to==LIFE_REJECTED || to==LIFE_INVALIDATED);
+   if(from==LIFE_FILLED) return (to==LIFE_TP1_PARTIAL || to==LIFE_PROTECTED || to==LIFE_RUNNER || to==LIFE_CLOSED);
+   if(from==LIFE_TP1_PARTIAL) return (to==LIFE_PROTECTED || to==LIFE_RUNNER || to==LIFE_CLOSED);
+   if(from==LIFE_PROTECTED) return (to==LIFE_RUNNER || to==LIFE_CLOSED);
+   if(from==LIFE_RUNNER) return (to==LIFE_CLOSED);
+   if(from==LIFE_REJECTED || from==LIFE_INVALIDATED || from==LIFE_CLOSED) return (to==LIFE_CANDIDATE || to==LIFE_CLOSED);
+   return false;
+}
+
+void EnsureLifecycleHeader()
+{
+   if(!InpUseLifecycleStateMachine) return;
+   bool exists=FileIsExist(InpLifecycleJournalFile,FILE_COMMON);
+   int h=FileOpen(InpLifecycleJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","symbol","position_id","from_state","to_state","strategy",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
+   FileClose(h);
+}
+
+void WriteLifecycleEvent(const string sym,ulong pid,int from,int to,StrategyClass c,const string reason)
+{
+   if(!InpUseLifecycleStateMachine) return;
+   EnsureLifecycleHeader();
+   int h=FileOpen(InpLifecycleJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"lifecycle_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),sym,(string)pid,
+      LifecycleStateName(from),LifecycleStateName(to),StrategyClassName(c),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+      (sym!=""?SymbolContractFingerprint(sym):""),StrategyConfigVersion(c),reason);
+   FileFlush(h); FileClose(h);
+}
+
+bool SetSymbolLifecycle(const string sym,int to,const string reason)
+{
+   if(!InpUseLifecycleStateMachine) return true;
+   string k=SymKey(sym,"LIFECYCLE_STATE");
+   int from=(int)GVRead(k,LIFE_NONE);
+   if(!LifecycleTransitionAllowed(from,to))
+   {
+      PrintFormat("%s lifecycle transition BLOCKED: %s -> %s | %s",sym,LifecycleStateName(from),LifecycleStateName(to),reason);
+      return false;
+   }
+   StrategyClass c=CandidateStrategyForSymbol(sym);
+   GVWrite(k,to); GVWrite(SymKey(sym,"LIFECYCLE_TIME"),(double)TimeTradeServer());
+   WriteLifecycleEvent(sym,0,from,to,c,reason);
+   return true;
+}
+
+bool SetPositionLifecycle(ulong ticket,int to,const string reason)
+{
+   if(!InpUseLifecycleStateMachine) return true;
+   if(!PositionSelectByTicket(ticket)) return false;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   string sym=PositionGetString(POSITION_SYMBOL);
+   int from=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_NONE);
+   if(!LifecycleTransitionAllowed(from,to))
+   {
+      // Recovery may discover a broker-filled position before the pre-trade state was persisted.
+      if(from==LIFE_NONE && (to==LIFE_FILLED || to==LIFE_PROTECTED || to==LIFE_RUNNER)) from=LIFE_FILLED;
+      else
+      {
+         PrintFormat("%s position lifecycle transition BLOCKED: %s -> %s | %s",sym,LifecycleStateName(from),LifecycleStateName(to),reason);
+         return false;
+      }
+   }
+   StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),CandidateStrategyForSymbol(sym));
+   GVWrite(PosKey(pid,"LIFECYCLE_STATE"),to); GVWrite(PosKey(pid,"LIFECYCLE_TIME"),(double)TimeTradeServer());
+   WriteLifecycleEvent(sym,pid,from,to,c,reason);
+   return true;
+}
+
+void AttachLifecycleToNewestPosition(ulong ticket,const string reason)
+{
+   if(!PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   if(GVRead(PosKey(pid,"LIFECYCLE_STATE"),0)<=0)
+      GVWrite(PosKey(pid,"LIFECYCLE_STATE"),LIFE_SENT);
+   SetPositionLifecycle(ticket,LIFE_FILLED,reason);
+}
+
+void RefreshOpenPositionLifecycles()
+{
+   if(!InpUseLifecycleStateMachine) return;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      int current=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_NONE);
+      if(current==LIFE_NONE) SetPositionLifecycle(tk,LIFE_FILLED,"restart/recovery lifecycle reconstruction");
+      bool partial=PositionFlag(pid,tk,"TP1PARTIAL");
+      bool done=PositionFlag(pid,tk,"TP1DONE");
+      bool tp2=PositionFlag(pid,tk,"TP2PARTIAL");
+      if(partial && !done) SetPositionLifecycle(tk,LIFE_TP1_PARTIAL,"TP1 partial complete; protection pending");
+      else if(done && tp2) SetPositionLifecycle(tk,LIFE_RUNNER,"TP2 scale-out complete; runner active");
+      else if(done) SetPositionLifecycle(tk,LIFE_PROTECTED,"TP1 and required protection complete");
+   }
+}
+
+void FinalizeClosedLifecycles()
+{
+   datetime now=TimeTradeServer(),from=now-MathMax(3,InpStrategyHistoryLookbackDays)*86400;
+   if(!HistorySelect(from,now)) return;
+   int n=HistoryDealsTotal();
+   for(int i=MathMax(0,n-600);i<n;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0 || (long)HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if(PositionIdentifierOpen(pid) || GVRead(PosKey(pid,"LIFE_FINAL"),0)>0.5) continue;
+      string sym=HistoryDealGetString(d,DEAL_SYMBOL);
+      int fromState=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_FILLED);
+      StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0);
+      GVWrite(PosKey(pid,"LIFECYCLE_STATE"),LIFE_CLOSED);
+      GVWrite(PosKey(pid,"LIFECYCLE_TIME"),(double)HistoryDealGetInteger(d,DEAL_TIME));
+      GVWrite(PosKey(pid,"LIFE_FINAL"),1);
+      WriteLifecycleEvent(sym,pid,fromState,LIFE_CLOSED,c,"position no longer open; history finalized");
+   }
+}
+
+int TextChecksum(const string s)
+{
+   long h=2166136261;
+   int n=StringLen(s);
+   for(int i=0;i<n;i++) h=(h ^ StringGetCharacter(s,i))*16777619;
+   if(h<0) h=-h;
+   return (int)(h%2147483647);
+}
+
+bool DeterministicSetupIntegrity(const TradeSetup &s,string &why)
+{
+   if(s.symbol=="" || s.preferred<=0 || s.sl<=0 || s.tp1<=0 || s.tp2<=0 || s.tp3<=0)
+   { why="setup has missing symbol/price geometry"; return false; }
+   if(s.zoneLow>s.zoneHigh){ why="entry zone low exceeds zone high"; return false; }
+   if(s.bullish && !(s.sl<s.preferred && s.tp1>s.preferred && s.tp2>s.tp1 && s.tp3>s.tp2))
+   { why="bullish setup has contradictory SL/TP geometry"; return false; }
+   if(!s.bullish && !(s.sl>s.preferred && s.tp1<s.preferred && s.tp2<s.tp1 && s.tp3<s.tp2))
+   { why="bearish setup has contradictory SL/TP geometry"; return false; }
+   datetime ct=(datetime)GVRead(SymKey(s.symbol,"CAND_TIME"),0);
+   if(ct>0 && TimeTradeServer()-ct>900){ why="candidate strategy identity is stale"; return false; }
+   why="deterministic setup geometry and candidate freshness PASS";
+   return true;
+}
+
+int GPTDisagreementScore(const TradeSetup &s,const string answer,bool available,string &detail)
+{
+   detail="GPT review unavailable or not requested.";
+   if(!available || answer=="") return 0;
+   string u=answer; StringToUpper(u);
+   int score=0; string why="";
+   bool opposite=(s.bullish?(StringFind(u,"BEARISH")>=0 || StringFind(u,"SHORT")>=0):
+                            (StringFind(u,"BULLISH")>=0 || StringFind(u,"LONG")>=0));
+   if(opposite){ score+=2; why+="explicit opposite direction; "; }
+   if(StringFind(u,"BLOCK")>=0 || StringFind(u,"NO TRADE")>=0 || StringFind(u,"VETO")>=0){ score+=2; why+="explicit veto/no-trade; "; }
+   else if(StringFind(u,"WAIT")>=0 || StringFind(u,"REANALYZE")>=0){ score+=1; why+="wait/reanalyze; "; }
+   if(StringFind(u,"INVALID")>=0 && StringFind(u,"VALID")<0){ score+=1; why+="invalidity language; "; }
+   detail=StringFormat("GPT disagreement score %d | %s",score,why);
+   return score;
+}
+
+bool GPTReviewIntegrityAllows(const string sym,const TradeSetup &s,const string answer,bool available,bool requested,string &why)
+{
+   string det=""; if(!DeterministicSetupIntegrity(s,det)){ why="Deterministic integrity BLOCK: "+det; return false; }
+   if(!InpUseModelOutputIntegrity){ why=det+" | model-output integrity disabled."; return true; }
+   if(!requested){ why=det+" | GPT review not requested."; return true; }
+   if(!available){ why=det+" | GPT unavailable; availability policy handled separately."; return true; }
+   if(StringLen(answer)<InpMinimumGPTReviewChars){ why="GPT integrity BLOCK: response too short/malformed."; return false; }
+   string u=answer; StringToUpper(u);
+   if(StringFind(u,"API KEY")>=0 || StringFind(u,"AUTHORIZATION: BEARER")>=0)
+   { why="GPT integrity BLOCK: response unexpectedly contains credential-like text."; return false; }
+   if(StringFind(u,"OPENAI RESPONSE RECEIVED, BUT TEXT COULD NOT BE PARSED")>=0)
+   { why="GPT integrity BLOCK: parser fallback text detected."; return false; }
+   why=det+StringFormat(" | GPT review integrity PASS len %d checksum %d",StringLen(answer),TextChecksum(answer));
+   return true;
+}
+
+bool GPTDisagreementAllowsHighConfidence(const TradeSetup &s,const string answer,bool available,string &why)
+{
+   if(!InpUseGPTDisagreementGate){ why="GPT disagreement gate disabled."; return true; }
+   int d=GPTDisagreementScore(s,answer,available,why);
+   if(d>=InpGPTStrongDisagreementScore)
+   {
+      why+=" | DOWNGRADE: deterministic setup retained, but high-confidence execution is withheld.";
+      return false;
+   }
+   why+=" | no strong disagreement.";
+   return true;
+}
+
+void PersistAIIntegrityDecision(const string sym,bool integrityOK,bool disagreementOK,bool requested,bool available,const string answer)
+{
+   GVWrite(SymKey(sym,"AI_INTEGRITY_OK"),integrityOK?1:0);
+   GVWrite(SymKey(sym,"AI_DISAGREE_OK"),disagreementOK?1:0);
+   GVWrite(SymKey(sym,"AI_REVIEW_REQUESTED"),requested?1:0);
+   GVWrite(SymKey(sym,"AI_REVIEW_AVAILABLE"),available?1:0);
+   GVWrite(SymKey(sym,"AI_REVIEW_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(sym,"AI_REVIEW_CHECKSUM"),TextChecksum(answer));
+   if(requested && available && !disagreementOK)
+      GVWrite(SysKey("MODEL_CONTRADICTION"),GVRead(SysKey("MODEL_CONTRADICTION"),0)+1);
+}
+
+bool StoredAIIntegrityAllows(const string sym,string &why)
+{
+   bool requested=GVRead(SymKey(sym,"AI_REVIEW_REQUESTED"),0)>0.5;
+   if(!requested){ why="No GPT review was required for stored candidate."; return true; }
+   datetime tm=(datetime)GVRead(SymKey(sym,"AI_REVIEW_TIME"),0);
+   if(tm<=0 || TimeTradeServer()-tm>InpStoredAIReviewMaxAgeSeconds)
+   { why="Stored GPT integrity decision is stale; reanalysis required."; return false; }
+   if(GVRead(SymKey(sym,"AI_INTEGRITY_OK"),0)<0.5){ why="Stored GPT output integrity failed."; return false; }
+   if(GVRead(SymKey(sym,"AI_DISAGREE_OK"),0)<0.5){ why="Stored GPT/deterministic disagreement requires WAIT/REANALYZE."; return false; }
+   why="Stored GPT integrity/disagreement state PASS.";
+   return true;
+}
+
+void EnsureDecisionSnapshotHeader()
+{
+   if(!InpWriteDecisionSnapshots) return;
+   bool exists=FileIsExist(InpDecisionSnapshotFile,FILE_COMMON);
+   int h=FileOpen(InpDecisionSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","symbol","strategy","market_state","decision","side","entry","zone_low","zone_high","sl","tp1","tp2","tp3",
+         "confidence","strategy_score","atr_ratio","opening_range_ratio","adx","rsi15","overextension_atr","volume_ratio","realistic_rr","risk_multiplier",
+         "broker_health","strategy_mode","regime_transition","filters","web_summary","gpt_checksum","gpt_excerpt",
+         "release_id","strategy_engine","model_policy","config_fingerprint","symbol_fingerprint","strategy_config","reason");
+   FileClose(h);
+}
+
+string SnapshotText(string s)
+{
+   int maxLen=MathMax(100,InpDecisionSnapshotMaxText);
+   if(StringLen(s)>maxLen) s=StringSubstr(s,0,maxLen);
+   StringReplace(s,"\r"," "); StringReplace(s,"\n"," ");
+   return s;
+}
+
+void WriteDecisionSnapshot(const TradeSetup &s,const StrategyDecision &d,const string finalDecision,const string filters,const string webText,const string aiAnswer,const string reason)
+{
+   if(!InpWriteDecisionSnapshots || s.symbol=="") return;
+   EnsureDecisionSnapshotHeader();
+   StrategySnapshot x; BuildStrategySnapshot(s.symbol,x);
+   string rm="",bh=""; double mult=AdaptiveRiskMultiplier(s,rm),health=BrokerHealthScore(s.symbol,bh);
+   int h=FileOpen(InpDecisionSnapshotFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"decision_snapshot_v2",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),s.symbol,StrategyClassName(d.strategy),MarketStateName(d.state),finalDecision,
+      s.bullish?"BUY":"SELL",DoubleToString(s.preferred,DigitsFor(s.symbol)),DoubleToString(s.zoneLow,DigitsFor(s.symbol)),DoubleToString(s.zoneHigh,DigitsFor(s.symbol)),
+      DoubleToString(s.sl,DigitsFor(s.symbol)),DoubleToString(s.tp1,DigitsFor(s.symbol)),DoubleToString(s.tp2,DigitsFor(s.symbol)),DoubleToString(s.tp3,DigitsFor(s.symbol)),
+      s.confidence,d.score,DoubleToString(x.atrRatio,3),DoubleToString(x.openingRangeRatio,3),DoubleToString(x.adx,2),DoubleToString(x.rsi15,2),
+      DoubleToString(x.overextensionATR,3),DoubleToString(x.volumeRatio,3),DoubleToString(RealisticRiskReward(s).rr,3),DoubleToString(mult,3),DoubleToString(health,1),
+      AdaptiveStrategyModeName(StrategyHealthMode(d.strategy)),SnapshotText(RegimeTransitionText(s.symbol)),SnapshotText(filters),SnapshotText(webText),
+      TextChecksum(aiAnswer),SnapshotText(aiAnswer),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,
+      CurrentConfigFingerprint(),SymbolContractFingerprint(s.symbol),StrategyConfigVersion(d.strategy),
+      SnapshotText(reason+" | "+rm+" | "+bh));
+   FileFlush(h); FileClose(h);
+}
+
+string LifecycleIntegritySummary(const string sym)
+{
+   int life=(int)GVRead(SymKey(sym,"LIFECYCLE_STATE"),LIFE_NONE);
+   string ai=""; bool ok=StoredAIIntegrityAllows(sym,ai);
+   return "Lifecycle "+LifecycleStateName(life)+" | stored AI integrity "+(ok?"PASS":"BLOCK")+" | "+ai;
+}
+
+void LifecycleIntegrityInit()
+{
+   EnsureLifecycleHeader(); EnsureDecisionSnapshotHeader();
+   RefreshOpenPositionLifecycles(); FinalizeClosedLifecycles();
+   Print("GPT_EA lifecycle/integrity/replay engine initialized.");
+}
+
+void LifecycleIntegrityTimer()
+{
+   RefreshOpenPositionLifecycles(); FinalizeClosedLifecycles();
+}
+// ===== END INLINED GPT_EA_Part33_LifecycleIntegrityReplay.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part42_ExecutionReliability.mqh =====
+// ============================================================================
+// GPT_EA Part 42 - Atomic intent ledger, exactly-once execution and reconciliation
+// ============================================================================
+
+input bool   InpUseAtomicTradeIntentLedger       = true;
+input bool   InpUseExactlyOnceExecution          = true;
+input string InpTradeIntentFile                  = "GPT_EA_TradeIntentLedger.csv";
+input int    InpIntentAmbiguityResolveSeconds    = 300;
+input bool   InpUseBrokerEAReconciliation        = true;
+input string InpBrokerReconciliationFile         = "GPT_EA_BrokerReconciliation.csv";
+input bool   InpBlockUnexpectedManualExposure    = true;
+input bool   InpUseStorageHealthGate             = true;
+input string InpStorageHeartbeatFile             = "GPT_EA_StorageHealth.csv";
+input int    InpStorageHealthIntervalSeconds     = 60;
+input bool   InpUseConfigurationDriftGate        = true;
+input bool   InpAllowLegacyOpenPositionsOnUpgrade= true;
+
+string LateResilienceConfigText()
+{
+   return StringFormat(
+      "|intent=%d:%d:amb%d|reconcile=%d:manual%d|storage=%d:int%d|configdrift=%d:legacy%d|"
+      "cc=%d:auto%d:min%d:avg%.3f:pf%.3f:dd%.3f:inst%.3f|"
+      "sig=%d:z%.3f:lower%.3f|prob=%d:trades%d:min%d:avg%.3f:pf%.3f:dd%.3f:requal%d",
+      InpUseAtomicTradeIntentLedger?1:0,InpUseExactlyOnceExecution?1:0,InpIntentAmbiguityResolveSeconds,
+      InpUseBrokerEAReconciliation?1:0,InpBlockUnexpectedManualExposure?1:0,
+      InpUseStorageHealthGate?1:0,InpStorageHealthIntervalSeconds,
+      InpUseConfigurationDriftGate?1:0,InpAllowLegacyOpenPositionsOnUpgrade?1:0,
+      InpUseChampionChallenger?1:0,InpAutoPromoteChallenger?1:0,InpChampionChallengerMinSamples,
+      InpChallengerMinAvgRAdvantage,InpChallengerMinPFAdvantage,InpChallengerMaxExtraDrawdownR,InpChallengerMaxInstabilityR,
+      InpUsePromotionSignificance?1:0,InpPromotionSignificanceZ,InpPromotionMinLowerAdvantageR,
+      InpUsePromotionProbationRollback?1:0,InpPromotionProbationTrades,InpPromotionRollbackMinTrades,
+      InpPromotionRollbackMinAvgR,InpPromotionRollbackMinPF,InpPromotionRollbackMaxExtraDDR,
+      InpRollbackRequalifyNewSamples);
+}
+
+enum IntentState
+{
+   INTENT_NONE=0,
+   INTENT_PREPARED=1,
+   INTENT_SENT=2,
+   INTENT_FILLED=3,
+   INTENT_FAILED=4,
+   INTENT_CLOSED=5,
+   INTENT_UNCERTAIN=6
+};
+
+bool g_storageHealthy=true;
+string g_storageWhy="not checked";
+bool g_reconciliationBlocked=false;
+string g_reconciliationWhy="";
+datetime g_lastStorageCheck=0;
+datetime g_lastReconcile=0;
+int g_lastTransactionSignature=0;
+datetime g_lastTransactionTime=0;
+
+string IntentStateName(int s)
+{
+   switch(s)
+   {
+      case INTENT_PREPARED: return "PREPARED";
+      case INTENT_SENT: return "SENT";
+      case INTENT_FILLED: return "FILLED";
+      case INTENT_FAILED: return "FAILED";
+      case INTENT_CLOSED: return "CLOSED";
+      case INTENT_UNCERTAIN: return "UNCERTAIN";
+      default: return "NONE";
+   }
+}
+
+string ExtractIntentNonce(const string comment)
+{
+   int p=StringFind(comment,"GEA-");
+   if(p<0) return "";
+   string tail=StringSubstr(comment,p+4);
+   int dash=StringFind(tail,"-");
+   if(dash>=0) tail=StringSubstr(tail,dash+1);
+   if(StringLen(tail)>8) tail=StringSubstr(tail,0,8);
+   return tail;
+}
+
+int IntentNonceHash(const string nonce){ return IntegrityTextHash(nonce); }
+
+string TradeIntentComment(const string nonce,StrategyClass c)
+{
+   string code=StrategyCode(c);
+   string out="GEA-"+code+"-"+nonce;
+   if(StringLen(out)>31) out=StringSubstr(out,0,31);
+   return out;
+}
+
+string IntentDecisionText(const TradeSetup &s,double lots,double riskMoney)
+{
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   return StringFormat("%s|%d|%d|%d|%.10f|%.10f|%.10f|%.10f|%.10f|%.4f|%.2f|%s|%s",
+      s.symbol,s.bullish?1:0,(int)s.kind,(int)c,s.preferred,s.sl,s.tp1,s.tp2,s.tp3,lots,riskMoney,
+      CurrentConfigFingerprint(),StrategyConfigVersion(c));
+}
+
+string IntentDecisionDigest(const TradeSetup &s,double lots,double riskMoney)
+{
+   return StringFormat("%08X",IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
+}
+
+string GenerateExecutionNonce(const TradeSetup &s)
+{
+   long seq=(long)GVRead(SysKey("INTENT_SEQ"),0)+1;
+   GVWrite(SysKey("INTENT_SEQ"),(double)seq);
+   string raw=StringFormat("%I64d|%I64d|%s|%d|%I64d|%d",
+      AccountInfoInteger(ACCOUNT_LOGIN),InpMagic,s.symbol,s.bullish?1:0,GetTickCount64(),(int)seq);
+   return StringFormat("%08X",IntegrityTextHash(raw));
+}
+
+void EnsureIntentHeader()
+{
+   if(!InpUseAtomicTradeIntentLedger) return;
+   bool exists=FileIsExist(InpTradeIntentFile,FILE_COMMON);
+   int h=FileOpen(InpTradeIntentFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","state","nonce","nonce_hash","symbol","side","setup_kind","strategy",
+         "lots","risk_money","expected_entry","sl","tp1","tp2","tp3","decision_digest","config_fingerprint",
+         "symbol_fingerprint","position_id","broker_ticket","retcode","note");
+   FileClose(h);
+}
+
+bool WriteIntentLedgerRow(const string state,const string nonce,const TradeSetup &s,double lots,double riskMoney,
+                          ulong pid,ulong ticket,uint retcode,const string note)
+{
+   if(!InpUseAtomicTradeIntentLedger) return true;
+   if(ChaosInjectStorageFailure())
+   {
+      g_storageHealthy=false; g_storageWhy="CHAOS synthetic intent-ledger storage failure";
+      return false;
+   }
+   EnsureIntentHeader();
+   int h=FileOpen(InpTradeIntentFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE)
+   {
+      g_storageHealthy=false; g_storageWhy=StringFormat("intent ledger FileOpen failed %d",GetLastError());
+      return false;
+   }
+   FileSeek(h,0,SEEK_END);
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   FileWrite(h,"trade_intent_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),state,nonce,IntentNonceHash(nonce),
+      s.symbol,s.bullish?"BUY":"SELL",(int)s.kind,StrategyClassName(c),DoubleToString(lots,4),DoubleToString(riskMoney,2),
+      DoubleToString(s.preferred,DigitsFor(s.symbol)),DoubleToString(s.sl,DigitsFor(s.symbol)),
+      DoubleToString(s.tp1,DigitsFor(s.symbol)),DoubleToString(s.tp2,DigitsFor(s.symbol)),DoubleToString(s.tp3,DigitsFor(s.symbol)),
+      IntentDecisionDigest(s,lots,riskMoney),CurrentConfigFingerprint(),SymbolContractFingerprint(s.symbol),
+      (string)pid,(string)ticket,(string)retcode,note);
+   FileFlush(h); FileClose(h);
+   return true;
+}
+
+void EnsureReconciliationHeader()
+{
+   bool exists=FileIsExist(InpBrokerReconciliationFile,FILE_COMMON);
+   int h=FileOpen(InpBrokerReconciliationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","severity","event","symbol","position_id","ticket","magic","comment","detail");
+   FileClose(h);
+}
+
+void WriteReconciliationRow(const string severity,const string eventName,const string sym,ulong pid,ulong ticket,long magic,const string comment,const string detail)
+{
+   EnsureReconciliationHeader();
+   int h=FileOpen(InpBrokerReconciliationFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE){ g_storageHealthy=false; g_storageWhy="broker reconciliation journal unavailable"; return; }
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"broker_reconciliation_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),severity,eventName,
+      sym,(string)pid,(string)ticket,(string)magic,comment,detail);
+   FileFlush(h); FileClose(h);
+}
+
+void MarkOpenPositionsStorageAnomaly(const string reason)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      GVWrite(PosKey(pid,"STORAGE_ANOMALY"),1);
+      MarkLearningQuarantine(pid,PositionGetString(POSITION_SYMBOL),"storage anomaly: "+reason);
+   }
+}
+
+bool CriticalStorageHealthCheck(string &why)
+{
+   why="";
+   if(!InpUseStorageHealthGate){ why="storage-health gate disabled"; return true; }
+   if(ChaosInjectStorageFailure())
+   {
+      g_storageHealthy=false; g_storageWhy="CHAOS synthetic storage heartbeat failure";
+      MarkOpenPositionsStorageAnomaly(g_storageWhy);
+      why=g_storageWhy; return false;
+   }
+   int h=FileOpen(InpStorageHeartbeatFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE)
+   {
+      g_storageHealthy=false;
+      g_storageWhy=StringFormat("critical storage FileOpen failed %d",GetLastError());
+      MarkOpenPositionsStorageAnomaly(g_storageWhy);
+      why=g_storageWhy; return false;
+   }
+   if(FileSize(h)==0) FileWrite(h,"schema_version","time","release_id","config_fingerprint","status");
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"storage_health_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),
+      GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,CurrentConfigFingerprint(),"PASS");
+   FileFlush(h); FileClose(h);
+   g_storageHealthy=true; g_storageWhy="critical storage writable";
+   g_lastStorageCheck=TimeTradeServer();
+   why=g_storageWhy; return true;
+}
+
+bool ConfigurationDriftAllows(string &why)
+{
+   why="";
+   if(!InpUseConfigurationDriftGate){ why="configuration drift gate disabled"; return true; }
+   string current=CurrentConfigFingerprint();
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode==ACCOUNT_TRADE_MODE_REAL)
+   {
+      if(StringLen(Trim(InpReleaseCertifiedConfigFingerprint))<8)
+      { why="REAL account requires certified configuration fingerprint."; return false; }
+      if(current!=Trim(InpReleaseCertifiedConfigFingerprint))
+      { why="CONFIGURATION DRIFT: runtime "+current+" != certified "+Trim(InpReleaseCertifiedConfigFingerprint); return false; }
+      why="configuration fingerprint matches certified "+current;
+      return true;
+   }
+
+   int currentHash=IntegrityTextHash(CurrentSensitiveConfigText());
+   int baseline=(int)GVRead(SysKey("CONFIG_BASELINE_HASH"),0);
+   if(baseline==0)
+   {
+      GVWrite(SysKey("CONFIG_BASELINE_HASH"),currentHash);
+      why="demo/test configuration baseline established "+current;
+      return true;
+   }
+   if(baseline!=currentHash)
+   {
+      // A non-real reinitialization may intentionally change settings. We flag
+      // the drift but permit evidence-generation only after the new baseline is explicit.
+      GVWrite(SysKey("CONFIG_DRIFT_SEEN"),1);
+      GVWrite(SysKey("CONFIG_BASELINE_HASH"),currentHash);
+      why="demo/test configuration changed; baseline refreshed and evidence generation must identify new fingerprint "+current;
+      return true;
+   }
+   why="configuration fingerprint stable "+current;
+   return true;
+}
+
+bool ReliabilityOpenPositionForSymbol(const string sym)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)==InpMagic && PositionGetString(POSITION_SYMBOL)==sym) return true;
+   }
+   return false;
+}
+
+bool IntentStateBlocksNewSubmission(const string sym,string &why)
+{
+   why="";
+   if(!InpUseExactlyOnceExecution) return false;
+   int state=(int)GVRead(SymKey(sym,"INTENT_STATE"),INTENT_NONE);
+   datetime tm=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   if(state==INTENT_PREPARED || state==INTENT_SENT || state==INTENT_UNCERTAIN)
+   {
+      why=StringFormat("exactly-once gate: unresolved %s intent age %d sec",IntentStateName(state),
+                       tm>0?(int)(TimeTradeServer()-tm):0);
+      return true;
+   }
+   if(state==INTENT_FILLED && ReliabilityOpenPositionForSymbol(sym))
+   {
+      why="exactly-once gate: filled intent still has an open position";
+      return true;
+   }
+   return false;
+}
+
+bool ExecutionReliabilityPreEntryAllows(const TradeSetup &s,string &why)
+{
+   why="";
+   string storage="";
+   if(!CriticalStorageHealthCheck(storage)){ why="Storage health: "+storage; return false; }
+   string cfg="";
+   if(!ConfigurationDriftAllows(cfg)){ why=cfg; return false; }
+   if(ChaosInjectStaleQuote()){ why="CHAOS synthetic stale quote"; return false; }
+   if(ChaosInjectConnectionLoss()){ why="CHAOS synthetic terminal connection loss"; return false; }
+   if(!(bool)TerminalInfoInteger(TERMINAL_CONNECTED)){ why="terminal disconnected"; return false; }
+   string intent="";
+   if(IntentStateBlocksNewSubmission(s.symbol,intent)){ why=intent; return false; }
+   if(g_reconciliationBlocked){ why="broker/EA reconciliation BLOCK: "+g_reconciliationWhy; return false; }
+   why=storage+" | "+cfg+" | reconciliation PASS | exactly-once PASS";
+   return true;
+}
+
+bool PrepareAtomicTradeIntent(const TradeSetup &s,double lots,double riskMoney,string &nonce,string &why)
+{
+   nonce=""; why="";
+   if(!InpUseAtomicTradeIntentLedger){ why="atomic intent ledger disabled"; return true; }
+   string pre="";
+   if(!ExecutionReliabilityPreEntryAllows(s,pre)){ why=pre; return false; }
+
+   nonce=GenerateExecutionNonce(s);
+   int nh=IntentNonceHash(nonce);
+   GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_PREPARED);
+   GVWrite(SymKey(s.symbol,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(s.symbol,"CAND_TIME"),(double)TimeTradeServer()));
+   GVWrite(SymKey(s.symbol,"EXEC_APPROVAL_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"EXEC_MODEL_LATENCY_MS"),GVRead(SysKey("MODEL_LATENCY_EWMA_MS"),0));
+   GVWrite(SymKey(s.symbol,"INTENT_NONCE_HASH"),nh);
+   GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"INTENT_DECISION_HASH"),IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
+   GVWrite(SymKey(s.symbol,"INTENT_KIND"),(int)s.kind);
+   GVWrite(SymKey(s.symbol,"INTENT_BULL"),s.bullish?1:0);
+   GVWrite(SymKey(s.symbol,"INTENT_LOTS"),lots);
+   GVWrite(SymKey(s.symbol,"INTENT_RISK"),riskMoney);
+   if(!WriteIntentLedgerRow("PREPARED",nonce,s,lots,riskMoney,0,0,0,"durable intent prepared before broker submission"))
+   {
+      GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_NONE);
+      GlobalVariablesFlush();
+      why="atomic intent persistence failed; broker submission prohibited";
+      return false;
+   }
+   GlobalVariablesFlush();
+   why="atomic intent PREPARED nonce "+nonce+" | "+pre;
+   return true;
+}
+
+bool MarkTradeIntentSent(const TradeSetup &s,const string nonce,double lots,double riskMoney,string &why)
+{
+   why="";
+   if(!InpUseAtomicTradeIntentLedger){ why="intent ledger disabled"; return true; }
+   if((int)GVRead(SymKey(s.symbol,"INTENT_NONCE_HASH"),0)!=IntentNonceHash(nonce))
+   { why="intent nonce mismatch before SENT transition"; return false; }
+   GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_SENT);
+   GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   GVWrite(SymKey(s.symbol,"EXEC_SENT_TIME"),(double)TimeTradeServer());
+   if(!WriteIntentLedgerRow("SENT",nonce,s,lots,riskMoney,0,0,0,"SENT persisted before network order call"))
+   {
+      GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_UNCERTAIN);
+      GlobalVariablesFlush();
+      why="could not durably persist SENT state; order call prohibited";
+      return false;
+   }
+   GlobalVariablesFlush();
+   why="intent SENT durably persisted";
+   return true;
+}
+
+void MarkTradeIntentUncertain(const TradeSetup &s,const string nonce,double lots,double riskMoney,uint retcode,const string note)
+{
+   if(!InpUseAtomicTradeIntentLedger) return;
+   GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_UNCERTAIN);
+   GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   WriteIntentLedgerRow("UNCERTAIN",nonce,s,lots,riskMoney,0,0,retcode,note);
+   GlobalVariablesFlush();
+}
+
+void MarkTradeIntentFailed(const TradeSetup &s,const string nonce,double lots,double riskMoney,uint retcode,const string note)
+{
+   if(!InpUseAtomicTradeIntentLedger) return;
+   GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_FAILED);
+   GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   WriteIntentLedgerRow("FAILED",nonce,s,lots,riskMoney,0,0,retcode,note);
+   GlobalVariablesFlush();
+}
+
+void BindTradeIntentToPosition(ulong ticket,const TradeSetup &s,const string nonce,double lots,double riskMoney)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return;
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   GVWrite(SymKey(s.symbol,"INTENT_STATE"),INTENT_FILLED);
+   GVWrite(SymKey(s.symbol,"INTENT_TIME"),(double)TimeTradeServer());
+   GVWrite(PosKey(pid,"INTENT_NONCE_HASH"),IntentNonceHash(nonce));
+   GVWrite(PosKey(pid,"INTENT_BOUND"),1);
+   GVWrite(PosKey(pid,"DECISION_HASH"),IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
+   GVWrite(PosKey(pid,"RECON_VOL"),PositionGetDouble(POSITION_VOLUME));
+   GVWrite(PosKey(pid,"RECON_SL"),PositionGetDouble(POSITION_SL));
+   GVWrite(PosKey(pid,"RECON_TP"),PositionGetDouble(POSITION_TP));
+   if(GVRead(SysKey("CHAOS_ACTIVE_SAMPLE"),0)>0.5) GVWrite(PosKey(pid,"CHAOS_SAMPLE"),1);
+   AttachIntegrityMetadataToPosition(ticket);
+   WriteIntentLedgerRow("FILLED",nonce,s,lots,riskMoney,pid,ticket,trade.ResultRetcode(),"broker position bound to durable intent");
+   GlobalVariablesFlush();
+}
+
+bool IntentGeometryMatchesPosition(const string sym,ulong ticket)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return false;
+   if(PositionGetString(POSITION_SYMBOL)!=sym || PositionGetInteger(POSITION_MAGIC)!=InpMagic) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime posTime=(datetime)PositionGetInteger(POSITION_TIME);
+   if(intentTime<=0 || posTime<intentTime-15 || posTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   long type=PositionGetInteger(POSITION_TYPE);
+   if((bull && type!=POSITION_TYPE_BUY) || (!bull && type!=POSITION_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=PositionGetDouble(POSITION_VOLUME);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
+bool IntentGeometryMatchesDeal(const string sym,ulong deal)
+{
+   if(deal==0) return false;
+   if(HistoryDealGetString(deal,DEAL_SYMBOL)!=sym || HistoryDealGetInteger(deal,DEAL_MAGIC)!=InpMagic) return false;
+   ENUM_DEAL_ENTRY entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal,DEAL_ENTRY);
+   if(entry!=DEAL_ENTRY_IN && entry!=DEAL_ENTRY_INOUT) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime dealTime=(datetime)HistoryDealGetInteger(deal,DEAL_TIME);
+   if(intentTime<=0 || dealTime<intentTime-15 || dealTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   ENUM_DEAL_TYPE type=(ENUM_DEAL_TYPE)HistoryDealGetInteger(deal,DEAL_TYPE);
+   if((bull && type!=DEAL_TYPE_BUY) || (!bull && type!=DEAL_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=HistoryDealGetDouble(deal,DEAL_VOLUME);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
+bool IntentGeometryMatchesHistoryOrder(const string sym,ulong order)
+{
+   if(order==0) return false;
+   if(HistoryOrderGetString(order,ORDER_SYMBOL)!=sym || HistoryOrderGetInteger(order,ORDER_MAGIC)!=InpMagic) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime orderTime=(datetime)HistoryOrderGetInteger(order,ORDER_TIME_SETUP);
+   if(intentTime<=0 || orderTime<intentTime-15 || orderTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   ENUM_ORDER_TYPE type=(ENUM_ORDER_TYPE)HistoryOrderGetInteger(order,ORDER_TYPE);
+   if((bull && type!=ORDER_TYPE_BUY) || (!bull && type!=ORDER_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=HistoryOrderGetDouble(order,ORDER_VOLUME_INITIAL);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
+bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket,ulong &pid,bool &closed)
+{
+   ticket=0; pid=0; closed=false;
+   if(nonceHash<=0) return false;
+
+   ulong fallbackPosition=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=sym || PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      string nonce=ExtractIntentNonce(PositionGetString(POSITION_COMMENT));
+      if(nonce!="" && IntentNonceHash(nonce)==nonceHash)
+      {
+         ticket=tk; pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER); return true;
+      }
+      if(IntentGeometryMatchesPosition(sym,tk)) fallbackPosition=tk;
+   }
+   if(fallbackPosition>0 && PositionSelectByTicket(fallbackPosition))
+   {
+      ticket=fallbackPosition;
+      pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_POSITION",sym,pid,ticket,InpMagic,
+         PositionGetString(POSITION_COMMENT),"broker comment did not preserve nonce; strict time/side/volume geometry matched");
+      return true;
+   }
+
+   for(int i=OrdersTotal()-1;i>=0;i--)
+   {
+      ulong ot=OrderGetTicket(i); if(ot==0) continue;
+      if(OrderGetString(ORDER_SYMBOL)!=sym || OrderGetInteger(ORDER_MAGIC)!=InpMagic) continue;
+      string nonce=ExtractIntentNonce(OrderGetString(ORDER_COMMENT));
+      if(nonce!="" && IntentNonceHash(nonce)==nonceHash){ ticket=ot; return true; }
+   }
+
+   datetime now=TimeTradeServer();
+   if(!HistorySelect(now-86400*3,now)) return false;
+   ulong fallbackDeal=0;
+   int nd=HistoryDealsTotal();
+   for(int i=nd-1;i>=0;i--)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0) continue;
+      if(HistoryDealGetString(d,DEAL_SYMBOL)!=sym || HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
+      string nonce=ExtractIntentNonce(HistoryDealGetString(d,DEAL_COMMENT));
+      if(nonce!="" && IntentNonceHash(nonce)==nonceHash)
+      {
+         pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+         closed=!PositionIdentifierOpen(pid);
+         return true;
+      }
+      if(fallbackDeal==0 && IntentGeometryMatchesDeal(sym,d)) fallbackDeal=d;
+   }
+   if(fallbackDeal>0)
+   {
+      pid=(ulong)HistoryDealGetInteger(fallbackDeal,DEAL_POSITION_ID);
+      closed=!PositionIdentifierOpen(pid);
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_DEAL",sym,pid,0,InpMagic,
+         HistoryDealGetString(fallbackDeal,DEAL_COMMENT),"broker comment did not preserve nonce; strict entry time/side/volume geometry matched");
+      return true;
+   }
+
+   ulong fallbackOrder=0;
+   int no=HistoryOrdersTotal();
+   for(int i=no-1;i>=0;i--)
+   {
+      ulong o=HistoryOrderGetTicket(i); if(o==0) continue;
+      if(HistoryOrderGetString(o,ORDER_SYMBOL)!=sym || HistoryOrderGetInteger(o,ORDER_MAGIC)!=InpMagic) continue;
+      string nonce=ExtractIntentNonce(HistoryOrderGetString(o,ORDER_COMMENT));
+      if(nonce!="" && IntentNonceHash(nonce)==nonceHash){ ticket=o; closed=true; return true; }
+      if(fallbackOrder==0 && IntentGeometryMatchesHistoryOrder(sym,o)) fallbackOrder=o;
+   }
+   if(fallbackOrder>0)
+   {
+      ticket=fallbackOrder; closed=true;
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_ORDER",sym,0,ticket,InpMagic,"",
+         "broker comment did not preserve nonce; strict order time/side/volume geometry matched");
+      return true;
+   }
+   return false;
+}
+
+void ReconcileIntentForSymbol(const string sym)
+{
+   if(!InpUseExactlyOnceExecution || sym=="") return;
+   int state=(int)GVRead(SymKey(sym,"INTENT_STATE"),INTENT_NONE);
+   int nh=(int)GVRead(SymKey(sym,"INTENT_NONCE_HASH"),0);
+   datetime tm=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   if(state==INTENT_NONE || state==INTENT_FAILED || state==INTENT_CLOSED) return;
+
+   ulong ticket=0,pid=0; bool closed=false;
+   bool found=PositionOrHistoryMatchesIntent(sym,nh,ticket,pid,closed);
+   if(found)
+   {
+      if(pid>0 && PositionIdentifierOpen(pid))
+      {
+         GVWrite(SymKey(sym,"INTENT_STATE"),INTENT_FILLED);
+         GVWrite(PosKey(pid,"INTENT_NONCE_HASH"),nh);
+         GVWrite(PosKey(pid,"INTENT_BOUND"),1);
+         WriteReconciliationRow("INFO","INTENT_RECONCILED_OPEN",sym,pid,ticket,InpMagic,"","broker evidence joined to intent");
+      }
+      else if(closed)
+      {
+         GVWrite(SymKey(sym,"INTENT_STATE"),INTENT_CLOSED);
+         WriteReconciliationRow("INFO","INTENT_RECONCILED_CLOSED",sym,pid,ticket,InpMagic,"","historical broker evidence joined to intent");
+      }
+      GlobalVariablesFlush();
+      return;
+   }
+
+   if((state==INTENT_SENT || state==INTENT_UNCERTAIN || state==INTENT_PREPARED) &&
+      tm>0 && TimeTradeServer()-tm>=MathMax(60,InpIntentAmbiguityResolveSeconds) &&
+      (bool)TerminalInfoInteger(TERMINAL_CONNECTED))
+   {
+      // After a conservative reconciliation window with synchronized history and
+      // no matching broker position/order/deal, resolve as FAILED. Until then,
+      // exactly-once semantics prohibit resubmission.
+      GVWrite(SymKey(sym,"INTENT_STATE"),INTENT_FAILED);
+      WriteReconciliationRow("WARN","INTENT_RESOLVED_NO_BROKER_EVIDENCE",sym,0,0,InpMagic,"",
+         "ambiguity window elapsed; no matching position/order/deal found; future new intent allowed");
+      GlobalVariablesFlush();
+   }
+}
+
+void ReconcileBrokerAgainstEA()
+{
+   if(!InpUseBrokerEAReconciliation) return;
+   g_reconciliationBlocked=false; g_reconciliationWhy="";
+
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      string sym=PositionGetString(POSITION_SYMBOL);
+      long magic=PositionGetInteger(POSITION_MAGIC);
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      string comment=PositionGetString(POSITION_COMMENT);
+
+      if(magic==InpMagic)
+      {
+         double vol=PositionGetDouble(POSITION_VOLUME);
+         double sl=PositionGetDouble(POSITION_SL);
+         double tp=PositionGetDouble(POSITION_TP);
+         double oldVol=GVRead(PosKey(pid,"RECON_VOL"),0);
+         double oldSL=GVRead(PosKey(pid,"RECON_SL"),0);
+         double oldTP=GVRead(PosKey(pid,"RECON_TP"),0);
+         double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+         double tick=MathMax(SymbolInfoDouble(sym,SYMBOL_TRADE_TICK_SIZE),PointFor(sym));
+
+         if(oldVol>0 && vol>oldVol+0.5*step)
+         {
+            GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+            MarkLearningQuarantine(pid,sym,"position volume increased outside recorded EA intent");
+            g_reconciliationBlocked=true;
+            g_reconciliationWhy=sym+" broker volume exceeds last reconciled EA volume";
+            WriteReconciliationRow("CRITICAL","UNEXPECTED_VOLUME_INCREASE",sym,pid,tk,magic,comment,g_reconciliationWhy);
+         }
+         if(oldVol>0 && vol<oldVol-0.5*step &&
+            !PositionFlag(pid,tk,"TP1PARTIAL") && !PositionFlag(pid,tk,"TP2PARTIAL") &&
+            GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5)
+         {
+            GVWrite(PosKey(pid,"BROKER_ANOMALY"),1);
+            MarkLearningQuarantine(pid,sym,"unexplained broker-side/partial volume reduction");
+            WriteReconciliationRow("WARN","UNEXPLAINED_VOLUME_REDUCTION",sym,pid,tk,magic,comment,
+               StringFormat("volume %.4f -> %.4f without recorded partial state",oldVol,vol));
+         }
+         datetime expectedUntil=(datetime)GVRead(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+         double expectedSL=GVRead(PosKey(pid,"EA_EXPECT_SL"),oldSL);
+         double expectedTP=GVRead(PosKey(pid,"EA_EXPECT_TP"),oldTP);
+         bool expectedWindow=(expectedUntil>0 && TimeTradeServer()<=expectedUntil);
+         bool expectedSLMatch=(MathAbs(sl-expectedSL)<=0.5*tick);
+         bool expectedTPMatch=(MathAbs(tp-expectedTP)<=0.5*tick);
+         bool expectedModification=(expectedWindow && expectedSLMatch && expectedTPMatch);
+
+         if(oldSL>0 && MathAbs(sl-oldSL)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5 && !expectedModification)
+         {
+            double tracked=GVRead(PosKey(pid,"LASTSL"),GVRead(PosKey(pid,"INITSL"),oldSL));
+            if(tracked>0 && MathAbs(sl-tracked)>0.5*tick)
+            {
+               GVWrite(PosKey(pid,"MANUAL_INTERVENTION"),1);
+               MarkLearningQuarantine(pid,sym,"external SL modification differs from EA-tracked protection state");
+               WriteReconciliationRow("WARN","EXTERNAL_SL_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("SL %.10f -> %.10f tracked %.10f; no matching EA modification intent",oldSL,sl,tracked));
+            }
+         }
+         if(oldTP>0 && MathAbs(tp-oldTP)>0.5*tick && GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)<0.5 && !expectedModification)
+         {
+            int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),0);
+            bool expectedTrailRemoval=(stage>=4 && !InpKeepTP3WhileTrailing && tp<=0);
+            if(!expectedTrailRemoval)
+            {
+               GVWrite(PosKey(pid,"MANUAL_INTERVENTION"),1);
+               MarkLearningQuarantine(pid,sym,"external TP modification differs from EA-tracked target state");
+               WriteReconciliationRow("WARN","EXTERNAL_TP_CHANGE",sym,pid,tk,magic,comment,
+                  StringFormat("TP %.10f -> %.10f; no matching EA modification intent",oldTP,tp));
+            }
+         }
+         if(expectedModification)
+         {
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+            WriteReconciliationRow("INFO","EA_MODIFICATION_RECONCILED",sym,pid,tk,magic,comment,
+               StringFormat("expected EA SL/TP modification reconciled at SL %.10f TP %.10f",sl,tp));
+         }
+         else if(expectedUntil>0 && TimeTradeServer()>expectedUntil)
+         {
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
+         }
+
+         GVWrite(PosKey(pid,"RECON_VOL"),vol);
+         GVWrite(PosKey(pid,"RECON_SL"),sl);
+         GVWrite(PosKey(pid,"RECON_TP"),tp);
+
+         bool intentBound=(GVRead(PosKey(pid,"INTENT_BOUND"),0)>0.5 || ExtractIntentNonce(comment)!="");
+         bool lifecycle=(GVRead(PosKey(pid,"LIFECYCLE_STATE"),0)>0);
+         if(!lifecycle)
+         {
+            g_reconciliationBlocked=true;
+            g_reconciliationWhy=sym+" EA position missing lifecycle metadata";
+            WriteReconciliationRow("CRITICAL","MISSING_LIFECYCLE",sym,pid,tk,magic,comment,g_reconciliationWhy);
+         }
+         if(!intentBound && !InpAllowLegacyOpenPositionsOnUpgrade)
+         {
+            g_reconciliationBlocked=true;
+            g_reconciliationWhy=sym+" EA position missing intent binding";
+            WriteReconciliationRow("CRITICAL","ORPHAN_EA_POSITION",sym,pid,tk,magic,comment,g_reconciliationWhy);
+         }
+      }
+      else if(InpBlockUnexpectedManualExposure)
+      {
+         bool configured=false;
+         for(int j=0;j<ArraySize(g_symbols);j++) if(g_symbols[j]==sym){ configured=true; break; }
+         if(configured)
+         {
+            g_reconciliationBlocked=true;
+            g_reconciliationWhy=sym+" has external/manual position exposure";
+            WriteReconciliationRow("WARN","EXTERNAL_POSITION",sym,pid,tk,magic,comment,g_reconciliationWhy);
+         }
+      }
+   }
+
+   for(int i=OrdersTotal()-1;i>=0;i--)
+   {
+      ulong ot=OrderGetTicket(i); if(ot==0) continue;
+      if(OrderGetInteger(ORDER_MAGIC)!=InpMagic) continue;
+      string sym=OrderGetString(ORDER_SYMBOL);
+      // GPT_EA submits market orders, not durable pending entries.
+      ENUM_ORDER_TYPE t=(ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+      if(t==ORDER_TYPE_BUY_LIMIT || t==ORDER_TYPE_SELL_LIMIT || t==ORDER_TYPE_BUY_STOP || t==ORDER_TYPE_SELL_STOP ||
+         t==ORDER_TYPE_BUY_STOP_LIMIT || t==ORDER_TYPE_SELL_STOP_LIMIT)
+      {
+         g_reconciliationBlocked=true;
+         g_reconciliationWhy=sym+" unexpected EA pending order exists";
+         WriteReconciliationRow("CRITICAL","UNEXPECTED_PENDING_ORDER",sym,0,ot,InpMagic,OrderGetString(ORDER_COMMENT),g_reconciliationWhy);
+      }
+   }
+
+   for(int j=0;j<ArraySize(g_symbols);j++) if(g_symbols[j]!="") ReconcileIntentForSymbol(g_symbols[j]);
+}
+
+void MarkManualIntervention(ulong pid,const string sym,const string detail)
+{
+   if(pid==0) return;
+   GVWrite(PosKey(pid,"MANUAL_INTERVENTION"),1);
+   MarkLearningQuarantine(pid,sym,"manual intervention: "+detail);
+   WriteReconciliationRow("WARN","MANUAL_INTERVENTION",sym,pid,0,0,"",detail);
+}
+
+void HandleReliabilityTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)
+{
+   if(ChaosDropTradeTransaction())
+   {
+      GVWrite(SysKey("CHAOS_DROPPED_TRANSACTION"),GVRead(SysKey("CHAOS_DROPPED_TRANSACTION"),0)+1);
+      return;
+   }
+
+   string sig=StringFormat("%d|%I64u|%I64u|%I64u|%I64u",(int)trans.type,trans.deal,trans.order,trans.position,trans.position_by);
+   int h=IntegrityTextHash(sig);
+   datetime now=TimeTradeServer();
+   if(h==g_lastTransactionSignature && now-g_lastTransactionTime<=2)
+   {
+      GVWrite(SysKey("DUPLICATE_TRADE_CALLBACK"),GVRead(SysKey("DUPLICATE_TRADE_CALLBACK"),0)+1);
+      return;
+   }
+   g_lastTransactionSignature=h; g_lastTransactionTime=now;
+
+   bool injectDuplicate=ChaosDuplicateTradeTransaction();
+
+   ulong pid=trans.position;
+   string sym=trans.symbol;
+   if(trans.deal>0 && HistoryDealSelect(trans.deal))
+   {
+      pid=(ulong)HistoryDealGetInteger(trans.deal,DEAL_POSITION_ID);
+      sym=HistoryDealGetString(trans.deal,DEAL_SYMBOL);
+      ENUM_DEAL_REASON reason=(ENUM_DEAL_REASON)HistoryDealGetInteger(trans.deal,DEAL_REASON);
+      if(reason==DEAL_REASON_CLIENT || reason==DEAL_REASON_MOBILE || reason==DEAL_REASON_WEB)
+      {
+         if(pid>0 && (GVRead(PosKey(pid,"STRATEGY"),0)>0 || GVRead(PosKey(pid,"INTENT_BOUND"),0)>0.5))
+            MarkManualIntervention(pid,sym,"deal reason "+EnumToString(reason));
+      }
+   }
+
+   // MqlTradeRequest is authoritative only for TRADE_TRANSACTION_REQUEST.
+   // Do not infer manual POSITION modifications from request.magic here.
+   // Periodic broker reconciliation compares current SL/TP/volume with explicit
+   // EA modification intents and flags only unexplained external changes.
+
+   if(injectDuplicate)
+   {
+      // Simulate delivery of the same callback a second time. The duplicate
+      // signature guard is the only state transition the duplicate may cause.
+      if(h==g_lastTransactionSignature && now-g_lastTransactionTime<=2)
+         GVWrite(SysKey("DUPLICATE_TRADE_CALLBACK"),GVRead(SysKey("DUPLICATE_TRADE_CALLBACK"),0)+1);
+   }
+}
+
+void ExecutionReliabilityInit()
+{
+   string storage=""; CriticalStorageHealthCheck(storage);
+   string cfg=""; ConfigurationDriftAllows(cfg);
+   ReconcileBrokerAgainstEA();
+   Print("GPT_EA execution reliability initialized | ",storage," | ",cfg,
+         " | reconciliation ",g_reconciliationBlocked?"BLOCK":"PASS");
+}
+
+void ExecutionReliabilityTimer()
+{
+   datetime now=TimeTradeServer();
+   if(g_lastStorageCheck==0 || now-g_lastStorageCheck>=MathMax(10,InpStorageHealthIntervalSeconds))
+   {
+      string q=""; CriticalStorageHealthCheck(q);
+   }
+   if(g_lastReconcile==0 || now-g_lastReconcile>=30)
+   {
+      ReconcileBrokerAgainstEA();
+      g_lastReconcile=now;
+   }
+}
+
+void ExecutionReliabilityShutdown()
+{
+   ReconcileBrokerAgainstEA();
+   string q=""; CriticalStorageHealthCheck(q);
+}
+// ===== END INLINED GPT_EA_Part42_ExecutionReliability.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part43_CausalAttribution.mqh =====
+// ============================================================================
+// GPT_EA Part 43 - Post-trade causal attribution
+// ============================================================================
+
+input bool   InpUsePostTradeCausalAttribution = true;
+input string InpCausalAttributionFile         = "GPT_EA_CausalAttribution.csv";
+input double InpCausalHighSlippageR           = 0.15;
+input double InpCausalGivebackMFER             = 1.00;
+
+void EnsureCausalAttributionHeader()
+{
+   if(!InpUsePostTradeCausalAttribution) return;
+   bool exists=FileIsExist(InpCausalAttributionFile,FILE_COMMON);
+   int h=FileOpen(InpCausalAttributionFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","position_id","symbol","strategy","strategy_config","release_id",
+         "config_fingerprint","model_policy","realized_r","mae_r","mfe_r","slippage_pts","latency_ms","event_class",
+         "stored_market_state","current_market_state","cause","detail","quarantined");
+   FileClose(h);
+}
+
+string CausalAttributionForPosition(ulong pid,const string sym,double realizedR,string &detail)
+{
+   detail="";
+   StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0);
+   double mae=GVRead(PosKey(pid,"MAE_R"),0);
+   double mfe=GVRead(PosKey(pid,"MFE_R"),0);
+   double slipPts=MathMax(0.0,GVRead(PosKey(pid,"EXEC_SLIP_PTS"),0));
+   double latency=GVRead(PosKey(pid,"EXEC_LATENCY_MS"),0);
+   int ev=(int)GVRead(PosKey(pid,"EVENT_CLASS"),0);
+   int storedState=(int)GVRead(PosKey(pid,"MARKET_STATE"),STATE_UNKNOWN);
+
+   if(GVRead(PosKey(pid,"MANUAL_INTERVENTION"),0)>0.5)
+   { detail="trade path was changed from outside the EA"; return "MANUAL_INTERVENTION"; }
+   if(GVRead(PosKey(pid,"STORAGE_ANOMALY"),0)>0.5 || GVRead(PosKey(pid,"BROKER_ANOMALY"),0)>0.5 ||
+      GVRead(PosKey(pid,"CONNECTION_ANOMALY"),0)>0.5 || GVRead(PosKey(pid,"CHAOS_SAMPLE"),0)>0.5)
+   { detail="operational/broker/storage/fault-injection anomaly present"; return "OPERATIONAL_ERROR"; }
+
+   double riskMoney=GVRead(PosKey(pid,"RISK"),0);
+   double onePointMoney=0;
+   if(riskMoney>0)
+   {
+      double lots=GVRead(PosKey(pid,"EXEC_LOTS"),0);
+      double pt=PointFor(sym);
+      if(lots>0 && pt>0)
+      {
+         double pnl=0,entry=GVRead(PosKey(pid,"EXEC_FILL"),GVRead(PosKey(pid,"EXEC_EXPECTED"),0));
+         if(entry>0 && OrderCalcProfit(ORDER_TYPE_BUY,sym,lots,entry,entry+pt,pnl))
+            onePointMoney=MathAbs(pnl);
+      }
+   }
+   double slipR=(riskMoney>0?slipPts*onePointMoney/riskMoney:0);
+   if(realizedR<=0 && slipR>=InpCausalHighSlippageR)
+   { detail=StringFormat("slippage cost estimated %.2fR",slipR); return "EXECUTION_COST"; }
+
+   int halfLife=StrategyDecisionHalfLifeSeconds(c);
+   double budgetMs=halfLife*1000.0*MathMax(0.05,MathMin(0.90,InpMaxLatencyBudgetFraction));
+   if(realizedR<=0 && latency>budgetMs && latency>0)
+   { detail=StringFormat("execution latency %.0f ms exceeded %.0f ms budget",latency,budgetMs); return "DELAYED_ENTRY"; }
+
+   if(realizedR<=0 && ev!=EVENT_NONE)
+   { detail="loss occurred in event-specific context "+AdaptiveEventName(ev); return "NEWS_OR_EVENT_SHOCK"; }
+
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   if(realizedR<=0 && storedState!=STATE_UNKNOWN && (int)x.state!=storedState)
+   {
+      detail="market state transitioned from "+MarketStateName((MarketStateClass)storedState)+" to "+MarketStateName(x.state);
+      return "REGIME_TRANSITION";
+   }
+
+   if(realizedR<=0 && mfe>=MathMax(0.5,InpCausalGivebackMFER))
+   {
+      detail=StringFormat("trade reached %.2fR favorable excursion before closing at %.2fR",mfe,realizedR);
+      return "PROFIT_GIVEBACK_OR_EXIT_TIMING";
+   }
+   if(realizedR<0 && mae>=0.90 && mfe<0.35)
+   {
+      detail=StringFormat("adverse excursion %.2fR with only %.2fR favorable excursion",mae,mfe);
+      return "THESIS_OR_ENTRY_FAILURE";
+   }
+   if(realizedR<0)
+   {
+      detail=StringFormat("negative outcome %.2fR without dominant operational attribution",realizedR);
+      return "STRATEGY_THESIS_FAILURE";
+   }
+   if(realizedR>0 && mfe>realizedR+0.75)
+   {
+      detail=StringFormat("realized %.2fR from %.2fR MFE; runner/exit efficiency review",realizedR,mfe);
+      return "PROFITABLE_WITH_EXIT_OPPORTUNITY";
+   }
+   detail=StringFormat("positive outcome %.2fR with no dominant failure attribution",realizedR);
+   return "SUCCESSFUL_STRATEGY_EXECUTION";
+}
+
+void WriteCausalAttribution(ulong pid,const string sym,double realizedR,const string cause,const string detail)
+{
+   EnsureCausalAttributionHeader();
+   int h=FileOpen(InpCausalAttributionFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   StrategyClass c=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),0);
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,"causal_attribution_v1",TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),(string)pid,sym,
+      StrategyClassName(c),StrategyConfigVersion(c),GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,CurrentConfigFingerprint(),
+      InpModelPolicyVersion,DoubleToString(realizedR,3),DoubleToString(GVRead(PosKey(pid,"MAE_R"),0),3),
+      DoubleToString(GVRead(PosKey(pid,"MFE_R"),0),3),DoubleToString(GVRead(PosKey(pid,"EXEC_SLIP_PTS"),0),1),
+      DoubleToString(GVRead(PosKey(pid,"EXEC_LATENCY_MS"),0),0),(int)GVRead(PosKey(pid,"EVENT_CLASS"),0),
+      MarketStateName((MarketStateClass)(int)GVRead(PosKey(pid,"MARKET_STATE"),STATE_UNKNOWN)),
+      MarketStateName(x.state),cause,detail,GVRead(PosKey(pid,"LEARN_QUARANTINE"),0)>0.5?"1":"0");
+   FileFlush(h); FileClose(h);
+}
+
+void FinalizeCausalAttributionHistory()
+{
+   if(!InpUsePostTradeCausalAttribution) return;
+   datetime now=TimeTradeServer(),from=now-MathMax(10,InpStrategyHistoryLookbackDays)*86400;
+   if(!HistorySelect(from,now)) return;
+
+   ulong pids[]; string syms[];
+   int n=HistoryDealsTotal();
+   for(int i=MathMax(0,n-1200);i<n;i++)
+   {
+      ulong d=HistoryDealGetTicket(i); if(d==0) continue;
+      ENUM_DEAL_ENTRY e=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(d,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_OUT && e!=DEAL_ENTRY_OUT_BY && e!=DEAL_ENTRY_INOUT) continue;
+      ulong pid=(ulong)HistoryDealGetInteger(d,DEAL_POSITION_ID);
+      if(pid==0 || PositionIdentifierOpen(pid) || GVRead(PosKey(pid,"CAUSE_FINAL"),0)>0.5) continue;
+      if(GVRead(PosKey(pid,"STRATEGY"),0)<=0 || GVRead(PosKey(pid,"RISK"),0)<=0) continue;
+      bool dup=false; for(int j=0;j<ArraySize(pids);j++) if(pids[j]==pid){ dup=true; break; }
+      if(dup) continue;
+      int at=ArraySize(pids); ArrayResize(pids,at+1); ArrayResize(syms,at+1);
+      pids[at]=pid; syms[at]=HistoryDealGetString(d,DEAL_SYMBOL);
+   }
+
+   for(int i=0;i<ArraySize(pids);i++)
+   {
+      ulong pid=pids[i];
+      double risk=GVRead(PosKey(pid,"RISK"),0); if(risk<=0) continue;
+      double realized=StrategyPositionRealized(pid)/risk;
+      string detail="";
+      string cause=CausalAttributionForPosition(pid,syms[i],realized,detail);
+      WriteCausalAttribution(pid,syms[i],realized,cause,detail);
+      GVWrite(PosKey(pid,"CAUSE_FINAL"),1);
+   }
+   GlobalVariablesFlush();
+}
+
+void CausalAttributionInit()
+{
+   EnsureCausalAttributionHeader();
+   FinalizeCausalAttributionHistory();
+}
+
+void CausalAttributionTimer()
+{
+   FinalizeCausalAttributionHistory();
+}
+// ===== END INLINED GPT_EA_Part43_CausalAttribution.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part34_StrategyHealthDashboard.mqh =====
+// ============================================================================
+// GPT_EA Part 34 - Strategy health dashboard and adaptive telemetry
+// ============================================================================
+// Strategy health status contract: ACTIVE / REDUCED_RISK / SHADOW / DISABLED.
+
+input bool   InpShowStrategyHealthDashboard       = true;
+input bool   InpWriteStrategyHealthJournal        = true;
+input string InpStrategyHealthJournalFile         = "GPT_EA_StrategyHealthV2.csv";
+input int    InpStrategyHealthJournalMinutes      = 15;
+
+string STRATEGY_HEALTH_PANEL="GPT_EA_STRATEGY_HEALTH_PANEL";
+
+void EnsureStrategyHealthHeader()
+{
+   if(!InpWriteStrategyHealthJournal) return;
+   bool exists=FileIsExist(InpStrategyHealthJournalFile,FILE_COMMON);
+   int h=FileOpen(InpStrategyHealthJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","strategy","status","sample_n","win_rate","avg_r","profit_factor","max_dd_r","max_loss_run",
+         "recent_n","recent_avg_r","recent_pf","avg_realized_win_loss_rr","strategy_slippage_pts","current_regime","regime_n","regime_avg_r","regime_pf",
+         "champion_challenger","risk_multiplier","release_id","strategy_engine","model_policy",
+         "config_fingerprint","symbol_fingerprint","strategy_config");
+   FileClose(h);
+}
+
+string DashboardReferenceSymbol()
+{
+   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") return g_symbols[i];
+   return _Symbol;
+}
+
+void StrategyRealizedWinLossRR(StrategyClass c,double &ratio,double &avgWin,double &avgLoss)
+{
+   string k=SysKey(StringFormat("STRAT_%d",(int)c));
+   double n=GVRead(k+"_N",0),wins=GVRead(k+"_WIN",0),pos=GVRead(k+"_POSR",0),neg=GVRead(k+"_NEGR",0);
+   double losses=MathMax(0.0,n-wins);
+   avgWin=(wins>0?pos/wins:0);
+   avgLoss=(losses>0?neg/losses:0);
+   ratio=(avgLoss>0?avgWin/avgLoss:(avgWin>0?99.0:0));
+}
+
+string CurrentRegimeEvidenceText(StrategyClass c,const string sym,double &n,double &avg,double &pf)
+{
+   StrategySnapshot x; BuildStrategySnapshot(sym,x);
+   double wr=0,dd=0,ml=0;
+   StrategyBucketMetrics(SysKey(StringFormat("STRAT_%d_STATE_%d",(int)c,(int)x.state)),n,wr,avg,pf,dd,ml);
+   return MarketStateName(x.state);
+}
+
+string StrategyHealthRow(StrategyClass c,const string refSym)
+{
+   double n=0,wr=0,avg=0,pf=0,dd=0,ml=0;
+   StrategyBucketMetrics(SysKey(StringFormat("STRAT_%d",(int)c)),n,wr,avg,pf,dd,ml);
+   double rn=GVRead(SysKey(StringFormat("HEALTH_RECENT_N_%d",(int)c)),0);
+   double ravg=GVRead(SysKey(StringFormat("HEALTH_RECENT_AVG_%d",(int)c)),0);
+   double rpf=GVRead(SysKey(StringFormat("HEALTH_RECENT_PF_%d",(int)c)),0);
+   double realRR=0,aw=0,al=0; StrategyRealizedWinLossRR(c,realRR,aw,al);
+   double slip=GVRead(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",(int)c)),0);
+   double regN=0,regAvg=0,regPF=0; string regime=CurrentRegimeEvidenceText(c,refSym,regN,regAvg,regPF);
+   int mode=StrategyHealthMode(c);
+   double mult=StrategyHealthRiskMultiplier(c);
+   return StringFormat("%-18s %-12s N%3.0f avg%+.2fR PF%.2f DD%.2f | recent %.0f/%+.2f/%.2f | realRR %.2f | slip %.1f | %s %.0f/%+.2f/%.2f | x%.2f",
+      StrategyCode(c),AdaptiveStrategyModeName(mode),n,avg,pf,dd,rn,ravg,rpf,realRR,slip,regime,regN,regAvg,regPF,mult);
+}
+
+string BuildStrategyHealthDashboardText()
+{
+   string ref=DashboardReferenceSymbol();
+   string out="STRATEGY HEALTH / ADAPTIVE EXECUTION\n";
+   out+="Reference regime: "+ref+" | "+RegimeTransitionText(ref)+"\n";
+   for(int ci=1;ci<=9;ci++) out+=StrategyHealthRow((StrategyClass)ci,ref)+"\n";
+   StrategyClass current=CandidateStrategyForSymbol(ref);
+   if(current!=STRATEGY_NO_TRADE) out+=ChampionChallengerSummary(current)+"\n";
+   string bh=""; double health=BrokerHealthScore(ref,bh);
+   out+=StringFormat("Broker health %.1f | portfolio risk %.2f%% | daily loss %.2f%% | DD %.2f%%\n",health,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent());
+   out+="Release: "+ReleaseGateSummary()+"\n";
+   return out;
+}
+
+void RenderStrategyHealthDashboard()
+{
+   if(!InpShowStrategyHealthDashboard){ ObjectDelete(0,STRATEGY_HEALTH_PANEL); return; }
+   string txt=BuildStrategyHealthDashboardText();
+   if(ObjectFind(0,STRATEGY_HEALTH_PANEL)<0) ObjectCreate(0,STRATEGY_HEALTH_PANEL,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,STRATEGY_HEALTH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,STRATEGY_HEALTH_PANEL,OBJPROP_XDISTANCE,16);
+   ObjectSetInteger(0,STRATEGY_HEALTH_PANEL,OBJPROP_YDISTANCE,150);
+   ObjectSetInteger(0,STRATEGY_HEALTH_PANEL,OBJPROP_FONTSIZE,8);
+   ObjectSetString(0,STRATEGY_HEALTH_PANEL,OBJPROP_FONT,"Consolas");
+   ObjectSetString(0,STRATEGY_HEALTH_PANEL,OBJPROP_TEXT,txt);
+   ChartRedraw();
+}
+
+void WriteStrategyHealthSnapshot()
+{
+   if(!InpWriteStrategyHealthJournal) return;
+   datetime now=TimeTradeServer();
+   datetime last=(datetime)GVRead(SysKey("HEALTH_JOURNAL_TIME"),0);
+   if(last>0 && now-last<MathMax(1,InpStrategyHealthJournalMinutes)*60) return;
+   EnsureStrategyHealthHeader();
+   int h=FileOpen(InpStrategyHealthJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   string ref=DashboardReferenceSymbol();
+   for(int ci=1;ci<=9;ci++)
+   {
+      StrategyClass c=(StrategyClass)ci;
+      double n=0,wr=0,avg=0,pf=0,dd=0,ml=0;
+      StrategyBucketMetrics(SysKey(StringFormat("STRAT_%d",ci)),n,wr,avg,pf,dd,ml);
+      double rn=GVRead(SysKey(StringFormat("HEALTH_RECENT_N_%d",ci)),0),ravg=GVRead(SysKey(StringFormat("HEALTH_RECENT_AVG_%d",ci)),0),rpf=GVRead(SysKey(StringFormat("HEALTH_RECENT_PF_%d",ci)),0);
+      double realRR=0,aw=0,al=0; StrategyRealizedWinLossRR(c,realRR,aw,al);
+      double slip=GVRead(SysKey(StringFormat("EXEC_STRAT_%d_SLIP",ci)),0);
+      double regN=0,regAvg=0,regPF=0; string regime=CurrentRegimeEvidenceText(c,ref,regN,regAvg,regPF);
+      FileWrite(h,"strategy_health_v2",TimeToString(now,TIME_DATE|TIME_SECONDS),StrategyClassName(c),AdaptiveStrategyModeName(StrategyHealthMode(c)),
+         n,DoubleToString(wr,1),DoubleToString(avg,3),DoubleToString(pf,3),DoubleToString(dd,3),ml,
+         rn,DoubleToString(ravg,3),DoubleToString(rpf,3),DoubleToString(realRR,3),DoubleToString(slip,1),regime,
+         regN,DoubleToString(regAvg,3),DoubleToString(regPF,3),SnapshotText(ChampionChallengerSummary(c)),DoubleToString(StrategyHealthRiskMultiplier(c),2),
+         GPT_EA_REQUIRED_RELEASE_VALIDATION_ID,InpStrategyEngineVersion,InpModelPolicyVersion,CurrentConfigFingerprint(),
+         SymbolContractFingerprint(ref),StrategyConfigVersion(c));
+   }
+   FileFlush(h); FileClose(h);
+   GVWrite(SysKey("HEALTH_JOURNAL_TIME"),(double)now);
+}
+
+string AdaptiveCardAddendum(const TradeSetup &s,const StrategyDecision &d)
+{
+   return "\n━━━━━━━━━━━━━━━━━━━━\n⚙️ ADAPTIVE EXECUTION & STRATEGY HEALTH\n━━━━━━━━━━━━━━━━━━━━\n"+
+      AdaptiveRiskSummary(s)+"\n"+
+      ExecutionLearningSummary(s)+"\n"+
+      ChampionChallengerSummary(d.strategy)+"\n"+
+      LifecycleIntegritySummary(s.symbol)+"\n";
+}
+
+void StrategyHealthDashboardInit()
+{
+   EnsureStrategyHealthHeader();
+   RenderStrategyHealthDashboard();
+   WriteStrategyHealthSnapshot();
+   Print("GPT_EA strategy health dashboard initialized.");
+}
+
+void StrategyHealthDashboardTimer()
+{
+   RenderStrategyHealthDashboard();
+   WriteStrategyHealthSnapshot();
+}
+
+void DeleteStrategyHealthDashboard()
+{
+   ObjectDelete(0,STRATEGY_HEALTH_PANEL);
+}
+// ===== END INLINED GPT_EA_Part34_StrategyHealthDashboard.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part36_DemoSoakEvidence.mqh =====
+// ============================================================================
+// GPT_EA Part 36 - Machine-observed R6 demo-soak evidence
+// ============================================================================
+// This module does NOT self-certify a release. It records durable observations
+// and writes an exportable demo_soak JSON object. The operator must reconcile
+// the machine evidence with terminal logs, complete the report, finalize the
+// SHA-256 digest offline and pass the R6 release-evidence validators.
+
+input bool   InpEnableDemoSoakEvidence              = false;
+input string InpDemoSoakEvidenceId                  = ""; // >= 8 chars; unique per candidate soak
+input string InpDemoSoakEvidenceFile                = "GPT_EA_DemoSoakEvidence.csv";
+input string InpDemoSoakSnapshotJsonFile            = "GPT_EA_DemoSoakSnapshot.json";
+input string InpDemoSoakReportReference             = "artifacts/demo-soak-report.md";
+input int    InpDemoSoakObservationSeconds          = 60;
+input int    InpDemoSoakSummaryMinutes              = 15;
+input int    InpDemoSoakFreshQuoteSeconds           = 60;
+input bool   InpDemoSoakCountWeekendTradingDays     = false;
+input int    InpDemoSoakRolloverStartHourUTC        = 20;
+input int    InpDemoSoakRolloverEndHourUTC          = 23;
+input double InpDemoSoakRolloverSpreadATRFrac       = 0.12;
+
+const string GPT_EA_DEMO_SOAK_RUNTIME_SCHEMA="demo_soak_evidence_v1";
+
+enum LifecycleWaitReasonClass
+{
+   LIFECYCLE_WAIT_UNSPECIFIED=0,
+   LIFECYCLE_WAIT_MARKET_CONFIRMATION=1,
+   LIFECYCLE_WAIT_HUMAN_APPROVAL=2
+};
+
+string DemoSoakKey(const string suffix){ return SysKey("SOAK_"+suffix); }
+
+bool DemoSoakEligible()
+{
+   if(!InpEnableDemoSoakEvidence || (bool)MQLInfoInteger(MQL_TESTER)) return false;
+   if(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL) return false;
+   return StringLen(InpDemoSoakEvidenceId)>=8;
+}
+
+string DemoSoakIso(datetime tm)
+{
+   MqlDateTime t={}; TimeToStruct(tm,t);
+   return StringFormat("%04d-%02d-%02dT%02d:%02d:%02d",t.year,t.mon,t.day,t.hour,t.min,t.sec);
+}
+
+datetime DemoSoakDayStart(datetime tm)
+{
+   MqlDateTime t={}; TimeToStruct(tm,t);
+   t.hour=0; t.min=0; t.sec=0;
+   return StructToTime(t);
+}
+
+bool DemoSoakTradingDay(datetime tm)
+{
+   if(InpDemoSoakCountWeekendTradingDays) return true;
+   MqlDateTime t={}; TimeToStruct(tm,t);
+   return (t.day_of_week>=1 && t.day_of_week<=5);
+}
+
+bool DemoSoakConsecutiveTradingDay(datetime prevDay,datetime curDay)
+{
+   if(prevDay<=0 || curDay<=prevDay) return false;
+   int gap=(int)((curDay-prevDay)/86400);
+   if(InpDemoSoakCountWeekendTradingDays) return gap==1;
+   MqlDateTime p={},c={}; TimeToStruct(prevDay,p); TimeToStruct(curDay,c);
+   if(gap==1) return true;
+   if(p.day_of_week==5 && c.day_of_week==1 && gap==3) return true; // Fri -> Mon
+   return false;
+}
+
+bool DemoSoakHasFreshQuote(string &observedSymbol)
+{
+   observedSymbol="";
+   datetime now=TimeTradeServer();
+   int maxAge=MathMax(5,InpDemoSoakFreshQuoteSeconds);
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i]; if(sym=="") continue;
+      MqlTick t={}; if(!GetTickSafe(sym,t) || t.bid<=0 || t.ask<=0 || t.time<=0) continue;
+      if(MathAbs((double)(now-t.time))<=maxAge){ observedSymbol=sym; return true; }
+   }
+   return false;
+}
+
+bool DemoSoakHasOpenPosition(const string sym)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)==InpMagic && PositionGetString(POSITION_SYMBOL)==sym) return true;
+   }
+   return false;
+}
+
+bool DemoSoakPendingApprovalActive(const string sym)
+{
+   for(int i=0;i<ArraySize(g_pending);i++)
+      if(g_pending[i].active && g_pending[i].setup.symbol==sym) return true;
+   return false;
+}
+
+bool DemoSoakAnyPendingApproval()
+{
+   for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) return true;
+   return false;
+}
+
+void EnsureDemoSoakEvidenceHeader()
+{
+   if(!DemoSoakEligible()) return;
+   bool exists=FileIsExist(InpDemoSoakEvidenceFile,FILE_COMMON);
+   int h=FileOpen(InpDemoSoakEvidenceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE){ Print("Demo-soak evidence file open failed: ",GetLastError()); return; }
+   if(!exists || FileSize(h)==0)
+      FileWrite(h,"schema_version","time","run_id","event","symbol","detail",
+         "trading_days","current_consecutive_days","london_sessions","ny_sessions","overlap_observed","news_day_observed","rollover_observed",
+         "restart_observed","reconnect_observed","scheduled_scans","continuous_scans","manual_scans","checkpoint_updates","backup_checkpoint_updates",
+         "zero_tolerance_failures","unresolved_critical_states","duplicate_orders","duplicate_partials","sl_regressions","unprotected_new_authorizations",
+         "release_gate_bypasses","analytics_duplicate_finalizations","stop_failure_join_failures","dashboard_gate_mismatches","runtime_critical_errors",
+         "secrets_exposed","execution_log_present","stop_log_present","release_evidence_log_present","machine_coverage_ready","broker","server");
+   FileClose(h);
+}
+
+bool DemoSoakLogPresent(const string fileName)
+{
+   if(fileName=="") return false;
+   return FileIsExist(fileName,FILE_COMMON);
+}
+
+void RefreshDemoSoakLogPresence()
+{
+   GVWrite(DemoSoakKey("EXEC_LOG"),DemoSoakLogPresent(InpExecutionJournalFile)?1:0);
+   GVWrite(DemoSoakKey("STOP_LOG"),DemoSoakLogPresent(InpStopFailureObservabilityFile)?1:0);
+   GVWrite(DemoSoakKey("RELEASE_LOG"),DemoSoakLogPresent(InpReleaseEvidenceSnapshotFile)?1:0);
+}
+
+bool DemoSoakFailureCountersClear()
+{
+   string keys[]={"ZERO_TOL","UNRESOLVED_CURRENT","DUP_ORDERS","DUP_PARTIALS","SL_REGRESSIONS","UNPROTECTED_AUTH",
+                  "RELEASE_BYPASS","ANALYTICS_DUP_FINAL","STOP_JOIN_FAIL","DASH_MISMATCH","RUNTIME_CRITICAL","SECRETS"};
+   for(int i=0;i<ArraySize(keys);i++) if(GVRead(DemoSoakKey(keys[i]),0)!=0) return false;
+   return true;
+}
+
+bool DemoSoakCoverageReady()
+{
+   if(!DemoSoakEligible()) return false;
+   RefreshDemoSoakLogPresence();
+   return (GVRead(DemoSoakKey("MAX_CONSEC_DAYS"),0)>=5 &&
+           GVRead(DemoSoakKey("LONDON_DAYS"),0)>=3 && GVRead(DemoSoakKey("NY_DAYS"),0)>=3 &&
+           GVRead(DemoSoakKey("OVERLAP_DAYS"),0)>=1 && GVRead(DemoSoakKey("NEWS_DAYS"),0)>=1 &&
+           GVRead(DemoSoakKey("ROLLOVER_SPREAD"),0)>0.5 && GVRead(DemoSoakKey("RESTARTS"),0)>=1 &&
+           GVRead(DemoSoakKey("RECONNECTS"),0)>=1 && GVRead(DemoSoakKey("SCHEDULED_SCANS"),0)>=1 &&
+           GVRead(DemoSoakKey("CONTINUOUS_SCANS"),0)>=1 && GVRead(DemoSoakKey("MANUAL_SCANS"),0)>=1 &&
+           GVRead(DemoSoakKey("CHECKPOINT_UPDATES"),0)>=1 && GVRead(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),0)>=1 &&
+           DemoSoakFailureCountersClear() && GVRead(DemoSoakKey("EXEC_LOG"),0)>0.5 &&
+           GVRead(DemoSoakKey("STOP_LOG"),0)>0.5 && GVRead(DemoSoakKey("RELEASE_LOG"),0)>0.5);
+}
+
+void WriteDemoSoakEvidenceEvent(const string eventName,const string symbol,const string detail)
+{
+   if(!DemoSoakEligible()) return;
+   EnsureDemoSoakEvidenceHeader();
+   RefreshDemoSoakLogPresence();
+   int h=FileOpen(InpDemoSoakEvidenceFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
+   if(h==INVALID_HANDLE) return;
+   FileSeek(h,0,SEEK_END);
+   FileWrite(h,GPT_EA_DEMO_SOAK_RUNTIME_SCHEMA,TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),InpDemoSoakEvidenceId,eventName,symbol,detail,
+      (int)GVRead(DemoSoakKey("MAX_CONSEC_DAYS"),0),(int)GVRead(DemoSoakKey("CONSEC_DAYS"),0),
+      (int)GVRead(DemoSoakKey("LONDON_DAYS"),0),(int)GVRead(DemoSoakKey("NY_DAYS"),0),
+      GVRead(DemoSoakKey("OVERLAP_DAYS"),0)>0?1:0,GVRead(DemoSoakKey("NEWS_DAYS"),0)>0?1:0,GVRead(DemoSoakKey("ROLLOVER_SPREAD"),0)>0.5?1:0,
+      GVRead(DemoSoakKey("RESTARTS"),0)>0?1:0,GVRead(DemoSoakKey("RECONNECTS"),0)>0?1:0,
+      (int)GVRead(DemoSoakKey("SCHEDULED_SCANS"),0),(int)GVRead(DemoSoakKey("CONTINUOUS_SCANS"),0),(int)GVRead(DemoSoakKey("MANUAL_SCANS"),0),
+      (int)GVRead(DemoSoakKey("CHECKPOINT_UPDATES"),0),(int)GVRead(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),0),
+      (int)GVRead(DemoSoakKey("ZERO_TOL"),0),(int)GVRead(DemoSoakKey("UNRESOLVED_CURRENT"),0),(int)GVRead(DemoSoakKey("DUP_ORDERS"),0),
+      (int)GVRead(DemoSoakKey("DUP_PARTIALS"),0),(int)GVRead(DemoSoakKey("SL_REGRESSIONS"),0),(int)GVRead(DemoSoakKey("UNPROTECTED_AUTH"),0),
+      (int)GVRead(DemoSoakKey("RELEASE_BYPASS"),0),(int)GVRead(DemoSoakKey("ANALYTICS_DUP_FINAL"),0),(int)GVRead(DemoSoakKey("STOP_JOIN_FAIL"),0),
+      (int)GVRead(DemoSoakKey("DASH_MISMATCH"),0),(int)GVRead(DemoSoakKey("RUNTIME_CRITICAL"),0),(int)GVRead(DemoSoakKey("SECRETS"),0),
+      GVRead(DemoSoakKey("EXEC_LOG"),0)>0.5?1:0,GVRead(DemoSoakKey("STOP_LOG"),0)>0.5?1:0,GVRead(DemoSoakKey("RELEASE_LOG"),0)>0.5?1:0,
+      DemoSoakCoverageReady()?1:0,AccountInfoString(ACCOUNT_COMPANY),AccountInfoString(ACCOUNT_SERVER));
+   FileFlush(h); FileClose(h);
+}
+
+void ResetDemoSoakRunState()
+{
+   string keys[]={"START_TIME","LAST_INIT","LAST_OBSERVE","LAST_SUMMARY","LAST_DAY","CONSEC_DAYS","MAX_CONSEC_DAYS","TOTAL_DAYS",
+      "LAST_LONDON_DAY","LONDON_DAYS","LAST_NY_DAY","NY_DAYS","LAST_OVERLAP_DAY","OVERLAP_DAYS","LAST_NEWS_DAY","NEWS_DAYS",
+      "ROLLOVER_WINDOW","ROLLOVER_SPREAD","RESTARTS","RECONNECTS","CONNECTED_PREV","SAW_DISCONNECT",
+      "MANUAL_SCANS","SCHEDULED_SCANS","CONTINUOUS_SCANS","LAST_SCAN_TIME","LAST_SCAN_HASH",
+      "CHECKPOINT_UPDATES","BACKUP_CHECKPOINT_UPDATES","LAST_CHECKPOINT_TIME",
+      "ZERO_TOL","INCIDENTS","UNRESOLVED_CURRENT","CRITICAL_LATCH","UNPROTECTED_AUTH_LATCH","DASH_MISMATCH_LATCH",
+      "DUP_ORDERS","DUP_PARTIALS","SL_REGRESSIONS","UNPROTECTED_AUTH","RELEASE_BYPASS","ANALYTICS_DUP_FINAL","STOP_JOIN_FAIL",
+      "DASH_MISMATCH","RUNTIME_CRITICAL","SECRETS","EXEC_LOG","STOP_LOG","RELEASE_LOG"};
+   for(int i=0;i<ArraySize(keys);i++) GVWrite(DemoSoakKey(keys[i]),0);
+   GVWrite(DemoSoakKey("RUN_HASH"),TextChecksum(InpDemoSoakEvidenceId));
+   GVWrite(DemoSoakKey("START_TIME"),(double)TimeTradeServer());
+   GlobalVariablesFlush();
+}
+
+bool EnsureDemoSoakRun()
+{
+   if(!DemoSoakEligible()) return false;
+   int hash=TextChecksum(InpDemoSoakEvidenceId);
+   int stored=(int)GVRead(DemoSoakKey("RUN_HASH"),0);
+   if(stored!=hash) ResetDemoSoakRunState();
+   return true;
+}
+
+void IncrementDemoSoakFailureMetric(const string code)
+{
+   string u=code; StringToUpper(u);
+   if(u=="DUPLICATE_ORDER") GVWrite(DemoSoakKey("DUP_ORDERS"),GVRead(DemoSoakKey("DUP_ORDERS"),0)+1);
+   else if(u=="DUPLICATE_PARTIAL") GVWrite(DemoSoakKey("DUP_PARTIALS"),GVRead(DemoSoakKey("DUP_PARTIALS"),0)+1);
+   else if(u=="SL_REGRESSION") GVWrite(DemoSoakKey("SL_REGRESSIONS"),GVRead(DemoSoakKey("SL_REGRESSIONS"),0)+1);
+   else if(u=="UNPROTECTED_NEW_AUTHORIZATION") GVWrite(DemoSoakKey("UNPROTECTED_AUTH"),GVRead(DemoSoakKey("UNPROTECTED_AUTH"),0)+1);
+   else if(u=="RELEASE_GATE_BYPASS") GVWrite(DemoSoakKey("RELEASE_BYPASS"),GVRead(DemoSoakKey("RELEASE_BYPASS"),0)+1);
+   else if(u=="ANALYTICS_DUPLICATE_FINALIZATION") GVWrite(DemoSoakKey("ANALYTICS_DUP_FINAL"),GVRead(DemoSoakKey("ANALYTICS_DUP_FINAL"),0)+1);
+   else if(u=="STOP_FAILURE_JOIN_FAILURE") GVWrite(DemoSoakKey("STOP_JOIN_FAIL"),GVRead(DemoSoakKey("STOP_JOIN_FAIL"),0)+1);
+   else if(u=="DASHBOARD_GATE_MISMATCH") GVWrite(DemoSoakKey("DASH_MISMATCH"),GVRead(DemoSoakKey("DASH_MISMATCH"),0)+1);
+   else if(u=="RUNTIME_CRITICAL_ERROR" || u=="CRITICAL_PROTECTION_STATE") GVWrite(DemoSoakKey("RUNTIME_CRITICAL"),GVRead(DemoSoakKey("RUNTIME_CRITICAL"),0)+1);
+   else if(u=="SECRET_EXPOSED") GVWrite(DemoSoakKey("SECRETS"),GVRead(DemoSoakKey("SECRETS"),0)+1);
+}
+
+void RecordDemoSoakIncident(const string code,const string detail,bool zeroTolerance)
+{
+   if(!EnsureDemoSoakRun()) return;
+   GVWrite(DemoSoakKey("INCIDENTS"),GVRead(DemoSoakKey("INCIDENTS"),0)+1);
+   if(zeroTolerance)
+   {
+      GVWrite(DemoSoakKey("ZERO_TOL"),GVRead(DemoSoakKey("ZERO_TOL"),0)+1);
+      IncrementDemoSoakFailureMetric(code);
+   }
+   WriteDemoSoakEvidenceEvent(zeroTolerance?"ZERO_TOLERANCE_INCIDENT":"INCIDENT","",code+" | "+detail);
+   GlobalVariablesFlush();
+}
+
+void DemoSoakMarkUniqueDay(const string lastKey,const string countKey,datetime day,const string eventName)
+{
+   datetime last=(datetime)GVRead(DemoSoakKey(lastKey),0);
+   if(last==day) return;
+   GVWrite(DemoSoakKey(lastKey),(double)day);
+   GVWrite(DemoSoakKey(countKey),GVRead(DemoSoakKey(countKey),0)+1);
+   WriteDemoSoakEvidenceEvent(eventName,"",TimeToString(day,TIME_DATE));
+}
+
+void ObserveDemoSoakTradingDay(datetime now)
+{
+   if(!DemoSoakTradingDay(now)) return;
+   string sym=""; if(!DemoSoakHasFreshQuote(sym)) return;
+   datetime day=DemoSoakDayStart(now);
+   datetime last=(datetime)GVRead(DemoSoakKey("LAST_DAY"),0);
+   if(last==day) return;
+   int consecutive=1;
+   if(last>0 && DemoSoakConsecutiveTradingDay(last,day)) consecutive=(int)GVRead(DemoSoakKey("CONSEC_DAYS"),0)+1;
+   GVWrite(DemoSoakKey("LAST_DAY"),(double)day);
+   GVWrite(DemoSoakKey("CONSEC_DAYS"),consecutive);
+   GVWrite(DemoSoakKey("MAX_CONSEC_DAYS"),MathMax(GVRead(DemoSoakKey("MAX_CONSEC_DAYS"),0),(double)consecutive));
+   GVWrite(DemoSoakKey("TOTAL_DAYS"),GVRead(DemoSoakKey("TOTAL_DAYS"),0)+1);
+   WriteDemoSoakEvidenceEvent("TRADING_DAY_OBSERVED",sym,StringFormat("day %s | consecutive %d",TimeToString(day,TIME_DATE),consecutive));
+}
+
+void ObserveDemoSoakSessions(datetime now)
+{
+   string sym=""; if(!DemoSoakHasFreshQuote(sym)) return;
+   datetime day=DemoSoakDayStart(now);
+   string ses=AccurateSessionBucket();
+   if(ses=="LONDON") DemoSoakMarkUniqueDay("LAST_LONDON_DAY","LONDON_DAYS",day,"LONDON_SESSION_OBSERVED");
+   else if(ses=="NEW_YORK_OPEN") DemoSoakMarkUniqueDay("LAST_NY_DAY","NY_DAYS",day,"NEW_YORK_SESSION_OBSERVED");
+   else if(ses=="LONDON_NY_OVERLAP")
+   {
+      DemoSoakMarkUniqueDay("LAST_OVERLAP_DAY","OVERLAP_DAYS",day,"LONDON_NY_OVERLAP_OBSERVED");
+      DemoSoakMarkUniqueDay("LAST_LONDON_DAY","LONDON_DAYS",day,"LONDON_SESSION_OBSERVED_VIA_OVERLAP");
+      DemoSoakMarkUniqueDay("LAST_NY_DAY","NY_DAYS",day,"NEW_YORK_SESSION_OBSERVED_VIA_OVERLAP");
+   }
+}
+
+void ObserveDemoSoakNews(datetime now)
+{
+   datetime day=DemoSoakDayStart(now);
+   if((datetime)GVRead(DemoSoakKey("LAST_NEWS_DAY"),0)==day) return;
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i]; if(sym=="") continue;
+      if(HighImpactEventWithin(sym,MathMax(30,InpStrategyNewsContextMinutes)))
+      {
+         GVWrite(DemoSoakKey("LAST_NEWS_DAY"),(double)day);
+         GVWrite(DemoSoakKey("NEWS_DAYS"),GVRead(DemoSoakKey("NEWS_DAYS"),0)+1);
+         WriteDemoSoakEvidenceEvent("HIGH_IMPACT_NEWS_DAY_OBSERVED",sym,UpcomingEventSummary(sym));
+         return;
+      }
+   }
+}
+
+bool DemoSoakRolloverHourUTC(int h)
+{
+   int a=MathMax(0,MathMin(23,InpDemoSoakRolloverStartHourUTC));
+   int b=MathMax(0,MathMin(23,InpDemoSoakRolloverEndHourUTC));
+   if(a<=b) return (h>=a && h<=b);
+   return (h>=a || h<=b);
+}
+
+void ObserveDemoSoakRollover()
+{
+   MqlDateTime u={}; TimeToStruct(TimeGMT(),u);
+   if(!DemoSoakRolloverHourUTC(u.hour)) return;
+   if(GVRead(DemoSoakKey("ROLLOVER_WINDOW"),0)<0.5)
+   {
+      GVWrite(DemoSoakKey("ROLLOVER_WINDOW"),1);
+      WriteDemoSoakEvidenceEvent("ROLLOVER_WINDOW_OBSERVED","",StringFormat("UTC hour %d",u.hour));
+   }
+   if(GVRead(DemoSoakKey("ROLLOVER_SPREAD"),0)>0.5) return;
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i]; if(sym=="") continue;
+      MqlTick t={}; double atr=0;
+      if(!GetTickSafe(sym,t) || !ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr) || atr<=0) continue;
+      double ratio=(t.ask-t.bid)/atr;
+      if(ratio>=MathMax(0.01,InpDemoSoakRolloverSpreadATRFrac))
+      {
+         GVWrite(DemoSoakKey("ROLLOVER_SPREAD"),1);
+         WriteDemoSoakEvidenceEvent("ROLLOVER_SPREAD_EXPANSION_OBSERVED",sym,StringFormat("spread/M5 ATR %.3f",ratio));
+         return;
+      }
+   }
+}
+
+void ObserveDemoSoakConnection()
+{
+   bool connected=(bool)TerminalInfoInteger(TERMINAL_CONNECTED);
+   bool prev=GVRead(DemoSoakKey("CONNECTED_PREV"),connected?1:0)>0.5;
+   if(!connected)
+   {
+      if(prev) WriteDemoSoakEvidenceEvent("DISCONNECT_OBSERVED","","terminal connection transitioned to disconnected");
+      GVWrite(DemoSoakKey("SAW_DISCONNECT"),1);
+   }
+   else if(!prev && GVRead(DemoSoakKey("SAW_DISCONNECT"),0)>0.5)
+   {
+      GVWrite(DemoSoakKey("RECONNECTS"),GVRead(DemoSoakKey("RECONNECTS"),0)+1);
+      WriteDemoSoakEvidenceEvent("RECONNECT_OBSERVED","","terminal connection recovered after observed disconnect");
+   }
+   GVWrite(DemoSoakKey("CONNECTED_PREV"),connected?1:0);
+}
+
+void ObserveDemoSoakRecoveryCheckpoints()
+{
+   datetime cp=g_lastUniversalCheckpoint;
+   datetime last=(datetime)GVRead(DemoSoakKey("LAST_CHECKPOINT_TIME"),0);
+   if(cp<=0 || cp==last) return;
+   GVWrite(DemoSoakKey("LAST_CHECKPOINT_TIME"),(double)cp);
+   GVWrite(DemoSoakKey("CHECKPOINT_UPDATES"),GVRead(DemoSoakKey("CHECKPOINT_UPDATES"),0)+1);
+   bool backupOK=(InpKeepRecoveryBackup && RecoveryCheckpointHeaderValid(RecoveryBackupFileName()));
+   if(backupOK) GVWrite(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),GVRead(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),0)+1);
+   WriteDemoSoakEvidenceEvent("RECOVERY_CHECKPOINT_OBSERVED","",backupOK?"primary + validated backup present":"primary checkpoint update observed; validated backup not yet observed");
+}
+
+int DemoSoakCurrentCriticalStates(string &detail)
+{
+   int count=0; detail="";
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      if(PositionGetDouble(POSITION_SL)<=0){ count++; detail+="unprotected position "+PositionGetString(POSITION_SYMBOL)+"; "; }
+   }
+   string stopWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopWhy))
+   {
+      string u=stopWhy; StringToUpper(u);
+      if(StringFind(u,"CRITICAL")>=0 || StringFind(u,"UNPROTECTED")>=0 || StringFind(u,"OPERATOR")>=0)
+      { count++; detail+="stop observability: "+stopWhy+"; "; }
+   }
+   return count;
+}
+
+void ReconcileStaleApprovalWaitStates()
+{
+   if(!InpUseLifecycleStateMachine) return;
+   for(int i=0;i<ArraySize(g_symbols);i++)
+   {
+      string sym=g_symbols[i]; if(sym=="" || DemoSoakHasOpenPosition(sym)) continue;
+      int state=(int)GVRead(SymKey(sym,"LIFECYCLE_STATE"),LIFE_NONE);
+      int kind=(int)GVRead(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+      if(state!=LIFE_WAIT_CONFIRMATION || kind!=LIFECYCLE_WAIT_HUMAN_APPROVAL) continue;
+      if(DemoSoakPendingApprovalActive(sym)) continue;
+      string reason="human-approval WAIT state has no active pending approval; approval/revalidation path ended without a fill";
+      if(SetSymbolLifecycle(sym,LIFE_INVALIDATED,reason))
+      {
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+         if(DemoSoakEligible()) WriteDemoSoakEvidenceEvent("STALE_APPROVAL_LIFECYCLE_RECONCILED",sym,reason);
+      }
+   }
+}
+
+void ObserveDemoSoakCriticalStates()
+{
+   string detail=""; int n=DemoSoakCurrentCriticalStates(detail);
+   GVWrite(DemoSoakKey("UNRESOLVED_CURRENT"),n);
+   bool latched=GVRead(DemoSoakKey("CRITICAL_LATCH"),0)>0.5;
+   if(n>0 && !latched)
+   {
+      GVWrite(DemoSoakKey("CRITICAL_LATCH"),1);
+      RecordDemoSoakIncident("CRITICAL_PROTECTION_STATE",detail,true);
+   }
+   else if(n==0 && latched)
+   {
+      GVWrite(DemoSoakKey("CRITICAL_LATCH"),0);
+      WriteDemoSoakEvidenceEvent("CRITICAL_STATE_CLEARED","","all machine-observed critical protection states cleared");
+   }
+
+   bool unprotected=(n>0);
+   bool auth=DemoSoakAnyPendingApproval();
+   bool authLatched=GVRead(DemoSoakKey("UNPROTECTED_AUTH_LATCH"),0)>0.5;
+   if(unprotected && auth && !authLatched)
+   {
+      GVWrite(DemoSoakKey("UNPROTECTED_AUTH_LATCH"),1);
+      RecordDemoSoakIncident("UNPROTECTED_NEW_AUTHORIZATION","pending approval existed while a machine-observed critical/unprotected state was active",true);
+   }
+   else if((!unprotected || !auth) && authLatched) GVWrite(DemoSoakKey("UNPROTECTED_AUTH_LATCH"),0);
+}
+
+void ObserveDemoSoakReleaseDashboardConsistency()
+{
+   string summary=ReleaseGateSummary();
+   bool reportedPass=(StringFind(summary,"PASS") == 0);
+   bool actualPass=!g_releaseBlocked;
+   bool mismatch=(reportedPass!=actualPass);
+   bool latched=GVRead(DemoSoakKey("DASH_MISMATCH_LATCH"),0)>0.5;
+   if(mismatch && !latched)
+   {
+      GVWrite(DemoSoakKey("DASH_MISMATCH_LATCH"),1);
+      RecordDemoSoakIncident("DASHBOARD_GATE_MISMATCH","release summary and runtime g_releaseBlocked disagree: "+summary,true);
+   }
+   else if(!mismatch && latched) GVWrite(DemoSoakKey("DASH_MISMATCH_LATCH"),0);
+}
+
+string DemoSoakCardLine(const string card,const string prefix)
+{
+   int p=StringFind(card,prefix); if(p<0) return "";
+   p+=StringLen(prefix);
+   int e=StringFind(card,"\n",p); if(e<0) e=StringLen(card);
+   string out=StringSubstr(card,p,e-p); StringTrimLeft(out); StringTrimRight(out); return out;
+}
+
+void ObserveDemoSoakScanCard(const string card)
+{
+   if(!EnsureDemoSoakRun()) return;
+   string reason=DemoSoakCardLine(card,"Scan:"); if(reason=="") return;
+   if(StringFind(reason,"startup / restart recovery")>=0) return;
+   datetime now=TimeTradeServer();
+   int hash=TextChecksum(reason);
+   datetime last=(datetime)GVRead(DemoSoakKey("LAST_SCAN_TIME"),0);
+   int oldHash=(int)GVRead(DemoSoakKey("LAST_SCAN_HASH"),0);
+   if(last>0 && now-last<=15 && oldHash==hash) return; // same multi-symbol scan
+   GVWrite(DemoSoakKey("LAST_SCAN_TIME"),(double)now); GVWrite(DemoSoakKey("LAST_SCAN_HASH"),hash);
+
+   string u=reason; StringToUpper(u);
+   if(StringFind(u,"MANUAL SCAN NOW")>=0)
+   {
+      GVWrite(DemoSoakKey("MANUAL_SCANS"),GVRead(DemoSoakKey("MANUAL_SCANS"),0)+1);
+      WriteDemoSoakEvidenceEvent("MANUAL_SCAN_OBSERVED","",reason);
+   }
+   else if(StringFind(u,"CONTINUOUS")>=0 || StringFind(u,"NEW-M5-BAR")>=0)
+   {
+      GVWrite(DemoSoakKey("CONTINUOUS_SCANS"),GVRead(DemoSoakKey("CONTINUOUS_SCANS"),0)+1);
+      WriteDemoSoakEvidenceEvent("CONTINUOUS_SCAN_OBSERVED","",reason);
+   }
+   else
+   {
+      GVWrite(DemoSoakKey("SCHEDULED_SCANS"),GVRead(DemoSoakKey("SCHEDULED_SCANS"),0)+1);
+      WriteDemoSoakEvidenceEvent("SCHEDULED_SCAN_OBSERVED","",reason);
+   }
+}
+
+void WriteDemoSoakJsonSnapshot()
+{
+   if(!DemoSoakEligible()) return;
+   RefreshDemoSoakLogPresence();
+   int h=FileOpen(InpDemoSoakSnapshotJsonFile,FILE_WRITE|FILE_TXT|FILE_COMMON|FILE_ANSI);
+   if(h==INVALID_HANDLE){ Print("Demo-soak JSON snapshot open failed: ",GetLastError()); return; }
+   datetime start=(datetime)GVRead(DemoSoakKey("START_TIME"),TimeTradeServer());
+   datetime now=TimeTradeServer();
+   string json="{\n";
+   json+="  \"schema_version\": \""+GPT_EA_DEMO_SOAK_RUNTIME_SCHEMA+"\",\n";
+   json+="  \"evidence_id\": \""+JsonEscape(InpDemoSoakEvidenceId)+"\",\n";
+   json+="  \"evidence_digest\": \"\",\n"; // finalized offline by validator/finalizer
+   json+="  \"start\": \""+DemoSoakIso(start)+"\",\n";
+   json+="  \"end\": \""+DemoSoakIso(now)+"\",\n";
+   json+=StringFormat("  \"trading_days\": %d,\n",(int)GVRead(DemoSoakKey("MAX_CONSEC_DAYS"),0));
+   json+=StringFormat("  \"london_sessions\": %d,\n",(int)GVRead(DemoSoakKey("LONDON_DAYS"),0));
+   json+=StringFormat("  \"ny_sessions\": %d,\n",(int)GVRead(DemoSoakKey("NY_DAYS"),0));
+   json+="  \"overlap_observed\": "+(GVRead(DemoSoakKey("OVERLAP_DAYS"),0)>0?"true":"false")+",\n";
+   json+="  \"news_day_observed\": "+(GVRead(DemoSoakKey("NEWS_DAYS"),0)>0?"true":"false")+",\n";
+   json+="  \"rollover_observed\": "+(GVRead(DemoSoakKey("ROLLOVER_SPREAD"),0)>0.5?"true":"false")+",\n";
+   json+="  \"restart_observed\": "+(GVRead(DemoSoakKey("RESTARTS"),0)>0?"true":"false")+",\n";
+   json+="  \"reconnect_observed\": "+(GVRead(DemoSoakKey("RECONNECTS"),0)>0?"true":"false")+",\n";
+   json+=StringFormat("  \"scheduled_scans\": %d,\n",(int)GVRead(DemoSoakKey("SCHEDULED_SCANS"),0));
+   json+=StringFormat("  \"continuous_scans\": %d,\n",(int)GVRead(DemoSoakKey("CONTINUOUS_SCANS"),0));
+   json+=StringFormat("  \"checkpoint_updates\": %d,\n",(int)GVRead(DemoSoakKey("CHECKPOINT_UPDATES"),0));
+   json+=StringFormat("  \"backup_checkpoint_updates\": %d,\n",(int)GVRead(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),0));
+   json+=StringFormat("  \"zero_tolerance_failures\": %d,\n",(int)GVRead(DemoSoakKey("ZERO_TOL"),0));
+   json+=StringFormat("  \"unresolved_critical_states\": %d,\n",(int)GVRead(DemoSoakKey("UNRESOLVED_CURRENT"),0));
+   json+=StringFormat("  \"duplicate_orders\": %d,\n",(int)GVRead(DemoSoakKey("DUP_ORDERS"),0));
+   json+=StringFormat("  \"duplicate_partials\": %d,\n",(int)GVRead(DemoSoakKey("DUP_PARTIALS"),0));
+   json+=StringFormat("  \"sl_regressions\": %d,\n",(int)GVRead(DemoSoakKey("SL_REGRESSIONS"),0));
+   json+=StringFormat("  \"unprotected_new_authorizations\": %d,\n",(int)GVRead(DemoSoakKey("UNPROTECTED_AUTH"),0));
+   json+=StringFormat("  \"release_gate_bypasses\": %d,\n",(int)GVRead(DemoSoakKey("RELEASE_BYPASS"),0));
+   json+=StringFormat("  \"analytics_duplicate_finalizations\": %d,\n",(int)GVRead(DemoSoakKey("ANALYTICS_DUP_FINAL"),0));
+   json+=StringFormat("  \"stop_failure_join_failures\": %d,\n",(int)GVRead(DemoSoakKey("STOP_JOIN_FAIL"),0));
+   json+=StringFormat("  \"dashboard_gate_mismatches\": %d,\n",(int)GVRead(DemoSoakKey("DASH_MISMATCH"),0));
+   json+=StringFormat("  \"runtime_critical_errors\": %d,\n",(int)GVRead(DemoSoakKey("RUNTIME_CRITICAL"),0));
+   json+=StringFormat("  \"secrets_exposed\": %d,\n",(int)GVRead(DemoSoakKey("SECRETS"),0));
+   json+="  \"execution_log_present\": "+(GVRead(DemoSoakKey("EXEC_LOG"),0)>0.5?"true":"false")+",\n";
+   json+="  \"stop_log_present\": "+(GVRead(DemoSoakKey("STOP_LOG"),0)>0.5?"true":"false")+",\n";
+   json+="  \"release_evidence_log_present\": "+(GVRead(DemoSoakKey("RELEASE_LOG"),0)>0.5?"true":"false")+",\n";
+   json+="  \"report_path\": \""+JsonEscape(InpDemoSoakReportReference)+"\"\n";
+   json+="}\n";
+   FileWriteString(h,json); FileFlush(h); FileClose(h);
+}
+
+string DemoSoakEvidenceSummary()
+{
+   if(!InpEnableDemoSoakEvidence) return "Demo soak evidence: disabled.";
+   if(!DemoSoakEligible()) return "Demo soak evidence: inactive (requires demo/contest terminal, non-tester run and evidence ID >= 8 chars).";
+   return StringFormat("Demo soak %s [%s] | consecutive %d/5 | London %d/3 | NY %d/3 | overlap/news/rollover %s/%s/%s | restart/reconnect %s/%s | scheduled/continuous/manual %d/%d/%d | checkpoint/backup %d/%d | zero-tolerance %d | unresolved critical %d | logs E/S/R %s/%s/%s | machine coverage %s",
+      InpDemoSoakEvidenceId,GPT_EA_DEMO_SOAK_RUNTIME_SCHEMA,(int)GVRead(DemoSoakKey("MAX_CONSEC_DAYS"),0),
+      (int)GVRead(DemoSoakKey("LONDON_DAYS"),0),(int)GVRead(DemoSoakKey("NY_DAYS"),0),
+      GVRead(DemoSoakKey("OVERLAP_DAYS"),0)>0?"Y":"N",GVRead(DemoSoakKey("NEWS_DAYS"),0)>0?"Y":"N",GVRead(DemoSoakKey("ROLLOVER_SPREAD"),0)>0.5?"Y":"N",
+      GVRead(DemoSoakKey("RESTARTS"),0)>0?"Y":"N",GVRead(DemoSoakKey("RECONNECTS"),0)>0?"Y":"N",
+      (int)GVRead(DemoSoakKey("SCHEDULED_SCANS"),0),(int)GVRead(DemoSoakKey("CONTINUOUS_SCANS"),0),(int)GVRead(DemoSoakKey("MANUAL_SCANS"),0),
+      (int)GVRead(DemoSoakKey("CHECKPOINT_UPDATES"),0),(int)GVRead(DemoSoakKey("BACKUP_CHECKPOINT_UPDATES"),0),
+      (int)GVRead(DemoSoakKey("ZERO_TOL"),0),(int)GVRead(DemoSoakKey("UNRESOLVED_CURRENT"),0),
+      GVRead(DemoSoakKey("EXEC_LOG"),0)>0.5?"Y":"N",GVRead(DemoSoakKey("STOP_LOG"),0)>0.5?"Y":"N",GVRead(DemoSoakKey("RELEASE_LOG"),0)>0.5?"Y":"N",
+      DemoSoakCoverageReady()?"READY_FOR_HUMAN_RECONCILIATION":"INCOMPLETE");
+}
+
+void DemoSoakEvidenceInit()
+{
+   ReconcileStaleApprovalWaitStates();
+   if(!InpEnableDemoSoakEvidence) return;
+   if((bool)MQLInfoInteger(MQL_TESTER)){ Print("Demo-soak evidence disabled in Strategy Tester; use a demo/contest terminal."); return; }
+   if(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL){ Print("Demo-soak evidence capture refuses REAL-account mode."); return; }
+   if(StringLen(InpDemoSoakEvidenceId)<8){ Print("Demo-soak evidence enabled but InpDemoSoakEvidenceId must contain at least 8 characters."); return; }
+
+   bool existing=((int)GVRead(DemoSoakKey("RUN_HASH"),0)==TextChecksum(InpDemoSoakEvidenceId));
+   datetime lastInit=(datetime)GVRead(DemoSoakKey("LAST_INIT"),0);
+   EnsureDemoSoakRun(); EnsureDemoSoakEvidenceHeader();
+   if(existing && lastInit>0)
+   {
+      GVWrite(DemoSoakKey("RESTARTS"),GVRead(DemoSoakKey("RESTARTS"),0)+1);
+      WriteDemoSoakEvidenceEvent("EA_RESTART_OR_REINIT_OBSERVED","",StringFormat("previous init %s",TimeToString(lastInit,TIME_DATE|TIME_SECONDS)));
+   }
+   GVWrite(DemoSoakKey("LAST_INIT"),(double)TimeTradeServer());
+   GVWrite(DemoSoakKey("CONNECTED_PREV"),(bool)TerminalInfoInteger(TERMINAL_CONNECTED)?1:0);
+   ObserveDemoSoakRecoveryCheckpoints();
+   RefreshDemoSoakLogPresence();
+   WriteDemoSoakEvidenceEvent("SOAK_INIT","",DemoSoakEvidenceSummary());
+   WriteDemoSoakJsonSnapshot();
+   GlobalVariablesFlush();
+}
+
+void DemoSoakEvidenceTimer()
+{
+   // Lifecycle stale-state reconciliation is always active, even when soak capture is disabled.
+   ReconcileStaleApprovalWaitStates();
+   if(!EnsureDemoSoakRun()) return;
+   datetime now=TimeTradeServer();
+   datetime last=(datetime)GVRead(DemoSoakKey("LAST_OBSERVE"),0);
+   if(last>0 && now-last<MathMax(10,InpDemoSoakObservationSeconds)) return;
+   GVWrite(DemoSoakKey("LAST_OBSERVE"),(double)now);
+
+   ObserveDemoSoakConnection();
+   ObserveDemoSoakTradingDay(now);
+   ObserveDemoSoakSessions(now);
+   ObserveDemoSoakNews(now);
+   ObserveDemoSoakRollover();
+   ObserveDemoSoakRecoveryCheckpoints();
+   ObserveDemoSoakCriticalStates();
+   ObserveDemoSoakReleaseDashboardConsistency();
+   RefreshDemoSoakLogPresence();
+
+   datetime lastSummary=(datetime)GVRead(DemoSoakKey("LAST_SUMMARY"),0);
+   if(lastSummary<=0 || now-lastSummary>=MathMax(1,InpDemoSoakSummaryMinutes)*60)
+   {
+      GVWrite(DemoSoakKey("LAST_SUMMARY"),(double)now);
+      WriteDemoSoakEvidenceEvent("SUMMARY","",DemoSoakEvidenceSummary());
+      WriteDemoSoakJsonSnapshot();
+   }
+   GlobalVariablesFlush();
+}
+
+void DemoSoakEvidenceShutdown()
+{
+   ReconcileStaleApprovalWaitStates();
+   if(!DemoSoakEligible()) return;
+   ObserveDemoSoakRecoveryCheckpoints();
+   ObserveDemoSoakCriticalStates();
+   ObserveDemoSoakReleaseDashboardConsistency();
+   RefreshDemoSoakLogPresence();
+   WriteDemoSoakEvidenceEvent("SOAK_SHUTDOWN","",DemoSoakEvidenceSummary());
+   WriteDemoSoakJsonSnapshot();
+   GlobalVariablesFlush();
+}
+// ===== END INLINED GPT_EA_Part36_DemoSoakEvidence.mqh =====
+// ===== BEGIN INLINED GPT_EA_Part35_AdaptiveIntegration.mqh =====
+// ============================================================================
+// GPT_EA Part 35 - Adaptive stack integration wrappers
+// ============================================================================
+// These wrappers preserve the proven legacy paths and insert Parts 30-36 at
+// selector, authorization, AI-veto, telemetry and runtime lifecycle boundaries.
+
+TradeSetup       g_r5Primary;
+TradeSetup       g_r5Pullback;
+TradeSetup       g_r5BreakoutRetest;
+StrategyDecision g_r5Decision;
+string           g_r5SelectionNote="";
+string           g_r5CalibrationNote="";
+string           g_r5ExpiryNote="";
+string           g_r5AIAnswer="";
+bool             g_r5ContextReady=false;
+
+bool AdaptiveOpenPositionForSymbol(const string sym)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)==InpMagic && PositionGetString(POSITION_SYMBOL)==sym) return true;
+   }
+   return false;
+}
+
+void SelectDynamicStrategyR5(const string sym,TradeSetup &pb,TradeSetup &br,StrategyDecision &d)
+{
+   string pbCal="",brCal="";
+   CalibratedConfidenceValue(pb.confidence,pbCal);
+   CalibratedConfidenceValue(br.confidence,brCal);
+
+   SelectDynamicStrategyUltimate(sym,pb,br,d);
+   TradeSetup primary=d.setup;
+   if(primary.symbol=="") primary=(pb.confidence>=br.confidence?pb:br);
+
+   string cc="";
+   ApplyChampionChallengerSelection(primary,pb,br,d,cc);
+
+   string selectedCal="";
+   ApplyConfidenceCalibration(primary,selectedCal);
+   if(d.strategy!=STRATEGY_NO_TRADE && d.action==STRATEGY_ACTION_HIGH_CONFIDENCE && !primary.valid)
+      d.action=STRATEGY_ACTION_WAIT;
+   d.setup=primary;
+
+   string expiry="";
+   int learned=LearnedStrategyExpiryM15(d.strategy,MathMax(1,primary.expiryM15),expiry);
+   d.setup.expiryM15=learned;
+   primary.expiryM15=learned;
+
+   g_r5Primary=primary;
+   g_r5Pullback=pb;
+   g_r5BreakoutRetest=br;
+   g_r5Decision=d;
+   g_r5SelectionNote=cc;
+   g_r5CalibrationNote=pbCal+" | "+brCal+" | selected: "+selectedCal;
+   g_r5ExpiryNote=expiry;
+   g_r5AIAnswer="";
+   g_r5ContextReady=true;
+
+   PersistStrategyCandidate(sym,d);
+}
+
+bool AdaptivePreAuthorizationRiskAllowsR5(const TradeSetup &s,string &why)
+{
+   string kill="";
+   if(RiskKillSwitchActive(kill)){ why=kill; return false; }
+   string cd="";
+   if(CooldownActive(s.symbol,cd)){ why=cd; return false; }
+
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string emergencyAI="";
+   bool deterministicOnly=DeterministicEmergencyExecutionActive(s.symbol,c,emergencyAI);
+   bool storedRequested=GVRead(SymKey(s.symbol,"AI_REVIEW_REQUESTED"),0)>0.5;
+   bool storedAvailable=GVRead(SymKey(s.symbol,"AI_REVIEW_AVAILABLE"),0)>0.5;
+   string ai="";
+   if(deterministicOnly && (!storedRequested || !storedAvailable))
+      ai="DETERMINISTIC_ONLY: unavailable stored GPT review bypassed; "+emergencyAI;
+   else if(!StoredAIIntegrityAllows(s.symbol,ai))
+   { why="GPT integrity/disagreement: "+ai; return false; }
+
+   string learn="";
+   if(!AdaptiveExecutionLearningAllows(s,learn)){ why="Execution learning: "+learn; return false; }
+
+   double rm=0,ol=0;
+   double lots=AdaptiveLotSizeForRiskFinal(s,rm,ol);
+   if(lots<=0){ why="Adaptive final lot-size calculation returned zero."; return false; }
+
+   string adaptive="";
+   if(!AdaptivePreEntryAllows(s,lots,adaptive)){ why=adaptive; return false; }
+   why=StringFormat("%s | %s | %s | final lots %.3f risk %.2f | %s",
+                    kill,ai,learn,lots,rm,FinalAdaptiveSizingText(s));
+   return true;
+}
+
+int AdaptiveExecutionSlippagePointsR5(const string sym)
+{
+   StrategyClass c=CandidateStrategyForSymbol(sym);
+   string detail="";
+   double forecast=ExecutionSlippageForecastPoints(sym,c,detail);
+   int pts=(int)MathCeil(MathMax((double)DynamicSlippagePoints(sym),forecast));
+   return MathMax(1,MathMin(InpMaxDynamicSlippagePoints,pts));
+}
+
+bool AIReviewAllowsExecutionR5(const string aiText,bool aiAvailable,string &why)
+{
+   g_r5AIAnswer=aiText;
+   if(g_r5ContextReady)
+   {
+      string emergency="";
+      if(!aiAvailable && DeterministicEmergencyExecutionActive(g_r5Primary.symbol,g_r5Decision.strategy,emergency))
+      {
+         string det="";
+         bool detOK=DeterministicSetupIntegrity(g_r5Primary,det);
+         PersistAIIntegrityDecision(g_r5Primary.symbol,detOK,true,false,false,"");
+         why="DETERMINISTIC_ONLY: unavailable GPT transport bypassed by emergency policy | "+emergency+" | "+det;
+         return detOK;
+      }
+   }
+
+   string legacy="";
+   bool legacyOK=AIReviewAllowsExecution(aiText,aiAvailable,legacy);
+   if(!g_r5ContextReady)
+   {
+      why=legacy+" | adaptive scan context unavailable.";
+      return legacyOK;
+   }
+
+   bool requested=(InpUseOpenAI && (!InpAIReviewHighConfidenceOnly || g_r5Decision.score>=InpMinStrategyScore));
+   string integrity="",disagreement="";
+   bool integrityOK=GPTReviewIntegrityAllows(g_r5Primary.symbol,g_r5Primary,aiText,aiAvailable,requested,integrity);
+   bool disagreementOK=GPTDisagreementAllowsHighConfidence(g_r5Primary,aiText,aiAvailable,disagreement);
+   PersistAIIntegrityDecision(g_r5Primary.symbol,integrityOK,disagreementOK,requested,aiAvailable,aiText);
+   why=legacy+" | "+integrity+" | "+disagreement;
+   return legacyOK && integrityOK && disagreementOK;
+}
+
+string AdaptiveFinalDecisionFromCard(const string card)
+{
+   if(StringFind(card,"FINAL DECISION: ✅ HIGH-CONFIDENCE TRADE SETUP")>=0) return "HIGH_CONFIDENCE";
+   if(StringFind(card,"FINAL DECISION: ❌ NO TRADE")>=0) return "NO_TRADE";
+   return "WAIT_REANALYZE";
+}
+
+void RefreshAdaptiveLifecycleFromDecision(const string decision)
+{
+   if(!g_r5ContextReady || g_r5Primary.symbol=="" || AdaptiveOpenPositionForSymbol(g_r5Primary.symbol)) return;
+   string sym=g_r5Primary.symbol;
+   int cur=(int)GVRead(SymKey(sym,"LIFECYCLE_STATE"),LIFE_NONE);
+   if(cur==LIFE_REJECTED || cur==LIFE_INVALIDATED || cur==LIFE_CLOSED || cur==LIFE_NONE)
+      SetSymbolLifecycle(sym,LIFE_CANDIDATE,"fresh adaptive scan candidate");
+
+   if(decision=="HIGH_CONFIDENCE" && InpRequireApproval)
+   {
+      if(SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"high-confidence setup awaiting human approval"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_HUMAN_APPROVAL);
+   }
+   else if(decision=="WAIT_REANALYZE")
+   {
+      if(SetSymbolLifecycle(sym,LIFE_WAIT_CONFIRMATION,"strategy valid but market confirmation/reanalysis still required"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_MARKET_CONFIRMATION);
+   }
+   else if(decision=="NO_TRADE")
+   {
+      if(SetSymbolLifecycle(sym,LIFE_INVALIDATED,"fresh scan classified NO TRADE"))
+         GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+   }
+}
+
+void NotifyCardR5(const string card)
+{
+   if(!g_r5ContextReady)
+   {
+      ObserveDemoSoakScanCard(card);
+      NotifyCardObserved(card);
+      return;
+   }
+   string decision=AdaptiveFinalDecisionFromCard(card);
+   bool liveReady=(decision=="HIGH_CONFIDENCE");
+   string enriched=card+AdaptiveCardAddendum(g_r5Primary,g_r5Decision);
+   enriched+="Champion/challenger selection: "+g_r5SelectionNote+"\n";
+   enriched+="Confidence calibration: "+g_r5CalibrationNote+"\n";
+   enriched+="Learned candle expiry: "+g_r5ExpiryNote+"\n";
+   enriched+="Final sizing: "+FinalAdaptiveSizingText(g_r5Primary)+"\n";
+   if(InpEnableDemoSoakEvidence) enriched+=DemoSoakEvidenceSummary()+"\n";
+
+   ChampionChallengerScanHook(g_r5Primary,g_r5Pullback,g_r5BreakoutRetest,g_r5Decision,liveReady,decision);
+   WriteDecisionSnapshot(g_r5Primary,g_r5Decision,decision,"scanner hard filters and news/web state are retained in the emitted card","",g_r5AIAnswer,decision);
+   RefreshAdaptiveLifecycleFromDecision(decision);
+   ObserveDemoSoakScanCard(card);
+   NotifyCardObserved(enriched);
+}
+
+void MarkSignalCooldownR5(const string sym)
+{
+   MarkSignalCooldown(sym);
+   if(!AdaptiveOpenPositionForSymbol(sym))
+   {
+      SetSymbolLifecycle(sym,LIFE_INVALIDATED,"approval denied/expired; cooldown activated");
+      GVWrite(SymKey(sym,"LIFECYCLE_WAIT_KIND"),LIFECYCLE_WAIT_UNSPECIFIED);
+   }
+}
+
+void NewsIntermarketInitR5()
+{
+   NewsIntermarketInit();
+   ChaosInit();
+   ModelClockTrustInit();
+   AdaptiveRiskSupervisorInit();
+   DataIntegrityInit();
+   ExecutionLearningInitR5();
+   ChampionChallengerInit();
+   LifecycleIntegrityInit();
+   ExecutionReliabilityInit();
+   CausalAttributionInit();
+   DemoSoakEvidenceInit();
+   StrategyHealthDashboardInit();
+}
+
+void NewsIntermarketTimerR5()
+{
+   NewsIntermarketTimer();
+   ModelClockTrustTimer();
+   AdaptiveRiskSupervisorTimer();
+   DataIntegrityTimer();
+   ExecutionLearningTimerR5();
+   ChampionChallengerTimer();
+   LifecycleIntegrityTimer();
+   ExecutionReliabilityTimer();
+   CausalAttributionTimer();
+   DemoSoakEvidenceTimer();
+   StrategyHealthDashboardTimer();
+}
+
+void DeleteAdvancedDashboardR5()
+{
+   ExecutionReliabilityShutdown();
+   DataIntegrityShutdown();
+   DemoSoakEvidenceShutdown();
+   DeleteAdvancedDashboard();
+   DeleteStrategyHealthDashboard();
+}
+// ===== END INLINED GPT_EA_Part35_AdaptiveIntegration.mqh =====
 
 // Part05 order execution consumes final adaptive sizing and learned slippage.
 #define LotSizeForRisk AdaptiveLotSizeForRiskFinal
 #define AdaptiveLotSizeForRisk AdaptiveLotSizeForRiskFinal
 #define DynamicSlippagePoints AdaptiveExecutionSlippagePointsR5
-#include "GPT_EA_Part05.mqh"
+// ===== BEGIN INLINED GPT_EA_Part05.mqh =====
+string SetupSummaryLine(const TradeSetup &s)
+{
+   return StringFormat("%s: zone %.*f–%.*f | preferred %.*f | SL %.*f | TP1 %.*f | conf %d%% | eff R:R %.2f",
+      s.name,DigitsFor(s.symbol),s.zoneLow,DigitsFor(s.symbol),s.zoneHigh,
+      DigitsFor(s.symbol),s.preferred,DigitsFor(s.symbol),s.sl,DigitsFor(s.symbol),s.tp1,s.confidence,s.effectiveRR1);
+}
+
+string BuildCard(TradeSetup &primary,TradeSetup &pullback,TradeSetup &breakout,const string scanReason,bool newsBlock,const string news,string spreadText,bool spreadOK,bool yieldBlock,const string yieldText,bool sessionBlock,const string sessionText)
+{
+   string s="━━━━━━━━━━━━━━━━━━━━\n";
+   string icon=(primary.bullish?"🟢":"🔴");
+   s+=StringFormat("%s %s %s — PRIMARY SETUP\n",icon,primary.symbol,Arrow(primary.bullish));
+   s+="━━━━━━━━━━━━━━━━━━━━\n\n";
+   s+="Asset: "+primary.symbol+"\n";
+   s+="TF: D1 / H4 / H1 / M30 / M15 / M5\n";
+   s+="Bias: "+DirText(primary.bullish)+" — "+primary.name+"\n";
+   s+="Scan: "+scanReason+"\n\n";
+   s+="Analysis:\n"+primary.reason+"\n\n";
+   s+="Confirmation:\n";
+   s+="✅ Multi-timeframe context evaluated\n";
+   s+=StringFormat("%s Setup rule satisfied\n",primary.valid?"✅":"⚠️");
+   s+=StringFormat("%s %s\n",spreadOK?"✅":"❌",spreadText);
+   s+=StringFormat("%s %s\n",newsBlock?"❌":"✅",news);
+   s+=StringFormat("%s %s\n",yieldBlock?"❌":"✅",yieldText);
+   s+=StringFormat("%s %s\n",sessionBlock?"❌":"✅",sessionText);
+
+   int d=DigitsFor(primary.symbol);
+   s+=StringFormat("\nEntry: %.*f – %.*f\nPreferred Entry: %.*f\nSL: %.*f\nTP1: %.*f\nTP2: %.*f\nTP3: %.*f\n",
+      d,primary.zoneLow,d,primary.zoneHigh,d,primary.preferred,d,primary.sl,d,primary.tp1,d,primary.tp2,d,primary.tp3);
+   s+=StringFormat("R:R: nominal TP1 family %.2fR; effective R:R to TP2 after spread/slippage ≈ 1:%.2f\n",primary.nominalRR1,primary.effectiveRR1);
+   s+=StringFormat("Confidence: %d%%\n",primary.confidence);
+   s+=StringFormat("Time invalidation: TP1 should be reached within %d M15 candles after entry (strategy/ATR/opening-range plus learned time-to-TP1 evidence).\n",primary.expiryM15);
+   s+="Invalidation: "+primary.invalidation+"\n";
+   s+="Failure pattern: "+primary.failurePattern+"\n\n";
+
+   s+="Pullback vs Breakout-Retest:\n"+SetupSummaryLine(pullback)+"\n"+SetupSummaryLine(breakout)+"\n";
+   s+="Pullback usually fails by acceptance through support/resistance/value; breakout-retest usually fails by a false break and close back inside the old range.\n";
+   s+="Spread/slippage penalize tighter setups more; effective R:R below the configured threshold invalidates authorization.\n\n";
+
+   s+="Position management:\n";
+   s+=StringFormat("• Base risk ceiling = %.2f%% of %s; adaptive quality/strategy/broker/drawdown/regime sizing may reduce it before lot calculation.\n",InpRiskPercent,(InpUseEquity?"equity":"balance"));
+   s+=StringFormat("• TP1: take %.0f%% partial; cost-aware BE protection is retried until broker-valid.\n",InpPartialAtTP1Percent);
+   s+=StringFormat("• Profit lock: at %.2fR lock %.2fR; at %.2fR lock %.2fR.\n",
+                   InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR);
+   s+=StringFormat("• Trail: from %.2fR use ATR + M5 structure; minimum stop improvement %.2fR; stops never loosen.\n",
+                   InpTrailStartR,InpTrailMinStepR);
+   s+=StringFormat("• TP2: optionally close %.0f%% of the remaining volume, then manage the runner toward TP3/trailing exit.\n",InpPartialAtTP2Percent);
+   s+=StringFormat("• After TP1: if price stalls near the next M15 resistance/support for %d M5 candles and momentum deteriorates, close the remainder.\n",InpPostTP1StallM5);
+   s+="• News/intermarket, execution learning, correlation/macro concentration, strategy budget/health, broker health, market kill switch, release-safety, stop observability, cooldown, OrderCheck and R:R deterioration can invalidate entry before execution.\n\n";
+
+   bool tradable=(primary.valid && !newsBlock && !yieldBlock && !sessionBlock && spreadOK && primary.effectiveRR1>=InpMinEffectiveRR);
+   s+="Preferred Trade: "+(tradable?"✅ HIGH-CONFIDENCE SETUP VALID":"⏳ WAIT — CONDITIONS NOT FULLY VALID")+"\n";
+   s+="Execution rule: "+primary.executionRule+"\n";
+   s+="Risk note: execution costs, gaps and fast markets can make realized loss larger than modelled stop risk.\n";
+   return s;
+}
+
+void NotifyCard(const string card)
+{
+   Print("\n",card);
+   g_lastCard=card;
+   Comment(card);
+   if(InpEnableAlerts) Alert(StringSubstr(card,0,(int)MathMin(240,StringLen(card))));
+   if(InpEnablePush && !(bool)MQLInfoInteger(MQL_TESTER)) SendNotification(StringSubstr(card,0,(int)MathMin(250,StringLen(card))));
+}
+
+// ------------------------- Optional execution ---------------------
+string GVKey(ulong ticket,string suffix){ return StringFormat("CGPT_%I64u_%s",ticket,suffix); }
+void GVSet(ulong ticket,string suffix,double v){ GlobalVariableSet(GVKey(ticket,suffix),v); }
+double GVGet(ulong ticket,string suffix,double def=0){ string k=GVKey(ticket,suffix); return GlobalVariableCheck(k)?GlobalVariableGet(k):def; }
+
+int CountPositions(const string sym)
+{
+   int n=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0) continue;
+      if(PositionGetString(POSITION_SYMBOL)==sym && PositionGetInteger(POSITION_MAGIC)==InpMagic) n++;
+   }
+   return n;
+}
+
+bool PriceInsideZone(const TradeSetup &s)
+{
+   MqlTick t; if(!GetTickSafe(s.symbol,t)) return false;
+   double p=(s.bullish?t.ask:t.bid);
+   return (p>=s.zoneLow && p<=s.zoneHigh);
+}
+
+bool M5Trigger(const TradeSetup &s)
+{
+   MqlRates r[]; ArraySetAsSeries(r,true);
+   if(CopyRates(s.symbol,PERIOD_M5,1,3,r)<3) return false;
+   if(s.bullish)
+      return (r[0].close>r[0].open && r[0].low>=r[1].low && r[0].close>r[1].close);
+   return (r[0].close<r[0].open && r[0].high<=r[1].high && r[0].close<r[1].close);
+}
+
+bool ApprovedPlaceTrade(const TradeSetup &s)
+{
+   // Approval is authorization only. Every strategy, news, release, adaptive risk, broker and market condition is revalidated here.
+   if(!InpEnableApprovedExecution || !s.valid) return false;
+
+   string releaseWhy="";
+   if(!ReleaseSafetyAllows(s.symbol,releaseWhy))
+   {
+      Print(s.symbol,": RELEASE SAFETY BLOCK - ",releaseWhy);
+      return false;
+   }
+
+   string stopPolicyWhy="";
+   if(!StopFailurePolicyConfigSafe(stopPolicyWhy))
+   {
+      StopFailurePauseNewEntries("invalid stop failure policy: "+stopPolicyWhy);
+      Print(s.symbol,": STOP FAILURE POLICY BLOCK - ",stopPolicyWhy);
+      return false;
+   }
+
+   string stopObsWhy="";
+   if(!StopObservabilityAllowsNewEntries(stopObsWhy))
+   {
+      Print(s.symbol,": PARTIAL PROTECTION/STOP OBSERVABILITY BLOCK - ",stopObsWhy);
+      return false;
+   }
+
+   TradeSetup x=s;
+   x.sl=NormalizePriceToTick(x.symbol,x.sl);
+   x.tp1=NormalizePriceToTick(x.symbol,x.tp1);
+   x.tp2=NormalizePriceToTick(x.symbol,x.tp2);
+   x.tp3=NormalizePriceToTick(x.symbol,x.tp3);
+
+   string integrity="";
+   if(!DeterministicSetupIntegrity(x,integrity))
+   {
+      Print(x.symbol,": SETUP INTEGRITY BLOCK - ",integrity);
+      SetSymbolLifecycle(x.symbol,LIFE_INVALIDATED,integrity);
+      return false;
+   }
+
+   string intelWhy="";
+   if(!PreEntryIntelligenceRevalidation(x,intelWhy))
+   {
+      Print(x.symbol,": STRATEGY/NEWS/INTERMARKET REVALIDATION BLOCK - ",intelWhy);
+      SetSymbolLifecycle(x.symbol,LIFE_INVALIDATED,intelWhy);
+      return false;
+   }
+
+   string storedAI="";
+   if(!StoredAIIntegrityAllows(x.symbol,storedAI))
+   {
+      Print(x.symbol,": GPT INTEGRITY/DISAGREEMENT BLOCK - ",storedAI);
+      SetSymbolLifecycle(x.symbol,LIFE_INVALIDATED,storedAI);
+      return false;
+   }
+
+   if(!PriceInsideZone(x)) return false;
+   StrategyClass cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"CAND_STRATEGY"),STRATEGY_NO_TRADE);
+   if(!StrategyExecutionTrigger(x,cls)) return false;
+   if(CountPositions(x.symbol)>=InpMaxPositionsPerSymbol) return false;
+
+   string kill=""; if(RiskKillSwitchActive(kill)){ Print(x.symbol,": execution blocked - ",kill); return false; }
+   string cd=""; if(CooldownActive(x.symbol,cd)){ Print(x.symbol,": execution blocked - ",cd); return false; }
+   string sp; if(!SpreadOK(x.symbol,sp)) return false;
+   string news; if(CalendarBlock(x.symbol,news)) return false;
+   string y; if(YieldShock(y)) return false;
+
+   double liveRR=EffectiveRRDynamic(x);
+   if(liveRR<InpMinEffectiveRR)
+   {
+      PrintFormat("%s: dynamic execution R:R %.2f below %.2f minimum.",x.symbol,liveRR,InpMinEffectiveRR);
+      return false;
+   }
+
+   string learningWhy="";
+   if(!AdaptiveExecutionLearningAllows(x,learningWhy))
+   {
+      Print(x.symbol,": EXECUTION LEARNING BLOCK - ",learningWhy);
+      return false;
+   }
+
+   double riskMoney=0,oneLot=0;
+   double lots=AdaptiveLotSizeForRisk(x,riskMoney,oneLot);
+   if(lots<=0){ Print(x.symbol,": adaptive lot calculation returned 0."); return false; }
+
+   string adaptiveWhy="";
+   if(!AdaptivePreEntryAllows(x,lots,adaptiveWhy))
+   {
+      Print(x.symbol,": adaptive risk/portfolio supervisor blocked execution - ",adaptiveWhy);
+      return false;
+   }
+
+   string brokerWhy="";
+   if(!BrokerExecutionAllows(x,lots,brokerWhy))
+   {
+      Print(x.symbol,": broker execution gate blocked order - ",brokerWhy);
+      return false;
+   }
+
+   string slipForecast="";
+   double forecastPts=ExecutionSlippageForecastPoints(x.symbol,cls,slipForecast);
+   int slipPts=(int)MathCeil(MathMax((double)DynamicSlippagePoints(x.symbol),forecastPts));
+   slipPts=MathMax(1,MathMin(InpMaxDynamicSlippagePoints,slipPts));
+   string serverWhy="";
+   if(!ServerOrderCheckAllows(x,lots,slipPts,serverWhy))
+   {
+      Print(x.symbol,": OrderCheck preflight blocked order - ",serverWhy);
+      return false;
+   }
+
+   string reliabilityWhy="";
+   if(!ExecutionReliabilityPreEntryAllows(x,reliabilityWhy))
+   {
+      Print(x.symbol,": EXECUTION RELIABILITY BLOCK - ",reliabilityWhy);
+      return false;
+   }
+
+   string intentNonce="",intentWhy="";
+   if(!PrepareAtomicTradeIntent(x,lots,riskMoney,intentNonce,intentWhy))
+   {
+      Print(x.symbol,": ATOMIC INTENT BLOCK - ",intentWhy);
+      return false;
+   }
+
+   PersistAdaptivePlanMetadata(x);
+   PersistStrategyPlanForExecution(x);
+   RegisterPlannedExecution(x,lots,riskMoney);
+   SafeUniversalCheckpointNow();
+
+   int currentLife=(int)GVRead(SymKey(x.symbol,"LIFECYCLE_STATE"),LIFE_NONE);
+   if(currentLife==LIFE_NONE || currentLife==LIFE_REJECTED || currentLife==LIFE_INVALIDATED || currentLife==LIFE_CLOSED)
+      SetSymbolLifecycle(x.symbol,LIFE_CANDIDATE,"final execution path candidate reconstruction");
+   SetSymbolLifecycle(x.symbol,LIFE_APPROVED,"all final deterministic/adaptive/release/reliability gates passed");
+
+   string sentWhy="";
+   if(!MarkTradeIntentSent(x,intentNonce,lots,riskMoney,sentWhy))
+   {
+      SetSymbolLifecycle(x.symbol,LIFE_INVALIDATED,"atomic intent could not enter durable SENT state");
+      return false;
+   }
+   if(!SetSymbolLifecycle(x.symbol,LIFE_SENT,"durable intent SENT; market order request about to be submitted"))
+   {
+      MarkTradeIntentFailed(x,intentNonce,lots,riskMoney,0,"lifecycle could not enter SENT before network submission");
+      return false;
+   }
+
+   RegisterAdaptiveExecutionRequest(x,lots,riskMoney);
+   if(ChaosInjectBeforeOrderSend())
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,0,
+         "CHAOS: simulated crash/ambiguity after durable SENT and before broker call");
+      Print(x.symbol,": CHAOS ambiguous pre-send window injected; no retry is permitted until reconciliation.");
+      return false;
+   }
+
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetDeviationInPoints(slipPts);
+   trade.SetTypeFillingBySymbol(x.symbol);
+   cls=(StrategyClass)(int)GVRead(SymKey(x.symbol,"PLAN_STRATEGY"),STRATEGY_NO_TRADE);
+   string comment=(intentNonce!=""?TradeIntentComment(intentNonce,cls):"GPT-"+StrategyCode(cls)+"-OK");
+   bool ok=(x.bullish?trade.Buy(lots,x.symbol,0,x.sl,x.tp3,comment):trade.Sell(lots,x.symbol,0,x.sl,x.tp3,comment));
+   GVWrite(SymKey(x.symbol,"EXEC_ACK_TIME"),(double)TimeTradeServer());
+   if(!ok)
+   {
+      RegisterAdaptiveExecutionFailure(x.symbol,trade.ResultRetcodeDescription());
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "CTrade returned failure; broker acknowledgement is treated as ambiguous until reconciliation: "+trade.ResultRetcodeDescription());
+      Print("Approved trade returned failure/ambiguity: ",trade.ResultRetcodeDescription(),
+            " | exactly-once retry prohibited until broker reconciliation | ",brokerWhy," | ",serverWhy);
+      return false;
+   }
+
+   if(ChaosInjectPostFillPreBind())
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "CHAOS: broker call succeeded but local fill binding intentionally skipped");
+      Print(x.symbol,": CHAOS post-fill/pre-bind window injected; reconciliation must reconstruct metadata.");
+      return true;
+   }
+
+   ulong newest=0; datetime newestTime=0;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=x.symbol || PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      if(intentNonce!="")
+      {
+         string posNonce=ExtractIntentNonce(PositionGetString(POSITION_COMMENT));
+         if(posNonce==intentNonce){ newest=tk; newestTime=(datetime)PositionGetInteger(POSITION_TIME); break; }
+      }
+      datetime pt=(datetime)PositionGetInteger(POSITION_TIME);
+      if(pt>=newestTime){ newestTime=pt; newest=tk; }
+   }
+   if(newest>0)
+   {
+      GVSet(newest,"INITSL",x.sl); GVSet(newest,"TP1",x.tp1); GVSet(newest,"TP2",x.tp2);
+      GVSet(newest,"TP3",x.tp3); GVSet(newest,"EXP",x.expiryM15); GVSet(newest,"TP1DONE",0);
+      LegacyTicketWrite(newest,"TP1PARTIAL",0); LegacyTicketWrite(newest,"TP2PARTIAL",0);
+   }
+   AttachStrategyMetadataToOpenPositions();
+   AttachStrategyContextMetadata();
+   if(newest>0)
+   {
+      BindTradeIntentToPosition(newest,x,intentNonce,lots,riskMoney);
+      RegisterAdaptiveExecutionFill(newest,x,lots,riskMoney);
+      AttachLifecycleToNewestPosition(newest,"broker market order fill confirmed and bound to exactly-once intent");
+   }
+   else
+   {
+      MarkTradeIntentUncertain(x,intentNonce,lots,riskMoney,trade.ResultRetcode(),
+         "broker call reported success but matching open position was not immediately discoverable");
+   }
+   SafeUniversalCheckpointNow();
+   PrintFormat("%s APPROVED: %s %s opened %.2f lots; adaptive risk %.2f; execution slippage ceiling %d pts; live R:R %.2f | intelligence PASS | adaptive supervisor PASS | release PASS | %s | %s | %s",
+               x.symbol,StrategyClassName(cls),Arrow(x.bullish),lots,riskMoney,slipPts,liveRR,
+               adaptiveWhy,learningWhy,slipForecast+" | "+reliabilityWhy+" | "+intentWhy);
+   return true;
+}
+// ===== END INLINED GPT_EA_Part05.mqh =====
 #undef DynamicSlippagePoints
 #undef AdaptiveLotSizeForRisk
 #undef LotSizeForRisk
 
-#include "GPT_EA_Part23_IntelligenceObservability.mqh"
+// ===== BEGIN INLINED GPT_EA_Part23_IntelligenceObservability.mqh =====
+// ============================================================================
+// GPT_EA Part 23 - Full intelligence decision observability
+// ============================================================================
+
+input bool   InpWriteIntelligenceJournal = true;
+input string InpIntelligenceJournalFile  = "GPT_EA_Intelligence.csv";
+input int    InpIntelligenceCardMaxChars = 30000;
+
+string CardLineValue(const string card,const string prefix)
+{
+   int p=StringFind(card,prefix); if(p<0) return "";
+   p+=StringLen(prefix);
+   int e=StringFind(card,"\n",p); if(e<0) e=StringLen(card);
+   string out=StringSubstr(card,p,e-p);
+   StringTrimLeft(out); StringTrimRight(out);
+   return out;
+}
+
+void PersistLastIntelligenceDecision(const string card)
+{
+   string asset=CardLineValue(card,"Asset:");
+   if(asset=="") return;
+   GVWrite(SymKey(asset,"INTEL_LAST_TIME"),(double)TimeTradeServer());
+   string finalDecision=CardLineValue(card,"FINAL DECISION:");
+   int code=(StringFind(finalDecision,"HIGH-CONFIDENCE")>=0?2:(StringFind(finalDecision,"WAIT")>=0?1:0));
+   GVWrite(SymKey(asset,"INTEL_LAST_DECISION"),code);
+}
+
+void WriteIntelligenceDecisionJournal(const string card)
+{
+   if(!InpWriteIntelligenceJournal || (bool)MQLInfoInteger(MQL_TESTER)) return;
+   int h=FileOpen(InpIntelligenceJournalFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI,',');
+   if(h==INVALID_HANDLE)
+   {
+      Print("Intelligence journal open failed: ",GetLastError());
+      return;
+   }
+   if(FileSize(h)==0)
+      FileWrite(h,"server_time","asset","classification","market_state","strategy_decision","final_decision","full_card");
+   FileSeek(h,0,SEEK_END);
+   int maxChars=(int)MathMax(1000,InpIntelligenceCardMaxChars);
+   string payload=StringSubstr(card,0,maxChars);
+   FileWrite(h,
+      TimeToString(TimeTradeServer(),TIME_DATE|TIME_SECONDS),
+      CardLineValue(card,"Asset:"),
+      CardLineValue(card,"Classification:"),
+      CardLineValue(card,"Market state:"),
+      CardLineValue(card,"Decision:"),
+      CardLineValue(card,"FINAL DECISION:"),
+      payload);
+   FileFlush(h); FileClose(h);
+}
+
+void NotifyCardObserved(const string card)
+{
+   PersistLastIntelligenceDecision(card);
+   WriteIntelligenceDecisionJournal(card);
+   NotifyCard(card);
+}
+// ===== END INLINED GPT_EA_Part23_IntelligenceObservability.mqh =====
 #include "GPT_EA_Part06.mqh"
 #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 

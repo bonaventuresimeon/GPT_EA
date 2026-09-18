@@ -181,6 +181,55 @@ Concrete Part28B inputs:
 - `InpReleaseMT5ValidationEvidenceId=`
 - `InpReleaseMT5ValidationDigest=`
 
+## 5A. R6 resilience hardening evidence
+
+Complete `R6_RESILIENCE_HARDENING_TEST_MATRIX.md` and finalize `resilience_hardening_evidence_v1` for the exact candidate.
+
+Required:
+
+- [ ] RH-001 through RH-048 literal PASS with evidence references;
+- [ ] candidate Git SHA matches the certified build;
+- [ ] certified configuration fingerprint recorded and non-zero;
+- [ ] exactly-once/atomic intent and broker reconciliation tests PASS;
+- [ ] source provenance and strict `as_of_utc` freshness PASS;
+- [ ] clock/model degradation and deterministic-only fallback PASS;
+- [ ] learning quarantine/data versioning PASS;
+- [ ] statistical champion promotion and probation rollback PASS;
+- [ ] macro stress, gap risk, stressed margin and decision lifetime PASS;
+- [ ] chaos/fault-injection matrix PASS and REAL-account chaos refusal PASS;
+- [ ] storage/configuration/manual-intervention controls PASS;
+- [ ] causal attribution and rollback-package checks PASS;
+- [ ] `tools/validate_resilience_hardening_evidence.py` PASS.
+
+Concrete Part28B inputs:
+
+- `InpReleaseResilienceHardeningPassed=true`
+- `InpReleaseResilienceSchemaVersion=resilience_hardening_evidence_v1`
+- `InpReleaseResilienceEvidenceId=`
+- `InpReleaseResilienceDigest=`
+- `InpReleaseCertifiedConfigFingerprint=`
+
+## 5B. MT5 v2 resilience runtime artifacts
+
+In addition to the existing MT5 evidence, archive and hash:
+
+- `GPT_EA_TradeIntentLedger.csv`;
+- `GPT_EA_BrokerReconciliation.csv`;
+- `GPT_EA_WebIntelProvenance.csv`;
+- `GPT_EA_ModelHealth.csv`;
+- `mt5-resilience-runtime-report.md`.
+
+The MT5 acceptance working copy must contain M5-001 through M5-053 PASS. The runtime report must show zero duplicate orders, zero unresolved intents, zero unreconciled positions, and PASS markers for REAL chaos refusal, macro stress, provenance freshness, storage failure fail-closed and configuration-drift fail-closed behavior.
+
+## 5C. Rollback readiness
+
+Record one of:
+
+- `VALIDATED_PACKAGE`: previous certified EX5, SET, release evidence, final review, migration notes and all SHA-256 hashes are retained in a package that passes `tools/validate_release_rollback_package.py`; or
+- `FIRST_CERTIFIED_RELEASE`: explicit operator-reviewed justification that no previous certified production package exists.
+
+Run `tools/validate_rollback_readiness.py release_evidence.json` and archive its PASS output.
+
 ## 6. Broker/deployment identity
 
 - Broker company:
@@ -361,11 +410,11 @@ Archive as applicable:
 - `GPT_EA_Execution.csv`
 - `GPT_EA_StopFailures.csv`
 - `GPT_EA_Intelligence.csv`
-- `GPT_EA_ExecutionLearning.csv`
-- `GPT_EA_ShadowValidation.csv`
-- `GPT_EA_Lifecycle.csv`
-- `GPT_EA_DecisionSnapshots.csv`
-- `GPT_EA_StrategyHealth.csv`
+- `GPT_EA_ExecutionLearningV2.csv`
+- `GPT_EA_ShadowValidationV2.csv`
+- `GPT_EA_LifecycleV2.csv`
+- `GPT_EA_DecisionSnapshotsV2.csv`
+- `GPT_EA_StrategyHealthV2.csv`
 - `GPT_EA_ReleaseEvidence.csv`
 - `GPT_EA_R6SupplementalEvidence.csv`
 - `GPT_EA_APIHealth.csv`
@@ -428,6 +477,8 @@ Run and archive:
 python tools/validate_runner_recovery_acceptance.py artifacts/runner-recovery-acceptance.json
 python tools/validate_ci_evidence.py ...
 python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json
+python tools/validate_resilience_hardening_evidence.py artifacts/r6-resilience-hardening.json
+python tools/validate_rollback_readiness.py release_evidence.json
 python tools/validate_ci_bundle.py ...
 python tools/validate_five_day_soak_record.py ...
 python tools/validate_soak_evidence.py release_evidence.json
@@ -449,7 +500,9 @@ Final checklist:
 - [ ] exact candidate identity archived;
 - [ ] runner-recovery acceptance PASS;
 - [ ] executed CI bundle PASS;
-- [ ] MT5 validation evidence PASS;
+- [ ] MT5 validation v2 evidence PASS with M5-001 through M5-053;
+- [ ] resilience hardening evidence PASS with RH-001 through RH-048;
+- [ ] rollback readiness PASS;
 - [ ] compile PASS;
 - [ ] compile evidence JSON + validator PASS;
 - [ ] privacy sign-off PASS for the target jurisdiction;

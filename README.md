@@ -178,7 +178,7 @@ Read: [docs/TRADING_RISK_DISCLOSURE.md](docs/TRADING_RISK_DISCLOSURE.md) · [doc
 
 ## Main EA
 
-Compile `GPT_EA.mq5` in MetaEditor. It includes only local project modules.
+Compile only `GPT_EA.mq5` in MetaEditor. All 57 former project `.mqh` modules are already inlined; `mqh/` is retained only as a reference archive. The only executable include left in the EA is MT5's built-in `<Trade/Trade.mqh>`.
 
 Core/legacy-compatible modules:
 

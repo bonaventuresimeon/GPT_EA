@@ -63,7 +63,10 @@ require_tokens("GPT_EA_Part05.mqh",[
     "MarkTradeIntentUncertain","TradeIntentComment","BindTradeIntentToPosition","ChaosInjectBeforeOrderSend",
     "ChaosInjectPostFillPreBind",
 ])
-require_tokens("GPT_EA_Part10_BrokerUniversalRecovery.mqh",["ChaosInjectCorruptCheckpoint","RECOVERY_CHECKPOINT_ANOMALY"])
+require_tokens("GPT_EA_Part10_BrokerUniversalRecovery.mqh",[
+    "ChaosInjectCorruptCheckpoint","RECOVERY_CHECKPOINT_ANOMALY",
+    "simulated corrupted recovery checkpoint","broker/GV reconciliation remains authoritative",
+])
 require_tokens("GPT_EA_Part22_IntelligenceFreshness.mqh",[
     "ExtractResponseAnnotationURLs","WebIntelAsOfFresh","PROVENANCE_HARD_FAIL","RESPONSE_URL_ANNOTATIONS",
 ])
@@ -92,7 +95,8 @@ require_tokens("GPT_EA_Part41_PortfolioStressLatency.mqh",[
     "PORT_STRESS_USD_UP","PORT_STRESS_YIELDS_UP","PORT_STRESS_EQUITY_RISK_OFF","PORT_STRESS_GOLD_UP",
     "PORT_STRESS_GOLD_DOWN","PORT_STRESS_OIL_UP","PORT_STRESS_OIL_DOWN","PORT_STRESS_VOLATILITY_SPIKE",
     "PORT_STRESS_CORRELATED_GAP_DOWN","PORT_STRESS_CORRELATED_GAP_UP","WorstMacroScenarioPortfolioLoss",
-    "GapRiskAllows","MarginStressAllows","DecisionAgeLatencyAllows",
+    "InpStressUSDStrengthPct","InpStressYieldShockBps","InpStressEquityRiskOffPct","InpStressVolatilityIndexDropPct",
+    "MacroScenarioShockPct","GapRiskAllows","MarginStressAllows","DecisionAgeLatencyAllows",
 ])
 require_tokens("GPT_EA_Part42_ExecutionReliability.mqh",[
     "INTENT_PREPARED","INTENT_SENT","INTENT_FILLED","INTENT_UNCERTAIN","PrepareAtomicTradeIntent",
@@ -115,13 +119,13 @@ require_tokens("GPT_EA_Part28B_CIReleaseEvidence.mqh",[
 
 # Fail-closed defaults.
 p44=read("GPT_EA_Part44_ChaosFaultInjection.mqh")
-if not re.search(r"InpEnableChaosFaultInjections*=s*falses*;",p44):
+if not re.search(r"InpEnableChaosFaultInjection\s*=\s*false\s*;",p44):
     errors.append("chaos fault injection must default false")
 p32=read("GPT_EA_Part32_ChampionChallenger.mqh")
-if not re.search(r"InpAutoPromoteChallengers*=s*falses*;",p32):
+if not re.search(r"InpAutoPromoteChallenger\s*=\s*false\s*;",p32):
     errors.append("automatic challenger promotion must default false")
 p28b=read("GPT_EA_Part28B_CIReleaseEvidence.mqh")
-if not re.search(r"InpReleaseResilienceHardeningPasseds*=s*falses*;",p28b):
+if not re.search(r"InpReleaseResilienceHardeningPassed\s*=\s*false\s*;",p28b):
     errors.append("resilience release attestation must default false")
 
 # Include order: chaos must exist before recovery; model/stress before Part30; reliability after lifecycle.

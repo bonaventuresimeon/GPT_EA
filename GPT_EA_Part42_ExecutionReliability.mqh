@@ -154,6 +154,18 @@ void WriteReconciliationRow(const string severity,const string eventName,const s
    FileFlush(h); FileClose(h);
 }
 
+void MarkOpenPositionsStorageAnomaly(const string reason)
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
+      if(PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      GVWrite(PosKey(pid,"STORAGE_ANOMALY"),1);
+      MarkLearningQuarantine(pid,PositionGetString(POSITION_SYMBOL),"storage anomaly: "+reason);
+   }
+}
+
 bool CriticalStorageHealthCheck(string &why)
 {
    why="";
@@ -161,6 +173,7 @@ bool CriticalStorageHealthCheck(string &why)
    if(ChaosInjectStorageFailure())
    {
       g_storageHealthy=false; g_storageWhy="CHAOS synthetic storage heartbeat failure";
+      MarkOpenPositionsStorageAnomaly(g_storageWhy);
       why=g_storageWhy; return false;
    }
    int h=FileOpen(InpStorageHeartbeatFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
@@ -168,6 +181,7 @@ bool CriticalStorageHealthCheck(string &why)
    {
       g_storageHealthy=false;
       g_storageWhy=StringFormat("critical storage FileOpen failed %d",GetLastError());
+      MarkOpenPositionsStorageAnomaly(g_storageWhy);
       why=g_storageWhy; return false;
    }
    if(FileSize(h)==0) FileWrite(h,"schema_version","time","release_id","config_fingerprint","status");
@@ -353,11 +367,62 @@ void BindTradeIntentToPosition(ulong ticket,const TradeSetup &s,const string non
    GlobalVariablesFlush();
 }
 
+bool IntentGeometryMatchesPosition(const string sym,ulong ticket)
+{
+   if(ticket==0 || !PositionSelectByTicket(ticket)) return false;
+   if(PositionGetString(POSITION_SYMBOL)!=sym || PositionGetInteger(POSITION_MAGIC)!=InpMagic) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime posTime=(datetime)PositionGetInteger(POSITION_TIME);
+   if(intentTime<=0 || posTime<intentTime-15 || posTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   long type=PositionGetInteger(POSITION_TYPE);
+   if((bull && type!=POSITION_TYPE_BUY) || (!bull && type!=POSITION_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=PositionGetDouble(POSITION_VOLUME);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
+bool IntentGeometryMatchesDeal(const string sym,ulong deal)
+{
+   if(deal==0 || !HistoryDealSelect(deal)) return false;
+   if(HistoryDealGetString(deal,DEAL_SYMBOL)!=sym || HistoryDealGetInteger(deal,DEAL_MAGIC)!=InpMagic) return false;
+   ENUM_DEAL_ENTRY entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal,DEAL_ENTRY);
+   if(entry!=DEAL_ENTRY_IN && entry!=DEAL_ENTRY_INOUT) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime dealTime=(datetime)HistoryDealGetInteger(deal,DEAL_TIME);
+   if(intentTime<=0 || dealTime<intentTime-15 || dealTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   ENUM_DEAL_TYPE type=(ENUM_DEAL_TYPE)HistoryDealGetInteger(deal,DEAL_TYPE);
+   if((bull && type!=DEAL_TYPE_BUY) || (!bull && type!=DEAL_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=HistoryDealGetDouble(deal,DEAL_VOLUME);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
+bool IntentGeometryMatchesHistoryOrder(const string sym,ulong order)
+{
+   if(order==0 || !HistoryOrderSelect(order)) return false;
+   if(HistoryOrderGetString(order,ORDER_SYMBOL)!=sym || HistoryOrderGetInteger(order,ORDER_MAGIC)!=InpMagic) return false;
+   datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
+   datetime orderTime=(datetime)HistoryOrderGetInteger(order,ORDER_TIME_SETUP);
+   if(intentTime<=0 || orderTime<intentTime-15 || orderTime>intentTime+MathMax(600,InpIntentAmbiguityResolveSeconds)) return false;
+   bool bull=GVRead(SymKey(sym,"INTENT_BULL"),0)>0.5;
+   ENUM_ORDER_TYPE type=(ENUM_ORDER_TYPE)HistoryOrderGetInteger(order,ORDER_TYPE);
+   if((bull && type!=ORDER_TYPE_BUY) || (!bull && type!=ORDER_TYPE_SELL)) return false;
+   double expected=GVRead(SymKey(sym,"INTENT_LOTS"),0);
+   double actual=HistoryOrderGetDouble(order,ORDER_VOLUME_INITIAL);
+   double step=MathMax(SymbolInfoDouble(sym,SYMBOL_VOLUME_STEP),0.0000001);
+   return (expected>0 && MathAbs(actual-expected)<=0.5*step);
+}
+
 bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket,ulong &pid,bool &closed)
 {
    ticket=0; pid=0; closed=false;
    if(nonceHash<=0) return false;
 
+   ulong fallbackPosition=0;
    for(int i=PositionsTotal()-1;i>=0;i--)
    {
       ulong tk=PositionGetTicket(i); if(tk==0 || !PositionSelectByTicket(tk)) continue;
@@ -367,6 +432,15 @@ bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket
       {
          ticket=tk; pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER); return true;
       }
+      if(IntentGeometryMatchesPosition(sym,tk)) fallbackPosition=tk;
+   }
+   if(fallbackPosition>0 && PositionSelectByTicket(fallbackPosition))
+   {
+      ticket=fallbackPosition;
+      pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_POSITION",sym,pid,ticket,InpMagic,
+         PositionGetString(POSITION_COMMENT),"broker comment did not preserve nonce; strict time/side/volume geometry matched");
+      return true;
    }
 
    for(int i=OrdersTotal()-1;i>=0;i--)
@@ -379,11 +453,12 @@ bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket
 
    datetime now=TimeTradeServer();
    if(!HistorySelect(now-86400*3,now)) return false;
+   ulong fallbackDeal=0;
    int nd=HistoryDealsTotal();
    for(int i=nd-1;i>=0;i--)
    {
       ulong d=HistoryDealGetTicket(i); if(d==0) continue;
-      if(HistoryDealGetString(d,DEAL_SYMBOL)!=sym) continue;
+      if(HistoryDealGetString(d,DEAL_SYMBOL)!=sym || HistoryDealGetInteger(d,DEAL_MAGIC)!=InpMagic) continue;
       string nonce=ExtractIntentNonce(HistoryDealGetString(d,DEAL_COMMENT));
       if(nonce!="" && IntentNonceHash(nonce)==nonceHash)
       {
@@ -391,14 +466,33 @@ bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket
          closed=!PositionIdentifierOpen(pid);
          return true;
       }
+      if(fallbackDeal==0 && IntentGeometryMatchesDeal(sym,d)) fallbackDeal=d;
    }
+   if(fallbackDeal>0 && HistoryDealSelect(fallbackDeal))
+   {
+      pid=(ulong)HistoryDealGetInteger(fallbackDeal,DEAL_POSITION_ID);
+      closed=!PositionIdentifierOpen(pid);
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_DEAL",sym,pid,0,InpMagic,
+         HistoryDealGetString(fallbackDeal,DEAL_COMMENT),"broker comment did not preserve nonce; strict entry time/side/volume geometry matched");
+      return true;
+   }
+
+   ulong fallbackOrder=0;
    int no=HistoryOrdersTotal();
    for(int i=no-1;i>=0;i--)
    {
       ulong o=HistoryOrderGetTicket(i); if(o==0) continue;
-      if(HistoryOrderGetString(o,ORDER_SYMBOL)!=sym) continue;
+      if(HistoryOrderGetString(o,ORDER_SYMBOL)!=sym || HistoryOrderGetInteger(o,ORDER_MAGIC)!=InpMagic) continue;
       string nonce=ExtractIntentNonce(HistoryOrderGetString(o,ORDER_COMMENT));
       if(nonce!="" && IntentNonceHash(nonce)==nonceHash){ ticket=o; closed=true; return true; }
+      if(fallbackOrder==0 && IntentGeometryMatchesHistoryOrder(sym,o)) fallbackOrder=o;
+   }
+   if(fallbackOrder>0)
+   {
+      ticket=fallbackOrder; closed=true;
+      WriteReconciliationRow("WARN","INTENT_COMMENT_FALLBACK_ORDER",sym,0,ticket,InpMagic,"",
+         "broker comment did not preserve nonce; strict order time/side/volume geometry matched");
+      return true;
    }
    return false;
 }

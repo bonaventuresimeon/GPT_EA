@@ -85,7 +85,13 @@ void ManagePositions()
             double atr=0; ATRValue(sym,PERIOD_M5,InpATRPeriod,1,atr);
             double be=(bull?entry+InpBECostATRFrac*atr:entry-InpBECostATRFrac*atr);
             double currentTP=PositionGetDouble(POSITION_TP);
-            trade.PositionModify(ticket,NormPrice(sym,be),currentTP);
+            ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+            double expectedSL=NormPrice(sym,be);
+            GVWrite(PosKey(pid,"EA_EXPECT_SL"),expectedSL);
+            GVWrite(PosKey(pid,"EA_EXPECT_TP"),currentTP);
+            GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),(double)(TimeTradeServer()+10));
+            if(!trade.PositionModify(ticket,expectedSL,currentTP))
+               GVWrite(PosKey(pid,"EA_EXPECT_MOD_UNTIL"),0);
          }
          GVSet(ticket,"TP1DONE",1);
          tp1done=true;

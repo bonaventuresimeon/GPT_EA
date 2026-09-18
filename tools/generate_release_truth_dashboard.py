@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PASS = "✅ PASS"
 HOLD = "⏸️ HOLD"
 NOGO = "⛔ NO-GO"
+
+TRUTH_SCHEMA = "gpt_ea_release_truth_v1"
 
 
 def nonzero_hex(value: Any, length: int) -> bool:
@@ -142,12 +145,37 @@ def assess(data: dict[str, Any]) -> tuple[list[dict[str, str]], str, list[str]]:
     return rows, overall, blockers
 
 
+def canonical_evidence_sha256(data: dict[str, Any]) -> str:
+    raw = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def semantic_truth_state(data: dict[str, Any]) -> dict[str, Any]:
+    rows, overall, blockers = assess(data)
+    return {
+        "schema": TRUTH_SCHEMA,
+        "release_validation_id": str(data.get("release_validation_id", "")),
+        "candidate_git_sha": str(data.get("build", {}).get("git_sha", "")),
+        "overall": overall,
+        "rows": rows,
+        "blockers": blockers,
+    }
+
+
+def semantic_truth_fingerprint(data: dict[str, Any]) -> str:
+    state = semantic_truth_state(data)
+    raw = json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
 def render(data: dict[str, Any], source: Path) -> str:
     rows, overall, blockers = assess(data)
     generated = datetime.now(timezone.utc).isoformat()
     release_id = str(data.get("release_validation_id", ""))
     git_sha = str(data.get("build", {}).get("git_sha", ""))
     head = git_head()
+    evidence_sha = canonical_evidence_sha256(data)
+    truth_fingerprint = semantic_truth_fingerprint(data)
 
     table = ["| Release truth | Status | Evidence | Next action |", "|---|---|---|---|"]
     for r in rows:
@@ -157,8 +185,7 @@ def render(data: dict[str, Any], source: Path) -> str:
 
     blocker_text = "\n".join(f"- {b}" for b in blockers) if blockers else "- No explicit NO-GO blocker is recorded; HOLD items may still prevent release."
 
-    return f"""<!-- GPT_EA_DOC_HEADER -->
-<div align="center">
+    return f"""<!-- RELEASE_TRUTH_SCHEMA: {TRUTH_SCHEMA} -->\n<!-- RELEASE_TRUTH_EVIDENCE_SHA256: {evidence_sha} -->\n<!-- RELEASE_TRUTH_FINGERPRINT: {truth_fingerprint} -->\n<!-- RELEASE_TRUTH_OVERALL: {overall} -->\n<!-- GPT_EA_DOC_HEADER -->\n<div align="center">
 
 # 🧠⚡ GPT_EA
 ### 🚦 Release-Truth Dashboard

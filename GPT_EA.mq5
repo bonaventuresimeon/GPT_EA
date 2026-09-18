@@ -901,6 +901,8 @@ input int    InpDashboardY                  = 20;
 input bool   InpElegantChartDashboard       = true;
 input bool   InpDrawLiveManagementLevels    = true;
 input bool   InpDrawTrailingMovement        = true;
+input bool   InpShowStopMovementRules        = true;
+input bool   InpShowCompactTradeTimeline     = true;
 input int    InpTrailMovementSegments       = 12;
 input int    InpDashboardWidth              = 620;
 input int    InpDashboardHeight             = 520;
@@ -945,6 +947,8 @@ string DASH_TITLE="GPT_EA_DASH_TITLE";
 string DASH_SUBTITLE="GPT_EA_DASH_SUBTITLE";
 string DASH_TEXT="GPT_EA_DASH_TEXT";
 string DASH_STATUS="GPT_EA_DASH_STATUS";
+string DASH_RULES="GPT_EA_DASH_RULES";
+string DASH_TIMELINE="GPT_EA_DASH_TIMELINE";
 string BTN_SCAN_NOW="GPT_EA_SCAN_NOW";
 string LEVEL_ENTRY="GPT_EA_LEVEL_ENTRY";
 string LEVEL_SL="GPT_EA_LEVEL_SL";
@@ -1504,7 +1508,8 @@ void StyleApprovalUI()
 void DeleteAdvancedDashboard()
 {
    ObjectDelete(0,DASH_PANEL); ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_SUBTITLE);
-   ObjectDelete(0,DASH_TEXT); ObjectDelete(0,DASH_STATUS); ObjectDelete(0,BTN_SCAN_NOW);
+   ObjectDelete(0,DASH_TEXT); ObjectDelete(0,DASH_STATUS); ObjectDelete(0,DASH_RULES);
+   ObjectDelete(0,DASH_TIMELINE); ObjectDelete(0,BTN_SCAN_NOW);
    ClearDashboardSections();
    ObjectDelete(0,LEVEL_BE); ObjectDelete(0,LEVEL_LIVE_SL); ObjectDelete(0,LEVEL_TRAIL_START);
    ObjectDelete(0,TAG_ENTRY); ObjectDelete(0,TAG_SL); ObjectDelete(0,TAG_BE);
@@ -1593,6 +1598,32 @@ void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const
       r.structureAligned?"YES":"NO",r.liquiditySweep?"YES":"NO",r.fairValueGap?"YES":"NO",r.rejectionCandle?"YES":"NO",
       filterState,action);
    ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
+
+   if(InpShowStopMovementRules)
+   {
+      if(ObjectFind(0,DASH_RULES)<0) ObjectCreate(0,DASH_RULES,OBJ_LABEL,0,0,0);
+      ObjectSetInteger(0,DASH_RULES,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+      ObjectSetInteger(0,DASH_RULES,OBJPROP_XDISTANCE,InpDashboardX+22);
+      ObjectSetInteger(0,DASH_RULES,OBJPROP_YDISTANCE,InpDashboardY+362);
+      ObjectSetInteger(0,DASH_RULES,OBJPROP_COLOR,C'192,171,230');
+      ObjectSetInteger(0,DASH_RULES,OBJPROP_FONTSIZE,8);
+      ObjectSetString(0,DASH_RULES,OBJPROP_FONT,"Segoe UI");
+      ObjectSetString(0,DASH_RULES,OBJPROP_TEXT,ExactStopMovementRulesText());
+   }
+   else DeleteVisualObject(DASH_RULES);
+
+   if(InpShowCompactTradeTimeline)
+   {
+      if(ObjectFind(0,DASH_TIMELINE)<0) ObjectCreate(0,DASH_TIMELINE,OBJ_LABEL,0,0,0);
+      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_XDISTANCE,InpDashboardX+22);
+      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_YDISTANCE,InpDashboardY+420);
+      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_COLOR,C'223,204,137');
+      ObjectSetInteger(0,DASH_TIMELINE,OBJPROP_FONTSIZE,8);
+      ObjectSetString(0,DASH_TIMELINE,OBJPROP_FONT,"Segoe UI Semibold");
+      ObjectSetString(0,DASH_TIMELINE,OBJPROP_TEXT,CompactTradeTimelineText(ticket,pid,stage,tp1done,tp2partial));
+   }
+   else DeleteVisualObject(DASH_TIMELINE);
 
    if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
    ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
@@ -16156,6 +16187,67 @@ string VisualTPState(bool reached,bool partial)
    return "WAIT";
 }
 
+string CompactEventTime(datetime value)
+{
+   if(value<=0) return "";
+   datetime now=TimeTradeServer();
+   MqlDateTime a={},b={};
+   TimeToStruct(value,a);
+   TimeToStruct(now,b);
+   if(a.year==b.year && a.mon==b.mon && a.day==b.day)
+      return TimeToString(value,TIME_MINUTES);
+   return TimeToString(value,TIME_DATE|TIME_MINUTES);
+}
+
+string TimelineNode(const string label,datetime when,bool done,bool active=false)
+{
+   if(done)
+   {
+      string t=CompactEventTime(when);
+      return "✓ "+label+(t!=""?" "+t:"");
+   }
+   if(active) return "● "+label+" NOW";
+   return "○ "+label;
+}
+
+string ExactStopMovementRulesText()
+{
+   return StringFormat(
+      "STOP RULES  •  B.E. ≥ %.2fR → entry ± max(cost, %.2fR)  │  LOCK ≥ %.2fR → +%.2fR  │  STRONG ≥ %.2fR → +%.2fR\n"
+      "TRAIL ≥ %.2fR  •  %.2f× M5 ATR + %d-bar M5 structure ± %.2f ATR  •  min ratchet %.2fR  •  broker stops/freeze must pass  •  never loosen SL",
+      InpBETriggerR,InpBELockMinR,InpProfitLockTriggerR,InpProfitLockR,
+      InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,InpTrailATRMultiplier,
+      InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
+}
+
+string CompactTradeTimelineText(ulong ticket,ulong pid,int stage,bool tp1done,bool tp2done)
+{
+   if(!PositionSelectByTicket(ticket)) return "TIMELINE unavailable";
+   datetime entryTime=(datetime)PositionGetInteger(POSITION_TIME);
+   datetime tp1Time=(datetime)GVRead(PosKey(pid,"TP1_TIME"),LegacyTicketRead(ticket,"TP1_TIME",0));
+   datetime beTime=(datetime)GVRead(PosKey(pid,"BE_TIME"),0);
+   datetime lockTime=(datetime)GVRead(PosKey(pid,"PROFIT_LOCK_TIME"),0);
+   datetime strongTime=(datetime)GVRead(PosKey(pid,"STRONG_LOCK_TIME"),0);
+   datetime tp2Time=(datetime)GVRead(PosKey(pid,"TP2_TIME"),LegacyTicketRead(ticket,"TP2_TIME",0));
+   datetime trailTime=(datetime)GVRead(PosKey(pid,"TRAIL_TIME"),0);
+   datetime trailLast=(datetime)GVRead(PosKey(pid,"TRAIL_LAST_TIME"),0);
+
+   bool beDone=(stage>=1 || beTime>0);
+   bool lockDone=(stage>=2 || lockTime>0);
+   bool strongDone=(stage>=3 || strongTime>0);
+   bool trailDone=(stage>=4 || trailTime>0);
+   string line="TIMELINE  "+TimelineNode("ENTRY",entryTime,true);
+   line+="  →  "+TimelineNode("TP1",tp1Time,tp1done,!tp1done && stage<=0);
+   line+="  →  "+TimelineNode("B.E.",beTime,beDone,tp1done && !beDone);
+   line+="  →  "+TimelineNode("+0.5R LOCK",lockTime,lockDone,beDone && !lockDone);
+   line+="  →  "+TimelineNode("+1R LOCK",strongTime,strongDone,lockDone && !strongDone);
+   line+="  →  "+TimelineNode("TP2",tp2Time,tp2done,strongDone && !tp2done);
+   line+="  →  "+TimelineNode("TRAIL",trailTime,trailDone,strongDone && !trailDone);
+   if(trailDone && trailLast>0)
+      line+="  │  last trail "+CompactEventTime(trailLast);
+   return line;
+}
+
 string LiveManagementAction(bool tp1done,bool tp2done,int stage,double rNow,int expiry,int elapsedM15)
 {
    if(!tp1done)
@@ -16432,6 +16524,8 @@ void RenderLiveManagementDashboard(ulong ticket)
 void RenderCandidateOperationalDashboard()
 {
    if(!InpDrawDashboard || !g_visualHasSetup || g_visualLastSetup.symbol!=_Symbol) return;
+   DeleteVisualObject(DASH_RULES);
+   DeleteVisualObject(DASH_TIMELINE);
    TradeSetup s=g_visualLastSetup;
    ConfluenceReport r=g_visualLastReport;
 

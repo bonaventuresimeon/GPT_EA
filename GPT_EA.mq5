@@ -10580,7 +10580,8 @@ bool OpenAIModelIsEAResponsesCandidate(string id)
 {
    id=APITrim(id);
    StringToLower(id);
-   if(StringFind(id,"gpt-")!=0) return false;
+   bool supportedFamily=(StringFind(id,"gpt-5")==0 || StringFind(id,"gpt-4.1")==0 || StringFind(id,"gpt-4o")==0);
+   if(!supportedFamily) return false;
    string excluded[]={"realtime","audio","transcribe","tts","image","embedding","moderation",
                       "search","chat","codex","cyber","computer-use"};
    for(int i=0;i<ArraySize(excluded);i++)
@@ -17230,7 +17231,7 @@ void RenderLiveManagementDashboard(ulong ticket)
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Live Trade HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.23 • R9 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
@@ -17381,7 +17382,7 @@ void RenderCandidateOperationalDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Intelligence HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.23 • R9 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
                    g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
 
@@ -17485,7 +17486,7 @@ void RenderScanningDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Market Scan HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.23 • R9 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      "v1.23 • R10 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
@@ -17538,7 +17539,7 @@ void RenderClosedDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Lifecycle HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.23 • R9 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      "v1.23 • R10 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
@@ -17929,7 +17930,7 @@ int OnInit()
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
-   Print("GPT_EA runtime build R9-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123");
+   Print("GPT_EA runtime build R10-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123");
    ChartSetInteger(0,CHART_EVENT_MOUSE_MOVE,true);
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();

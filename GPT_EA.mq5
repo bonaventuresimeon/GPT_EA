@@ -2469,6 +2469,7 @@ datetime g_lastUniversalCheckpoint=0;
 int      g_universalScanCursor=0;
 int      g_universalUniverseTotal=0;
 int      g_universalUniverseEligible=0;
+bool     g_fullBrokerUniverseMode=false;
 
 // ----------------------- Symbol normalization -------------------------
 string UpperCopy(string s){ StringToUpper(s); return s; }
@@ -2511,7 +2512,7 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
 
    // Crypto - explicit liquid aliases first, then broker category metadata catches unfamiliar tokens.
    string crypto[]={"BTC","ETH","SOL","XRP","ADA","DOGE","LTC","BNB","DOT","AVAX","UNI","LINK","TRX","BCH","ETC","XLM","ATOM","NEAR","AAVE","MATIC","POL","TON","SHIB","SUI","APT","FIL","ICP","ARB","OP","PEPE"};
-   for(int k=0;k<ArraySize(crypto);k++) if(StringFind(u,crypto[k])>=0) return "CRYPTO:"+crypto[k];
+   for(int k=0;k<ArraySize(crypto);k++) if(StringFind(c,crypto[k])>=0) return "CRYPTO:"+crypto[k];
 
    // FX - match a broad set of developed/emerging-market currency pairs.
    string cc[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR"};
@@ -2678,6 +2679,8 @@ bool ResolveConfiguredSymbolsUniversal()
       string majors[]; int n=StringSplit(InpAutoMajorUniverse,',',majors);
       for(int i=0;i<n;i++) AddResolvedSymbol(resolved,Trim(majors[i]));
    }
+
+   g_fullBrokerUniverseMode=allRequested;
 
    if(allRequested)
    {
@@ -3741,19 +3744,14 @@ void RefreshReleaseSafetyGate()
    bool oldBlocked=g_releaseBlocked;
    string oldReason=g_releaseBlockReason;
    string why="";
+   // Global release state checks account/terminal/recovery configuration only.
+   // Per-symbol series, quote freshness and broker order-mode checks are enforced
+   // immediately before approval/execution, so a closed market cannot block every other market.
    bool ok=ReleaseSafetyAllows("",why);
-   if(ok)
-   {
-      for(int i=0;i<ArraySize(g_symbols);i++)
-      {
-         if(g_symbols[i]=="") continue;
-         if(!ReleaseSafetyAllows(g_symbols[i],why)){ ok=false; break; }
-      }
-   }
    g_releaseBlocked=!ok;
-   g_releaseBlockReason=(ok?"All release-blocking safety gates pass.":why);
+   g_releaseBlockReason=(ok?"All global release-blocking safety gates pass.":why);
    if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason)) Print("GPT_EA RELEASE BLOCK: ",g_releaseBlockReason);
-   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all release-blocking safety gates pass.");
+   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all global release-blocking safety gates pass.");
 }
 
 string ReleaseGateSummary(){ return (g_releaseBlocked?"BLOCKED - "+g_releaseBlockReason:"PASS"); }
@@ -5193,7 +5191,14 @@ void CaptureDeploymentBaseline()
    for(int i=0;i<ArraySize(g_symbols);i++)
    {
       string sym=g_symbols[i];
-      if(sym=="" || !EnsureSymbol(sym)) continue;
+      if(sym=="") continue;
+      // In ALL/full-broker mode do not force-load the complete catalog merely to capture metadata.
+      // Symbols become selected naturally as the round-robin scanner reaches them.
+      if(g_fullBrokerUniverseMode)
+      {
+         if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) continue;
+      }
+      else if(!EnsureSymbol(sym)) continue;
       int n=ArraySize(g_deploymentBaseline);
       ArrayResize(g_deploymentBaseline,n+1);
       g_deploymentBaseline[n].symbol=sym;
@@ -5256,6 +5261,13 @@ bool StructuralSymbolDriftAllows(string &why)
 {
    why="";
    if(!InpUseDeploymentDriftGuard || !InpBlockOnStructuralSymbolDrift) return true;
+   if(g_fullBrokerUniverseMode)
+   {
+      // Broker catalogs are dynamic. Live per-symbol broker gates still validate tick size,
+      // volume, stops, margin and order modes before any new entry.
+      why="Full broker universe uses live per-symbol execution validation.";
+      return true;
+   }
    for(int i=0;i<ArraySize(g_deploymentBaseline);i++)
    {
       string sym=g_deploymentBaseline[i].symbol;
@@ -8707,6 +8719,9 @@ string WebIntelInstrumentContext(const string sym)
    if(StringFind(key,"ENERGY:")==0) return "oil/gas inventories, OPEC+, geopolitical supply, demand growth, USD and risk sentiment";
    if(StringFind(key,"FX:")==0) return "central banks, inflation, labor, GDP/PMI, rates/yields, political and currency-specific headlines";
    if(StringFind(key,"CRYPTO:")==0) return "liquidity, regulation, ETF/flow, risk sentiment, rates, USD and crypto-specific headlines";
+   if(StringFind(key,"STOCK:")==0) return "company earnings/guidance, sector flows, valuation, rates, corporate actions and material company-specific news";
+   if(StringFind(key,"ETF:")==0) return "underlying holdings/index drivers, fund flows, rates, volatility, sector/macro and issuer-specific developments";
+   if(StringFind(key,"FUTURE:")==0) return "underlying spot/forward market, term structure, inventory/supply-demand, rates, session liquidity and contract-specific events";
    return "macro, sector/company where relevant, rates, volatility and instrument-specific breaking news";
 }
 

@@ -98,6 +98,8 @@ On DEMO/CONTEST outside Strategy Tester:
 
 ## R6 resilience runtime validation
 
+Use a working copy of `MT5_RESILIENCE_RUNTIME_REPORT_TEMPLATE.md` for the exact candidate and complete `CHAOS_FAULT_INJECTION_TEST_MATRIX.md` for CF-001 through CF-016. Both are retained release artifacts; neither may be pre-filled as PASS.
+
 MT5 v2 additionally proves the new execution/reliability controls in the terminal rather than from source inspection alone:
 
 - direct breakout and breakout-retest execution types remain distinct end-to-end;

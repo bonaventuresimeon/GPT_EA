@@ -14,7 +14,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+MQH = ROOT / "mqh"
 MAIN = ROOT / "GPT_EA.mq5"
+
+def repo_path(name: str) -> Path:
+    return MQH / name if name.lower().endswith(".mqh") and "/" not in name and "\\" not in name else ROOT / name
 RELEASE_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
 
 REQUIRED_FILES = [
@@ -307,15 +311,15 @@ def main() -> int:
 
     main_text = MAIN.read_text(encoding="utf-8")
     for name in REQUIRED_FILES:
-        if not (ROOT / name).exists(): errors.append(f"required file missing: {name}")
+        if not repo_path(name).exists(): errors.append(f"required file missing: {name}")
     for token in REQUIRED_MAIN_WIRING:
         if token not in main_text: errors.append(f"main wiring missing: {token}")
 
     includes = re.findall(r'^\s*#include\s+"([^"]+)"', main_text, re.M)
     for inc in includes:
-        if not (ROOT / inc).exists(): errors.append(f"local include missing: {inc}")
+        if not repo_path(inc).exists(): errors.append(f"local include missing: {inc}")
 
-    source_files = [MAIN] + [ROOT / inc for inc in includes if (ROOT / inc).exists()]
+    source_files = [MAIN] + [ROOT / inc for inc in includes if repo_path(inc).exists()]
     seen_inputs: dict[str, str] = {}
     input_re = re.compile(r'^\s*input\s+[A-Za-z_][\w<>]*\s+([A-Za-z_]\w*)', re.M)
     for path in source_files:
@@ -328,13 +332,13 @@ def main() -> int:
             errors.append(f"possible OpenAI API secret committed in {path.name}")
 
     for filename, tokens in REQUIRED_TOKENS.items():
-        path = ROOT / filename
+        path = repo_path(filename)
         if not path.exists(): continue
         text = path.read_text(encoding="utf-8")
         for token in tokens:
             if token not in text: errors.append(f"{filename} missing contract token: {token}")
 
-    thesis_path = ROOT / "GPT_EA_Part17_ThesisEngine.mqh"
+    thesis_path = MQH / "GPT_EA_Part17_ThesisEngine.mqh"
     if thesis_path.exists():
         thesis = thesis_path.read_text(encoding="utf-8")
         missing = [str(i) for i in range(1, 26) if f"{i}. " not in thesis]
@@ -366,7 +370,7 @@ def main() -> int:
     if main_text.count("#define ExtractOpenAIText ExtractOpenAITextWide") < 2:
         errors.append("wide OpenAI parser must cover both structured news and deep GPT review")
 
-    release = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+    release = (MQH / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
     for flag in RELEASE_FLAGS:
         if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', release):
             errors.append(f"release attestation must default false: {flag}")
@@ -376,25 +380,25 @@ def main() -> int:
     if 'GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1"' not in release:
         errors.append("R6 soak schema version contract is missing")
 
-    part28b = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+    part28b = (MQH / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for flag in ("InpReleaseCIStaticEvidencePassed", "InpReleaseCIBundleValidated", "InpReleaseMT5ValidationPassed", "InpReleaseResilienceHardeningPassed"):
         if not re.search(rf'input\s+bool\s+{flag}\s*=\s*false\s*;', part28b):
             errors.append(f"supplemental release attestation must default false: {flag}")
 
-    part37 = (ROOT / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
+    part37 = (MQH / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
     if not re.search(r'input\s+bool\s+InpReleaseAPITransportPassed\s*=\s*false\s*;', part37):
         errors.append("API transport release attestation must default false")
 
-    p32 = (ROOT / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
+    p32 = (MQH / "GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
     if not re.search(r'InpAutoPromoteChallenger\s*=\s*false\s*;', p32):
         errors.append("champion/challenger auto-promotion must default false")
 
-    part05 = (ROOT / "GPT_EA_Part05.mqh").read_text(encoding="utf-8")
+    part05 = (MQH / "GPT_EA_Part05.mqh").read_text(encoding="utf-8")
     for token in ["AdaptivePreEntryAllows", "RegisterAdaptiveExecutionRequest", "RegisterAdaptiveExecutionFill", "StoredAIIntegrityAllows",
                   "PrepareAtomicTradeIntent", "MarkTradeIntentSent", "BindTradeIntentToPosition"]:
         if token not in part05: errors.append(f"Part05 execution wiring missing: {token}")
 
-    part01 = (ROOT / "GPT_EA_Part01.mqh").read_text(encoding="utf-8")
+    part01 = (MQH / "GPT_EA_Part01.mqh").read_text(encoding="utf-8")
     if not re.search(r'input\s+string\s+InpOpenAIAPIKey\s*=\s*""\s*;', part01):
         warnings.append("OpenAI API key default is not the expected blank literal; review manually")
 

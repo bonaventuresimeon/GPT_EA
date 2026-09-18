@@ -44,7 +44,7 @@ Copy this file to `artifacts/r6-resilience-matrix.md`. Every RH row must be chan
 | RH-020 | Clock | Broker-server/GMT offset baseline and drift protection work | HOLD | |
 | RH-021 | Model health | Transport/schema/stale/provenance/disagreement/latency telemetry is recorded | HOLD | |
 | RH-022 | Model health | NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY thresholds work | HOLD | |
-| RH-023 | Deterministic fallback | Only allowed strategies run in deterministic-only mode and news proximity blocks them | HOLD | |
+| RH-023 | Deterministic fallback | Only allowed strategies run in deterministic-only mode; only unavailable GPT/web transport may be bypassed, while available vetoes, BLOCK verdicts, stale/schema/provenance failures and news proximity remain blocking | HOLD | |
 | RH-024 | Data versioning | Execution-learning V2 rows carry release/config/model/symbol/strategy versions | HOLD | |
 | RH-025 | Data versioning | Shadow/lifecycle/decision/strategy-health V2 rows carry generation fields | HOLD | |
 | RH-026 | Strategy registry | Versioned per-strategy registry is emitted and tied to config fingerprint | HOLD | |

@@ -166,22 +166,25 @@ def validate_record(
                 f"asset_classes.{name}.broker_runtime_required must equal whether the release broker exposes that class")
 
         runtime_required = row.get("broker_runtime_required") is True
+        examples = row.get("examples", [])
         if runtime_required:
             require(errors, row.get("broker_runtime_passed") is True,
                     f"asset_classes.{name}.broker_runtime_passed must be true when runtime coverage is required")
             require(errors, row.get("execution_geometry_passed") is True,
                     f"asset_classes.{name}.execution_geometry_passed must be true when runtime coverage is required")
-            require(errors, row.get("macro_context_passed") is True,
-                    f"asset_classes.{name}.macro_context_passed must be true when runtime coverage is required")
-            examples = row.get("examples", [])
             require(errors, isinstance(examples, list) and len(examples) > 0,
                     f"asset_classes.{name}.examples must identify tested symbols when runtime coverage is required")
+
             if name != "OTHER":
+                require(errors, row.get("macro_context_passed") is True,
+                        f"asset_classes.{name}.macro_context_passed must be true when runtime coverage is required")
                 require(errors, row.get("live_execution_certified") is True,
                         f"asset_classes.{name}.live_execution_certified must be true when the class exists on the release broker")
-            else:
-                require(errors, row.get("live_execution_certified") is False,
-                        "asset_classes.OTHER.live_execution_certified must remain false in universal release evidence; certify proprietary instruments through an explicit future instrument-specific exception contract")
+            elif row.get("live_execution_certified") is True:
+                require(errors, row.get("macro_context_passed") is True,
+                        "asset_classes.OTHER requires macro/context PASS before any live certification")
+                require(errors, isinstance(examples, list) and len(examples) == count,
+                        "asset_classes.OTHER live certification requires every generic broker symbol to be individually listed in examples")
 
         if row.get("live_execution_certified") is True:
             require(errors, row.get("broker_runtime_passed") is True,

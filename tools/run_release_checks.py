@@ -20,7 +20,8 @@ materialize_legacy_json_documents()
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "static-check.txt"
 CHECKS = [
-    ROOT / "tools" / "check_mql_static.py",\n    ROOT / "tools" / "check_universal_symbol_universe.py",
+    ROOT / "tools" / "check_mql_static.py",
+    ROOT / "tools" / "check_universal_symbol_universe.py",
     ROOT / "tools" / "check_mql_compile_hygiene.py",
     ROOT / "tools" / "check_release_certification.py",
     ROOT / "tools" / "check_r5_adaptive.py",
@@ -29,6 +30,7 @@ CHECKS = [
     ROOT / "tools" / "check_runner_recovery_contract.py",
     ROOT / "tools" / "check_mt5_validation_contract.py",
     ROOT / "tools" / "check_release_readiness_contract.py",
+    ROOT / "tools" / "check_chart_dashboard_static.py",
     ROOT / "tools" / "check_release_contract_linkage.py",
     ROOT / "tools" / "check_api_transport_static.py",
     ROOT / "tools" / "check_legal_rollout_static.py",

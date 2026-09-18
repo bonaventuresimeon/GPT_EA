@@ -18,7 +18,7 @@
 
 This is the release-blocking evidence definition for validation performed inside the intended MetaTrader 5 / MetaEditor environment. Source checks and GitHub CI cannot substitute for this record because they do not prove MQL compilation, Strategy Tester behavior, broker symbol geometry, terminal lifecycle, WebRequest behavior or runtime protection on the target MT5 build.
 
-Machine schema: `mt5_validation_evidence_v1`.
+Machine schema: `mt5_validation_evidence_v2`.
 
 ## Required identity
 
@@ -96,6 +96,39 @@ On DEMO/CONTEST outside Strategy Tester:
 - zero API/proxy secret leaks;
 - required intelligence failure cannot authorize a trade.
 
+## R6 resilience runtime validation
+
+MT5 v2 additionally proves the new execution/reliability controls in the terminal rather than from source inspection alone:
+
+- direct breakout and breakout-retest execution types remain distinct end-to-end;
+- the atomic intent ledger records PREPARED then SENT before the broker submission boundary;
+- restart, duplicate timer/callback and ambiguous broker responses cannot submit an unresolved nonce twice;
+- broker positions/orders/deals reconcile back to EA intent/lifecycle state;
+- manual/mobile/web interventions are identified and quarantined from learning;
+- critical storage failure and certified configuration drift fail closed;
+- material broker-server/GMT clock drift blocks time/news-sensitive entries;
+- chaos/fault-injection is categorically refused on REAL and the controlled demo/test matrix exercises API timeout, stale quote, storage failure, pre-send ambiguity, post-fill/pre-bind recovery, dropped/duplicate transaction callbacks, stop-modification failure, corrupt checkpoint and connection loss;
+- portfolio authorization is tested against USD +1%, yields +20 bp, equity-index risk-off, gold ±2%, oil ±4%, volatility spike and correlated gap scenarios;
+- gap-risk, stressed-margin, decision-half-life and learned-latency gates are exercised;
+- model trust transitions NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY are verified;
+- Responses URL provenance and `as_of_utc` freshness fail closed when required;
+- quarantined observations do not update adaptive learning/evidence;
+- challenger promotion significance, probation rollback and requalification cooldown are verified.
+
+The retained resilience runtime report must contain these literal summary markers:
+
+```text
+MT5 RESILIENCE RUNTIME: PASS
+DUPLICATE_ORDER_COUNT=0
+UNRESOLVED_INTENT_COUNT=0
+UNRECONCILED_POSITION_COUNT=0
+CHAOS_REAL_ACCOUNT_REFUSAL=PASS
+MACRO_STRESS_MATRIX=PASS
+PROVENANCE_FRESHNESS=PASS
+STORAGE_FAILURE_FAIL_CLOSED=PASS
+CONFIG_DRIFT_FAIL_CLOSED=PASS
+```
+
 ## Required artifacts
 
 At minimum the record references and hashes:
@@ -105,9 +138,14 @@ At minimum the record references and hashes:
 - Experts log;
 - Journal log;
 - broker history export or reconciliation file;
-- completed `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` working copy documenting the MT5 runtime tests.
+- `GPT_EA_TradeIntentLedger.csv`;
+- `GPT_EA_BrokerReconciliation.csv`;
+- `GPT_EA_WebIntelProvenance.csv`;
+- `GPT_EA_ModelHealth.csv`;
+- completed MT5 resilience runtime report with the required literal markers;
+- completed `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` working copy documenting M5-001 through M5-053.
 
-Copy the matrix to `artifacts/mt5-validation-matrix.md`. The validator does not trust the matrix hash alone: it parses M5-001 through M5-034, requires exactly one row for each ID, requires literal `PASS`, and requires a non-empty evidence/reference for every row.
+Copy the matrix to `artifacts/mt5-validation-matrix.md`. The validator does not trust the matrix hash alone: it parses M5-001 through M5-053, requires exactly one row for each ID, requires literal `PASS`, and requires a non-empty evidence/reference for every row.
 
 Use `tools/build_mt5_validation_evidence.py` to calculate file hashes—including the completed matrix—into a draft. Complete the JSON PASS booleans only from the same actual observations referenced by the M5 rows, then finalize with:
 

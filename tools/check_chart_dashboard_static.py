@@ -26,7 +26,7 @@ required=[
     "UI_STATE_TRADE_ACTIVE","UI_STATE_TP1","UI_STATE_BREAK_EVEN","UI_STATE_TRAILING","UI_STATE_CLOSED",
     "ApplyDashboardChartReserve","DashboardLayout","VisualMTFMatrix","VisualConfidenceBar",
     "RenderPremiumHUDFrame","DASH_HEADER_BG","DASH_FOOTER_BG","DASH_TOP_RAIL","DASH_INNER_FRAME",
-    "R8-ELEGANT-HUD-INPUTS-20260918","HUD122",
+    "R10-AUTO-MODEL-HUD-20260918","HUD123",
     "PurgeLegacyVisualObjects","g_visualDataState","DATA LOADING / INSUFFICIENT HISTORY",
     "RenderScanningDashboard","RenderClosedDashboard","RenderDashboardControls",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
@@ -137,6 +137,19 @@ for token in ("DASH_PANEL","DASH_INNER_FRAME","DASH_HEADER_BG","DASH_TOP_RAIL","
         errors.append("boxed HUD frame missing token: "+token)
 if "InpDashboardHeight" not in function_body("DashboardLayout"):
     errors.append("responsive dashboard layout must honor InpDashboardHeight")
+for state_renderer in (
+    "RenderLiveManagementDashboard",
+    "RenderCandidateOperationalDashboard",
+    "RenderScanningDashboard",
+    "RenderClosedDashboard",
+):
+    body=function_body(state_renderer)
+    if "RenderPremiumHUDFrame(" not in body:
+        errors.append(f"{state_renderer} must render inside the boxed premium HUD frame")
+    if "SetPremiumRect(DASH_PANEL" in body:
+        errors.append(f"{state_renderer} must not bypass the shared boxed HUD renderer")
+if 'v1.23 • R10 HUD' not in text or 'EX5 marker HUD123' not in text:
+    errors.append("v1.23 R10 HUD / HUD123 runtime identity is missing")
 if 'RenderAdvancedDashboard(primary,primaryReport,filterState,approvalReady);' not in text:
     errors.append("ENTRY ARMED dashboard state must be driven by final approvalReady, not the pre-gate trigger")
 for premature in (

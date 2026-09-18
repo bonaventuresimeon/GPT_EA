@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.22"
+#property version   "1.23"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -74,6 +74,9 @@ input bool   InpUseOpenAI               = true;
 input string InpOpenAIAPIKey            = "";         // Direct mode only. Keep blank in source/Git; enter locally or use the key file.
 input string InpOpenAIModel             = "gpt-5.6-sol";
 input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
+input bool   InpOpenAIModelAutoResolve  = true;        // verify the requested model with the API key and automatically select an available text model if needed
+input string InpOpenAIModelFallbacks    = "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna,gpt-5.6,gpt-5.2,gpt-5.1,gpt-5,gpt-4.1,gpt-4o";
+input int    InpOpenAIModelScanMinutes  = 60;          // periodically refresh model availability while the EA is running
 input int    InpOpenAITimeoutMs         = 15000;
 input bool   InpOpenAIKeyPreferFile     = true;       // Prefer a local key file over the EA input field.
 input bool   InpOpenAIKeyUseCommonFile  = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
@@ -208,6 +211,51 @@ string g_openAIKeyCache="";
 bool   g_openAIKeyCacheLoaded=false;
 string g_openAIKeySource="MISSING";
 
+string   g_activeOpenAIModel="";
+string   g_activeDeepOpenAIModel="";
+string   g_openAIModelResolution="UNRESOLVED";
+datetime g_openAIModelResolvedAt=0;
+bool     g_openAIModelFallbackUsed=false;
+
+string ActiveOpenAIModel()
+{
+   string selected=g_activeOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
+   if(selected!="") return selected;
+   selected=InpOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
+   return selected;
+}
+
+string ActiveDeepOpenAIModel()
+{
+   string selected=g_activeDeepOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
+   if(selected!="") return selected;
+   return ActiveOpenAIModel();
+}
+
+string OpenAIModelResolutionText()
+{
+   string active=ActiveOpenAIModel();
+   if(active=="") active="--";
+   return active+" • "+g_openAIModelResolution;
+}
+
+string OpenAIModelHUDState()
+{
+   if(!InpUseOpenAI) return "OFF";
+   string active=ActiveOpenAIModel();
+   if(active=="") active="--";
+   if(StringLen(active)>26) active=StringSubstr(active,0,23)+"...";
+   string state="UNVERIFIED";
+   if(g_openAIModelFallbackUsed) state="FALLBACK";
+   else if(StringFind(g_openAIModelResolution,"VERIFIED")>=0 || StringFind(g_openAIModelResolution,"AVAILABLE")>=0) state="VERIFIED";
+   else if(StringFind(g_openAIModelResolution,"PROXY")>=0) state="PROXY";
+   else if(StringFind(g_openAIModelResolution,"NO COMPATIBLE")>=0) state="NO MODEL";
+   return active+" "+state;
+}
+
 string OpenAISecretTrim(string value)
 {
    StringTrimLeft(value);
@@ -302,7 +350,7 @@ bool CallOpenAI(const string prompt,string &answer,string &errorText)
    string apiKey=OpenAILocalCredential();
    if(StringLen(apiKey)<20){ errorText="OpenAI API key not configured. Add it to the local key file or EA input."; return false; }
 
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\",\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+apiKey+"\r\n";
    char data[],result[];
    string resultHeaders="";
@@ -9618,7 +9666,7 @@ bool CallOpenAIWebIntel(const string prompt,string &answer,string &errorText)
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest/web search unavailable in Strategy Tester."; return false; }
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured."; return false; }
 
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"tools\":[{\"type\":\"web_search\",\"search_context_size\":\"medium\"}],\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\",\"tools\":[{\"type\":\"web_search\",\"search_context_size\":\"medium\"}],\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
    char data[],result[]; string resultHeaders="";
    int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
@@ -9964,7 +10012,7 @@ bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &ver
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText="OpenAI API key not configured."; return false; }
 
    string schema=WebIntelJsonSchema();
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\","
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\","
                "\"tools\":[{\"type\":\"web_search\"}],"
                "\"input\":\""+JsonEscape(prompt+" Return the requested result as strict JSON matching the supplied schema.")+"\","
                "\"text\":{\"format\":{\"type\":\"json_schema\",\"name\":\"market_intelligence\",\"strict\":true,\"schema\":"+schema+"}}}";
@@ -10434,6 +10482,14 @@ string ValidReasoningEffort(string effort)
    return "high";
 }
 
+bool OpenAIModelSupportsReasoningConfig(string model)
+{
+   model=APITrim(model);
+   StringToLower(model);
+   return (StringFind(model,"gpt-5")==0 || StringFind(model,"o1")==0 ||
+           StringFind(model,"o3")==0 || StringFind(model,"o4")==0);
+}
+
 bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
 {
    answer=""; errorText="";
@@ -10441,14 +10497,15 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest unavailable in Strategy Tester."; return false; }
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured in EA inputs."; return false; }
 
-   string model=(InpUseDeepGPTReviewModel?Trim(InpDeepGPTReviewModel):Trim(InpOpenAIModel));
-   if(model=="") model=InpOpenAIModel;
+   string model=(InpUseDeepGPTReviewModel?ActiveDeepOpenAIModel():ActiveOpenAIModel());
+   if(model=="") model=ActiveOpenAIModel();
    string effort=ValidReasoningEffort(InpDeepGPTReasoningEffort);
    int maxTokens=(InpDeepGPTMaxOutputTokens<200?200:InpDeepGPTMaxOutputTokens);
-   string body="{\"model\":\""+JsonEscape(model)+"\","
-               "\"reasoning\":{\"effort\":\""+JsonEscape(effort)+"\"},"
-               "\"max_output_tokens\":"+IntegerToString(maxTokens)+","
-               "\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(model)+"\",";
+   if(OpenAIModelSupportsReasoningConfig(model))
+      body+="\"reasoning\":{\"effort\":\""+JsonEscape(effort)+"\"},";
+   body+="\"max_output_tokens\":"+IntegerToString(maxTokens)+","
+         "\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
    char data[],result[]; string resultHeaders="";
    int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
@@ -10477,6 +10534,292 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
 #undef ExtractOpenAIText
 #undef WebRequest
 #undef InpOpenAIAPIKey
+
+// GPT_EA Part 39A - OpenAI model discovery / automatic availability fallback
+string OpenAIModelsEndpoint()
+{
+   string endpoint=APITrim(InpOpenAIEndpoint);
+   int p=StringFind(endpoint,"/v1/");
+   if(p>=0) return StringSubstr(endpoint,0,p)+"/v1/models";
+   if(StringLen(endpoint)>=3 && StringSubstr(endpoint,StringLen(endpoint)-3)=="/v1")
+      return endpoint+"/models";
+   return "https://api.openai.com/v1/models";
+}
+
+bool OpenAIModelCatalogContains(const string &ids[],const string model)
+{
+   string needle=APITrim(model);
+   if(needle=="") return false;
+   for(int i=0;i<ArraySize(ids);i++)
+      if(ids[i]==needle) return true;
+   return false;
+}
+
+int ExtractOpenAIModelIds(const string json,string &ids[])
+{
+   ArrayResize(ids,0);
+   int pos=0;
+   while(pos<StringLen(json))
+   {
+      int p=StringFind(json,"\"id\"",pos);
+      if(p<0) break;
+      int colon=StringFind(json,":",p+4);
+      if(colon<0) break;
+      int q1=StringFind(json,"\"",colon+1);
+      if(q1<0) break;
+      int q2=StringFind(json,"\"",q1+1);
+      if(q2<0) break;
+      string id=StringSubstr(json,q1+1,q2-q1-1);
+      if(id!="")
+      {
+         bool duplicate=false;
+         for(int i=0;i<ArraySize(ids);i++) if(ids[i]==id){ duplicate=true; break; }
+         if(!duplicate)
+         {
+            int n=ArraySize(ids);
+            ArrayResize(ids,n+1);
+            ids[n]=id;
+         }
+      }
+      pos=q2+1;
+   }
+   return ArraySize(ids);
+}
+
+bool OpenAIModelIsEAResponsesCandidate(string id)
+{
+   id=APITrim(id);
+   StringToLower(id);
+   int major=0;
+   if(StringFind(id,"gpt-")==0 && StringLen(id)>4)
+      major=(int)StringToInteger(StringSubstr(id,4,1));
+   bool supportedFamily=(major>=5 || StringFind(id,"gpt-4.1")==0 || StringFind(id,"gpt-4o")==0);
+   if(!supportedFamily) return false;
+   string excluded[]={"realtime","audio","transcribe","tts","image","embedding","moderation",
+                      "search","chat","codex","cyber","computer-use"};
+   for(int i=0;i<ArraySize(excluded);i++)
+      if(StringFind(id,excluded[i])>=0) return false;
+   return true;
+}
+
+int OpenAIModelFallbackRank(string id)
+{
+   id=APITrim(id);
+   StringToLower(id);
+   if(!OpenAIModelIsEAResponsesCandidate(id)) return -1;
+   int major=0;
+   if(StringFind(id,"gpt-")==0 && StringLen(id)>4)
+      major=(int)StringToInteger(StringSubstr(id,4,1));
+   if(major>=6) return 11000+major*10-StringLen(id);
+   if(id=="gpt-5.6-sol") return 10000;
+   if(id=="gpt-5.6") return 9950;
+   if(id=="gpt-5.6-terra") return 9900;
+   if(id=="gpt-5.6-luna") return 9850;
+   if(StringFind(id,"gpt-5.6")==0) return 9700-StringLen(id);
+   if(StringFind(id,"gpt-5.2")==0) return 9300-StringLen(id);
+   if(StringFind(id,"gpt-5.1")==0) return 9200-StringLen(id);
+   if(id=="gpt-5") return 9100;
+   if(StringFind(id,"gpt-5")==0) return 9000-StringLen(id);
+   if(StringFind(id,"gpt-4.1")==0) return 8000-StringLen(id);
+   if(StringFind(id,"gpt-4o")==0) return 7000-StringLen(id);
+   return 1000-StringLen(id);
+}
+
+bool SelectAvailableOpenAIModel(const string requested,const string &ids[],string &selected,string &why)
+{
+   selected=""; why="";
+   string wanted=APITrim(requested);
+   if(OpenAIModelCatalogContains(ids,wanted) && OpenAIModelIsEAResponsesCandidate(wanted))
+   {
+      selected=wanted;
+      why="REQUESTED MODEL AVAILABLE";
+      return true;
+   }
+
+   string choices[];
+   int n=StringSplit(InpOpenAIModelFallbacks,',',choices);
+   for(int i=0;i<n;i++)
+   {
+      string candidate=APITrim(choices[i]);
+      if(candidate!="" && OpenAIModelCatalogContains(ids,candidate) && OpenAIModelIsEAResponsesCandidate(candidate))
+      {
+         selected=candidate;
+         why="REQUESTED UNAVAILABLE → FALLBACK FROM PRIORITY LIST";
+         return true;
+      }
+   }
+
+   int best=-2147483647;
+   for(int i=0;i<ArraySize(ids);i++)
+   {
+      int rank=OpenAIModelFallbackRank(ids[i]);
+      if(rank>best)
+      {
+         best=rank;
+         selected=ids[i];
+      }
+   }
+   if(selected!="" && best>0)
+   {
+      why="REQUESTED/FALLBACK LIST UNAVAILABLE → BEST DISCOVERED TEXT MODEL";
+      return true;
+   }
+
+   why="NO COMPATIBLE GPT TEXT MODEL FOUND IN API MODEL CATALOG";
+   return false;
+}
+
+bool FetchOpenAIModelCatalog(string &ids[],string &why)
+{
+   ArrayResize(ids,0);
+   why="";
+   if(!InpUseOpenAI){ why="OpenAI disabled."; return false; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ why="Strategy Tester cannot query the model catalog."; return false; }
+   if(InpAPITransportMode!=GPT_API_DIRECT_OPENAI)
+   {
+      why="Secure proxy mode: model discovery is delegated to the proxy; direct bearer-key catalog scan skipped.";
+      return false;
+   }
+
+   string key=OpenAILocalCredential();
+   if(StringLen(key)<20){ why="No direct-mode OpenAI API key is configured."; return false; }
+
+   string url=OpenAIModelsEndpoint();
+   if(!APITrustedDirectEndpoint(url))
+   { why="Model discovery refused a non-OpenAI endpoint."; return false; }
+
+   string headers="Authorization: Bearer "+key+"\r\nAccept: application/json\r\n";
+   char data[],result[];
+   ArrayResize(data,0);
+   string resultHeaders="";
+   ResetLastError();
+   int code=WebRequest("GET",url,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
+   if(code==-1)
+   {
+      why=StringFormat("Model catalog WebRequest failed (MT5 error %d). Allow https://api.openai.com in MT5 WebRequest settings.",GetLastError());
+      return false;
+   }
+
+   string raw=CharArrayToString(result,0,-1,CP_UTF8);
+   if(code<200 || code>=300)
+   {
+      string classText=(code==401||code==403?"AUTHORIZATION FAILED":(code==429?"RATE LIMITED":"HTTP ERROR"));
+      why=StringFormat("%s while scanning OpenAI models (HTTP %d): %s",classText,code,StringSubstr(raw,0,280));
+      return false;
+   }
+
+   int found=ExtractOpenAIModelIds(raw,ids);
+   if(found<=0)
+   {
+      why="OpenAI model catalog returned no parseable model IDs.";
+      return false;
+   }
+   why=StringFormat("MODEL CATALOG OK • %d model IDs discovered",found);
+   return true;
+}
+
+bool ResolveOpenAIModels(const bool force,string &why)
+{
+   why="";
+   string requested=APITrim(InpOpenAIModel);
+   if(requested=="") requested="gpt-5.6-sol";
+
+   if(!InpUseOpenAI)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=requested;
+      g_openAIModelResolution="OFF";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="OpenAI disabled.";
+      return true;
+   }
+
+   if(!InpOpenAIModelAutoResolve)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="MANUAL / AUTO-RESOLVE OFF";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="Automatic model resolution disabled; using configured model.";
+      return true;
+   }
+
+   if(!force && g_openAIModelResolvedAt>0)
+   {
+      int ttl=MathMax(1,InpOpenAIModelScanMinutes)*60;
+      if(TimeTradeServer()-g_openAIModelResolvedAt<ttl)
+      {
+         why=g_openAIModelResolution;
+         return true;
+      }
+   }
+
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="PROXY • DISCOVERY DELEGATED";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="Secure proxy mode keeps the server-side key private; direct model-list scan skipped.";
+      return true;
+   }
+
+   string ids[];
+   string catalogWhy="";
+   if(!FetchOpenAIModelCatalog(ids,catalogWhy))
+   {
+      // Network/auth discovery failure is not proof that the configured model is invalid.
+      // Preserve the requested model but mark it UNVERIFIED; normal request gates still apply.
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="UNVERIFIED • "+catalogWhy;
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why=g_openAIModelResolution;
+      return false;
+   }
+
+   string selected="",selectWhy="";
+   if(!SelectAvailableOpenAIModel(requested,ids,selected,selectWhy))
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=requested;
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="NO COMPATIBLE MODEL • "+selectWhy;
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why=g_openAIModelResolution;
+      return false;
+   }
+
+   g_activeOpenAIModel=selected;
+   g_openAIModelFallbackUsed=(selected!=requested);
+
+   string deepRequested=(InpUseDeepGPTReviewModel?APITrim(InpDeepGPTReviewModel):selected);
+   if(deepRequested!="" && OpenAIModelCatalogContains(ids,deepRequested) && OpenAIModelIsEAResponsesCandidate(deepRequested))
+      g_activeDeepOpenAIModel=deepRequested;
+   else
+      g_activeDeepOpenAIModel=selected;
+
+   g_openAIModelResolution=(g_openAIModelFallbackUsed?
+      "FALLBACK ACTIVE • requested "+requested+" → "+selected:
+      "REQUESTED MODEL VERIFIED • "+selected);
+   g_openAIModelResolvedAt=TimeTradeServer();
+   why=catalogWhy+" | "+selectWhy+" | "+g_openAIModelResolution;
+   return true;
+}
+
+void RefreshOpenAIModelResolutionIfDue()
+{
+   if(!InpUseOpenAI || !InpOpenAIModelAutoResolve) return;
+   int ttl=MathMax(1,InpOpenAIModelScanMinutes)*60;
+   if(g_openAIModelResolvedAt>0 && TimeTradeServer()-g_openAIModelResolvedAt<ttl) return;
+   string why="";
+   bool ok=ResolveOpenAIModels(true,why);
+   Print("OpenAI model refresh: ",ok?"OK":"UNVERIFIED"," | ",why,
+         " | active=",ActiveOpenAIModel()," | deep=",ActiveDeepOpenAIModel());
+}
 
 // GPT_EA Part 40 - Clock integrity, model degradation and deterministic fallback
 
@@ -16905,7 +17248,7 @@ void RenderLiveManagementDashboard(ulong ticket)
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Live Trade HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
@@ -16977,11 +17320,17 @@ void RenderLiveManagementDashboard(ulong ticket)
       rulesBody,C'182,137,68');
    y+=h3+gap;
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
-      "RISK / SAFETY",
-      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s",
+   string liveRiskBody="";
+   if(compact)
+      liveRiskBody=StringFormat("Risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f  •  AI %s  •  API %s  •  Release %s",
          riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
-         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState),
+         brokerHealth,OpenAIModelHUDState(),APITransportVisualState(),releaseState);
+   else
+      liveRiskBody=StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Trust %s  •  API %s  •  Release %s\nAI %s",
+         riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
+         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,OpenAIModelHUDState());
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / SAFETY",liveRiskBody,
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 
@@ -17056,7 +17405,7 @@ void RenderCandidateOperationalDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Intelligence HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
                    g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
 
@@ -17113,12 +17462,18 @@ void RenderCandidateOperationalDashboard()
       C'182,137,68');
    y+=h3+gap;
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
-      "RISK / NEWS / SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nModel %s  •  OpenAI %s  •  Release %s  •  News %s\n%s",
+   string candidateRiskBody="";
+   if(compact)
+      candidateRiskBody=StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f\nAI %s  •  API %s  •  Release %s  •  News %s",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
+         OpenAIModelHUDState(),APITransportVisualState(),releaseState,g_visualNewsRisk);
+   else
+      candidateRiskBody=StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nTrust %s  •  API %s  •  Release %s  •  News %s\nAI %s\n%s",
          CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
          ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,g_visualNewsRisk,
-         VisualOneLine(g_visualNewsSummary,compact?76:108)),
+         OpenAIModelHUDState(),VisualOneLine(g_visualNewsSummary,108));
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / NEWS / SAFETY",candidateRiskBody,
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 
@@ -17160,7 +17515,7 @@ void RenderScanningDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Market Scan HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.22 • R8 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      "v1.23 • R10 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
@@ -17177,8 +17532,8 @@ void RenderScanningDashboard()
    y+=cardH+6;
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,cardH,
       "RISK / SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nOpenAI %s  •  Release %s\nNo order is opened without the configured authorization gates.",
-         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),APITransportVisualState(),g_releaseBlocked?"BLOCK":"PASS"),
+      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nAPI %s  •  AI %s  •  Release %s\nNo order is opened without the configured authorization gates.",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),APITransportVisualState(),OpenAIModelHUDState(),g_releaseBlocked?"BLOCK":"PASS"),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=cardH+6;
    SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,cardH,
@@ -17213,7 +17568,7 @@ void RenderClosedDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Lifecycle HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.22 • R8 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      "v1.23 • R10 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
@@ -17564,6 +17919,10 @@ bool ValidateUserFacingInputs(string &why)
       { why="InpOpenAIEndpoint must be a non-empty HTTPS URL while OpenAI is enabled."; return false; }
       if(InpOpenAITimeoutMs<3000 || InpOpenAITimeoutMs>60000)
       { why="InpOpenAITimeoutMs must be between 3000 and 60000 ms."; return false; }
+      if(InpOpenAIModelScanMinutes<1 || InpOpenAIModelScanMinutes>1440)
+      { why="InpOpenAIModelScanMinutes must be between 1 and 1440 minutes."; return false; }
+      if(InpOpenAIModelAutoResolve && APITrim(InpOpenAIModelFallbacks)=="")
+      { why="InpOpenAIModelFallbacks cannot be blank while automatic model resolution is enabled."; return false; }
    }
 
    if(InpDashboardX<0 || InpDashboardY<0)
@@ -17600,6 +17959,7 @@ int OnInit()
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
+   Print("GPT_EA runtime build R10-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123");
    ChartSetInteger(0,CHART_EVENT_MOUSE_MOVE,true);
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();
@@ -17610,13 +17970,22 @@ int OnInit()
    AdvancedSafetyInit();
    StopFailurePolicyInit();
    StopFailureObservabilityInit();
+
+   string modelResolutionWhy="";
+   bool modelResolutionOK=ResolveOpenAIModels(true,modelResolutionWhy);
+   Print("OpenAI model resolution: ",modelResolutionOK?"OK":"UNVERIFIED",
+         " | requested=",InpOpenAIModel,
+         " | active=",ActiveOpenAIModel(),
+         " | deep=",ActiveDeepOpenAIModel(),
+         " | status=",modelResolutionWhy);
+
    StrategyIntelligenceInit();
    NewsIntermarketInit();
 
-   Print("GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122");
    Print("GPT_EA user inputs OK | Symbols=",InpSymbols,
          " | OpenAI=",InpUseOpenAI?"ON":"OFF",
-         " | Model=",InpOpenAIModel,
+         " | RequestedModel=",InpOpenAIModel,
+         " | ActiveModel=",ActiveOpenAIModel(),
          " | Endpoint=",InpOpenAIEndpoint,
          " | HUD=",IntegerToString(InpDashboardWidth),"x",IntegerToString(InpDashboardHeight),
          " | Risk=",DoubleToString(InpRiskPercent,2),"%");
@@ -17669,6 +18038,7 @@ void OnTimer()
    StopFailureObservabilityTimer();
    StrategyIntelligenceTimer();
    NewsIntermarketTimer();
+   RefreshOpenAIModelResolutionIfDue();
    StyleApprovalUI();
    RefreshFullBrokerUniverseIfDue(false);
 

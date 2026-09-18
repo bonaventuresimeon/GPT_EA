@@ -217,3 +217,41 @@ A future release-pack generator should verify required files, compute SHA-256 fo
 ---
 
 > 📦 **Release truth:** no evidence, no certification; changed source, new evidence cycle.
+
+
+## 🧪 Release hardening evidence
+
+The customer-facing release pack is not complete until the following exact-candidate evidence is present and validated:
+
+- `artifacts/release-candidate-smoke.json`
+- `artifacts/release-candidate-smoke-validation.txt`
+- `artifacts/fail-closed-recovery-drill.json`
+- `artifacts/fail-closed-recovery-drill-validation.txt`
+- `artifacts/demo-validation-run.json`
+- `artifacts/demo-validation-run-validation.txt`
+- secret-scan output showing zero detected live secrets
+- evidence-retention policy review reference
+- security threat-model / prompt-injection review reference
+
+Validation commands:
+
+```text
+python tools/validate_release_candidate_smoke.py artifacts/release-candidate-smoke.json
+python tools/validate_fail_closed_recovery_drill.py artifacts/fail-closed-recovery-drill.json
+python tools/validate_demo_validation_harness.py artifacts/demo-validation-run.json
+python tools/scan_release_secrets.py GPT_EA.mq5 docs COMMERCIAL_LICENSE.md
+```
+
+The package builder may run only after authoritative R10 release/final-review validators and release-truth `--require-pass` succeed:
+
+```text
+python tools/build_customer_release_package.py \
+  --release-evidence release_evidence.json \
+  --final-review final_release_review.json \
+  --ex5 artifacts/GPT_EA.ex5 \
+  --output dist/GPT_EA_<release>
+```
+
+An external signature can be included with `--signature-file`; `--require-signature` makes its absence fatal. Private signing keys must never be stored in the repository or customer package.
+
+> 🧊 During feature freeze, these additions validate the candidate; they do not authorize new strategy/runtime changes.

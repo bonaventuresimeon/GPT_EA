@@ -247,6 +247,7 @@ string OpenAIModelHUDState()
    if(!InpUseOpenAI) return "OFF";
    string active=ActiveOpenAIModel();
    if(active=="") active="--";
+   if(StringLen(active)>26) active=StringSubstr(active,0,23)+"...";
    string state="UNVERIFIED";
    if(g_openAIModelFallbackUsed) state="FALLBACK";
    else if(StringFind(g_openAIModelResolution,"VERIFIED")>=0 || StringFind(g_openAIModelResolution,"AVAILABLE")>=0) state="VERIFIED";
@@ -10589,7 +10590,10 @@ bool OpenAIModelIsEAResponsesCandidate(string id)
 {
    id=APITrim(id);
    StringToLower(id);
-   bool supportedFamily=(StringFind(id,"gpt-5")==0 || StringFind(id,"gpt-4.1")==0 || StringFind(id,"gpt-4o")==0);
+   int major=0;
+   if(StringFind(id,"gpt-")==0 && StringLen(id)>4)
+      major=(int)StringToInteger(StringSubstr(id,4,1));
+   bool supportedFamily=(major>=5 || StringFind(id,"gpt-4.1")==0 || StringFind(id,"gpt-4o")==0);
    if(!supportedFamily) return false;
    string excluded[]={"realtime","audio","transcribe","tts","image","embedding","moderation",
                       "search","chat","codex","cyber","computer-use"};
@@ -10603,6 +10607,10 @@ int OpenAIModelFallbackRank(string id)
    id=APITrim(id);
    StringToLower(id);
    if(!OpenAIModelIsEAResponsesCandidate(id)) return -1;
+   int major=0;
+   if(StringFind(id,"gpt-")==0 && StringLen(id)>4)
+      major=(int)StringToInteger(StringSubstr(id,4,1));
+   if(major>=6) return 11000+major*10-StringLen(id);
    if(id=="gpt-5.6-sol") return 10000;
    if(id=="gpt-5.6") return 9950;
    if(id=="gpt-5.6-terra") return 9900;

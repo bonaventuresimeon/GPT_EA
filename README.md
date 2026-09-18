@@ -86,6 +86,8 @@ flowchart LR
 
 **[Open the release-truth dashboard →](RELEASE_TRUTH_DASHBOARD.md)** · Current checked-in baseline: **⏸️ HOLD** until exact-candidate external evidence is validated.
 
+Dashboard integrity: **[drift-detection contract](DASHBOARD_DRIFT_DETECTION.md)** · architecture governance: **[ADR supersession policy](ADR_SUPERSESSION_POLICY.md)**.
+
 | Item | Current contract |
 |---|---|
 | 🧬 Source identity | Exact Git SHA required |
@@ -554,6 +556,9 @@ The R10 privacy sign-off gate sits on top of R9 customer-risk acknowledgement, R
 
 - 🏛️ `ADR_INDEX.md` — accepted architecture decisions and rationale.
 - 🚦 `RELEASE_TRUTH_DASHBOARD.md` — evidence-derived PASS/HOLD/NO-GO summary.
+- 🔄 `ADR_SUPERSESSION_POLICY.md` — ADR replacement, history-preservation and cycle rules.
+- 🧭 `ADR_TEMPLATE.md` / `ADR_REGISTRY.json` — new-decision template and machine-readable ADR graph.
+- 🧪 `DASHBOARD_DRIFT_DETECTION.md` — evidence/dashboard fingerprint integrity contract.
 
 - 🏗️ `ARCHITECTURE.md` — end-to-end system and trust-boundary diagrams.
 - 🗺️ `ROADMAP.md` — capability roadmap and promotion guardrails.

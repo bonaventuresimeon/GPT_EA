@@ -35,6 +35,23 @@ if MAIN.count('input string InpOpenAIAPIKey')!=1:
     errors.append("InpOpenAIAPIKey must have exactly one user input declaration")
 
 for token in [
+    "InpOpenAIModelAutoResolve","InpOpenAIModelFallbacks","InpOpenAIModelScanMinutes",
+    "OpenAIModelsEndpoint","FetchOpenAIModelCatalog","ExtractOpenAIModelIds",
+    "SelectAvailableOpenAIModel","ResolveOpenAIModels","RefreshOpenAIModelResolutionIfDue",
+    "ActiveOpenAIModel","ActiveDeepOpenAIModel","OpenAIModelHUDState",
+    "https://api.openai.com/v1/models","FALLBACK ACTIVE",
+]:
+    if token not in MAIN:
+        errors.append(f"GPT_EA.mq5 missing automatic OpenAI model-resolution token: {token}")
+
+if MAIN.count("JsonEscape(ActiveOpenAIModel())") < 3:
+    errors.append("all standard/web-intelligence OpenAI request bodies must use ActiveOpenAIModel()")
+if 'InpUseDeepGPTReviewModel?ActiveDeepOpenAIModel():ActiveOpenAIModel()' not in MAIN:
+    errors.append("deep GPT review must use the resolved deep/active model")
+if 'input string InpOpenAIAPIKey            = "";' not in MAIN:
+    errors.append("OpenAI API key source default must remain blank")
+
+for token in [
     '#include "GPT_EA_Part37A_APICompat.mqh"',
     '#include "GPT_EA_Part37_APITransport.mqh"',
     '#define ReleaseSafetyAllows ReleaseSafetyAllowsR7API',

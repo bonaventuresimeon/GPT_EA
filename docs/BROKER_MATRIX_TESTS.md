@@ -18,6 +18,8 @@
 
 This matrix is designed to validate broker-agnostic behavior. It does not assume that any broker uses one fixed symbol name, leverage level or execution policy.
 
+The release-level acceptance contract is defined in **[BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md](BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md)**. A generic broker-matrix PASS does not automatically certify every discovered asset class for REAL execution: the exact release must also produce validated `broker_agnostic_coverage_v1` evidence and class-scoped authorization.
+
 For each intended broker/account type, record the actual terminal values and mark PASS/FAIL.
 
 ## Test record header
@@ -56,6 +58,10 @@ Record for every test run:
 | A14 | proprietary stock CFD | exact broker symbol | Exact broker-name support |
 | A15 | nonexistent symbol | no matching instrument | Fail safely; no order |
 | A16 | `AUTO` | mixed Market Watch catalogue | Resolve available configured universe only |
+| A17 | `ALL` | symbol outside Market Watch | Discover from complete broker catalogue, select, then recheck trade metadata |
+| A18 | proprietary symbol | insufficient alias but usable broker metadata | Classify from path/description/currencies/calc mode or retain GEN/OTHER |
+| A19 | service collateral | account collateral instrument | Exclude from executable market universe |
+| A20 | unknown executable symbol | no reliable canonical class | Analyze as GEN/OTHER; REAL execution remains blocked unless explicitly certified |
 
 Pass criteria:
 - no ambiguous symbol silently maps to a materially different instrument;
@@ -246,3 +252,30 @@ For each production broker/account combination archive:
 - sample execution journal;
 - restart test result;
 - one TP1→BE→lock→trail demo lifecycle.
+
+## Matrix O — Asset-class discovery and release authorization
+
+Use this matrix together with the detailed risk table in `BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md`.
+
+| Case | Class | Required broker-specific proof |
+|---|---|---|
+| O1 | FX | base/profit currency agreement, suffix/prefix handling, 5/3-digit geometry, margin and calendar mapping |
+| O2 | METAL | XAU/XAG/XPT/XPD identity, contract/tick value, quote currency, stop/spread behavior |
+| O3 | INDEX | regional alias/calc mode, session/tick geometry, regional macro currency |
+| O4 | ENERGY | WTI/Brent/NatGas identity, contract units, session/roll behavior where applicable |
+| O5 | COMMODITY | commodity family, non-decimal tick/contract units, session/limit behavior, supply/weather/inventory context |
+| O6 | CRYPTO | token/quote structure, 24/7 data behavior, contract/tick geometry, volatility/spread stress |
+| O7 | STOCK | exchange/stock identity precedence, quote currency, session/shortability/corporate-action context |
+| O8 | ETF | ETF identity precedence over underlying description, exchange session/currency/holdings context |
+| O9 | FUTURE | expiry/roll identity, multiplier/tick value, price limits, exchange execution/filling |
+| O10 | BOND_RATE | bond-price versus yield semantics, maturity/tick value, rate/auction context |
+| O11 | OTHER/GEN | generic analysis works and REAL execution fails closed unless the exact symbols receive explicit evidence |
+
+Class pass criteria:
+
+- classification fixture PASS for every canonical class;
+- if the class exists on the release broker and is intended for REAL trading, `broker_runtime_passed`, `execution_geometry_passed`, `macro_context_passed` and `live_execution_certified` must all be true;
+- no class may inherit authorization from another class;
+- `OTHER/GEN` is analysis-only by default;
+- evidence must bind the exact Git/EX5/SET and broker/server identity.
+

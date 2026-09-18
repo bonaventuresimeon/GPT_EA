@@ -22,6 +22,7 @@ OUT = ROOT / "static-check.txt"
 CHECKS = [
     ROOT / "tools" / "check_mql_static.py",
     ROOT / "tools" / "check_universal_symbol_universe.py",
+    ROOT / "tools" / "check_broker_coverage_release.py",
     ROOT / "tools" / "check_mql_compile_hygiene.py",
     ROOT / "tools" / "check_release_certification.py",
     ROOT / "tools" / "check_r5_adaptive.py",

@@ -224,6 +224,8 @@ Economic-calendar mapping is broker-aware as well: it uses the contract's base/p
 
 For large broker catalogs, full D1→M5 analysis runs in round-robin batches controlled by `InpUniversalScanBatchSize` (default 40). This keeps every discovered instrument on the scan rotation while preventing one timer cycle from attempting hundreds of deep scans; non-entry-eligible symbols are skipped after selection. Set the batch size to `0` to scan the whole resolved universe in one cycle.
 
+**REAL execution is class-scoped and fail-closed.** Full discovery does not automatically authorize every asset class. The exact release must validate `broker_agnostic_coverage_v1` evidence; FX, metals, indices, energy, commodities, crypto, stocks, ETFs, futures and bonds/rates receive independent live-certification flags. Unknown `GEN/OTHER` instruments remain analyzable but are analysis-only by default. See **[broker-agnostic release acceptance](docs/BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md)**.
+
 Committed JSON configuration is consolidated into **`GPT_EA_DATA.json`**. Its `documents` object contains the 35 active registry/schema/template JSON documents keyed by their original filenames. Python tooling materializes ignored compatibility views automatically when legacy file paths are required. The top-level `release_contract` is the canonical source for release/schema identifiers used by Python and checked against `GPT_EA.mq5`.
 
 Validated MT5 release preset export:

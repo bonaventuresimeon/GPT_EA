@@ -107,6 +107,7 @@ def assess(data: dict[str, Any]) -> tuple[list[dict[str, str]], str, list[str]]:
         ("Strategy Tester", "strategy_tester"),
         ("Intelligence matrix", "intelligence_matrix"),
         ("Broker/deployment", "broker_matrix"),
+        ("Broker coverage", "broker_coverage"),
         ("Recovery", "recovery"),
         ("Stop management", "stop_matrix"),
         ("Stop observability", "stop_observability"),

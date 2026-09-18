@@ -181,7 +181,44 @@ Concrete Part28B inputs:
 - `InpReleaseMT5ValidationEvidenceId=`
 - `InpReleaseMT5ValidationDigest=`
 
-## 5A. R6 resilience hardening evidence
+## 5A. Broker-agnostic coverage evidence
+
+Complete `BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md` and finalize `broker_agnostic_coverage_v1` for the exact candidate and broker/server.
+
+Required:
+
+- [ ] complete broker catalogue enumerated independently of Market Watch;
+- [ ] every discovered symbol selected/rechecked before acceptance;
+- [ ] `catalog.class_counts` totals equal the selected/rechecked universe;
+- [ ] zero unresolved ambiguous mappings;
+- [ ] zero confirmed class misclassifications;
+- [ ] service-collateral instruments excluded;
+- [ ] generic/OTHER analysis remains fail-closed for REAL unless exhaustively certified;
+- [ ] each broker-present FX/METAL/INDEX/ENERGY/COMMODITY/CRYPTO/STOCK/ETF/FUTURE/BOND_RATE class has runtime, geometry and macro/context PASS;
+- [ ] `tools/validate_broker_coverage_evidence.py` PASS;
+- [ ] evidence JSON and validation output archived.
+
+Concrete Part28 inputs generated from validated evidence:
+
+- `InpReleaseBrokerDiscoveryPassed=true`
+- `InpReleaseBrokerCoverageSchemaVersion=broker_agnostic_coverage_v1`
+- `InpReleaseBrokerCoverageEvidenceId=`
+- `InpReleaseBrokerCoverageDigest=`
+- `InpReleaseAssetClassFXPassed=`
+- `InpReleaseAssetClassMetalPassed=`
+- `InpReleaseAssetClassIndexPassed=`
+- `InpReleaseAssetClassEnergyPassed=`
+- `InpReleaseAssetClassCommodityPassed=`
+- `InpReleaseAssetClassCryptoPassed=`
+- `InpReleaseAssetClassStockPassed=`
+- `InpReleaseAssetClassETFPassed=`
+- `InpReleaseAssetClassFuturePassed=`
+- `InpReleaseAssetClassBondRatePassed=`
+- `InpReleaseAssetClassOtherPassed=`
+
+These flags must come from `tools/export_mt5_release_inputs.py`; do not manually authorize an unvalidated class.
+
+## 5B. R6 resilience hardening evidence
 
 Complete `R6_RESILIENCE_HARDENING_TEST_MATRIX.md` and finalize `resilience_hardening_evidence_v1` for the exact candidate.
 
@@ -209,7 +246,7 @@ Concrete Part28B inputs:
 - `InpReleaseResilienceDigest=`
 - `InpReleaseCertifiedConfigFingerprint=`
 
-## 5B. MT5 v2 resilience runtime artifacts
+## 5C. MT5 v2 resilience runtime artifacts
 
 In addition to the existing MT5 evidence, archive and hash:
 
@@ -221,7 +258,7 @@ In addition to the existing MT5 evidence, archive and hash:
 
 The MT5 acceptance working copy must contain M5-001 through M5-053 PASS. The runtime report must show zero duplicate orders, zero unresolved intents, zero unreconciled positions, and PASS markers for REAL chaos refusal, macro stress, provenance freshness, storage failure fail-closed and configuration-drift fail-closed behavior.
 
-## 5C. Rollback readiness
+## 5D. Rollback readiness
 
 Record one of:
 

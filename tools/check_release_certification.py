@@ -97,6 +97,7 @@ docs = [
     "docs/RELEASE_GO_NO_GO.md", "docs/FINAL_GO_NO_GO_REVIEW.md", "docs/DEPLOYMENT_DRIFT_TESTS.md", "docs/RELEASE_EVIDENCE_VALIDATION.md",
     "docs/RELEASE_EVIDENCE_MANIFEST.md", "docs/API_TRANSPORT_ARCHITECTURE.md", "docs/MT5_WEBREQUEST_REQUIREMENTS.md", "docs/API_TRANSPORT_TEST_MATRIX.md",
     "docs/R6_RESILIENCE_HARDENING_TEST_MATRIX.md", "docs/ROLLBACK_PACKAGE_CONTRACT.md",
+    "docs/BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md",
 ]
 combined = ""
 for name in docs:
@@ -134,6 +135,11 @@ else:
         if template.get("gates", {}).get("ci_static") is not False: errors.append("release template ci_static gate must default false")
         if template.get("api_transport", {}).get("schema_version") != "api_transport_evidence_v1": errors.append("release template missing API transport evidence schema")
         if template.get("gates", {}).get("api_transport") is not False: errors.append("release template api_transport gate must default false")
+        bc = template.get("broker_coverage", {})
+        if bc.get("schema_version") != "broker_agnostic_coverage_v1": errors.append("release template missing broker coverage schema")
+        if template.get("gates", {}).get("broker_coverage") is not False: errors.append("release template broker_coverage gate must default false")
+        for cls in ("FX","METAL","INDEX","ENERGY","COMMODITY","CRYPTO","STOCK","ETF","FUTURE","BOND_RATE","OTHER"):
+            if cls not in bc.get("asset_classes", {}): errors.append(f"release template broker_coverage missing class {cls}")
         soak = template.get("demo_soak", {})
         if soak.get("acceptance_record_schema_version") != "five_day_soak_acceptance_v2": errors.append("release template demo_soak must bind five_day_soak_acceptance_v2")
         for key in ("acceptance_record_id", "acceptance_record_digest", "acceptance_record_path"):
@@ -180,6 +186,7 @@ for path_name, expected in [
     ("RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json", "runner_recovery_acceptance_v1"),
     ("MT5_VALIDATION_EVIDENCE_SCHEMA.json", "mt5_validation_evidence_v2"),
     ("RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json", "resilience_hardening_evidence_v1"),
+    ("BROKER_COVERAGE_EVIDENCE_SCHEMA.json", "broker_agnostic_coverage_v1"),
 ]:
     p = ROOT / path_name
     if not p.exists(): errors.append(f"missing schema: {path_name}"); continue
@@ -201,7 +208,8 @@ if ci_schema_path.exists():
         pass
 
 for path_name, tokens in {
-    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_acceptance_release_record", "validate_mt5_release_record", "validate_runner_recovery", "validate_acceptance", "validate_mt5", "validate_bundle", "validate_api_transport", "runner_recovery_acceptance", "mt5_validation", "ci_static", "api_transport"],
+    "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_acceptance_release_record", "validate_mt5_release_record", "validate_broker_coverage_release_record", "validate_runner_recovery", "validate_acceptance", "validate_mt5", "validate_bundle", "validate_api_transport", "broker_coverage", "runner_recovery_acceptance", "mt5_validation", "ci_static", "api_transport"],
+    "tools/validate_broker_coverage_evidence.py": ["release_contract", "broker_coverage_schema", "BROKER COVERAGE EVIDENCE", "classification_passed", "broker_runtime_required", "live_execution_certified"],
     "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN", "/attempts/{args.run_attempt}/jobs"],
     "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
     "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],
@@ -224,8 +232,8 @@ for path_name, tokens in {
         '"mt5_validation":data.get("mt5_validation",{})',
         '"resilience_hardening":data.get("resilience_hardening",{})',
         '"rollback_package":data.get("rollback_package",{})',
-        '"ci_static":data.get("ci_static",{})', '"api_transport":data.get("api_transport",{})',
-        "runner_recovery_acceptance_pass", "mt5_validation_pass", "resilience_hardening_pass",
+        '"ci_static":data.get("ci_static",{})', '"broker_coverage":data.get("broker_coverage",{})', '"api_transport":data.get("api_transport",{})',
+        "runner_recovery_acceptance_pass", "mt5_validation_pass", "broker_coverage_pass", "resilience_hardening_pass",
         "rollback_package_ready", "soak_day_reconciliation_pass"],
     "tools/validate_api_transport_evidence.py": ["api_transport_evidence_v1", "secret_leak_count", "gates.api_transport", "API TRANSPORT EVIDENCE"],
 }.items():
@@ -238,7 +246,7 @@ for path_name, tokens in {
 for concept in [
     "SHA-256", "5 consecutive trading days", "GitHub Actions", "runner_id", "runner recovery", "runner-recovery acceptance", "MT5 validation", "soak-day reconciliation", "artifact attestation", "CI evidence bundle",
     "five-day", "zero-tolerance", "champion/challenger", "lifecycle", "API transport", "WebRequest", "proxy",
-    "exactly-once", "resilience", "rollback", "provenance", "macro stress",
+    "exactly-once", "resilience", "rollback", "provenance", "macro stress", "broker coverage",
 ]:
     if concept.lower() not in combined.lower(): errors.append(f"release docs missing concept: {concept}")
 

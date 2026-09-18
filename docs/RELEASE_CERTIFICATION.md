@@ -102,6 +102,7 @@ Before real arming archive PASS evidence for all applicable:
 - champion/challenger/counterfactual validation;
 - lifecycle/GPT-integrity/replay;
 - broker/account/symbol matrix;
+- **versioned broker-agnostic coverage evidence** using `broker_agnostic_coverage_v1`;
 - deployment profile/drift;
 - recovery/restart tests;
 - HIGH stop-management matrix;
@@ -110,6 +111,10 @@ Before real arming archive PASS evidence for all applicable:
 - stop observability;
 - live news/intermarket validation;
 - WebRequest/OpenAI failure injection.
+
+The broker matrix and broker-coverage evidence are separate release gates. The broker matrix proves general execution behavior; broker coverage proves complete-catalogue discovery and class-scoped REAL authorization. Follow **[BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md](BROKER_AGNOSTIC_RELEASE_ACCEPTANCE.md)**.
+
+For the exact release broker, every asset class intended for REAL execution must be explicitly certified. Uncertified classes may still be discovered and analyzed on demo/test, but they must fail closed before REAL order authorization. `GEN/OTHER` remains analysis-only unless the exact instruments are explicitly certified.
 
 
 
@@ -215,16 +220,17 @@ These make the running terminal auditable but do not replace archived release fi
 6. Complete RH-001 through RH-048 and finalize `resilience_hardening_evidence_v1`.
 7. Build/validate rollback readiness for the previous certified release, or explicitly attest the first-certified-release case.
 8. Run remaining intelligence/adaptive/broker/recovery/stop matrices.
-9. Validate selected API transport/WebRequest mode on demo.
-8. Run the exact candidate through the five-day demo soak.
-9. Complete the machine five-day record, daily reconciliation, operator worksheet and soak report.
-10. Finalize the five-day record digest and validate soak evidence.
-11. Complete `release_evidence.json` and all non-review gates.
-12. Complete and validate final GO/NO-GO review.
-13. Run both aggregate release validators; all must PASS.
-14. Complete `RELEASE_EVIDENCE_MANIFEST.md` and `RELEASE_GO_NO_GO.md`.
-15. Enter the exact validated Part28/Part28B/Part37 inputs locally.
-16. Only then enter the live-arm phrase.
+9. Build and validate `broker_agnostic_coverage_v1` evidence for the exact broker catalogue and intended live asset classes.
+10. Validate selected API transport/WebRequest mode on demo.
+11. Run the exact candidate through the five-day demo soak.
+12. Complete the machine five-day record, daily reconciliation, operator worksheet and soak report.
+13. Finalize the five-day record digest and validate soak evidence.
+14. Complete `release_evidence.json` and all non-review gates.
+15. Complete and validate final GO/NO-GO review, including `broker_coverage_pass=true`.
+16. Run all aggregate release validators; all must PASS.
+17. Complete `RELEASE_EVIDENCE_MANIFEST.md` and `RELEASE_GO_NO_GO.md`.
+18. Generate the exact MT5 release preset so broker-coverage class flags come from validated evidence rather than manual toggles.
+19. Only then enter the live-arm phrase.
 
 ## Certification invalidation
 

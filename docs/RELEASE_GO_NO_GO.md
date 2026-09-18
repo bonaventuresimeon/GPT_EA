@@ -153,6 +153,12 @@ The release is **NO-GO** for any of the following:
 - dashboard/gate mismatch;
 - runtime critical-error loop;
 - deployment identity mismatch or structural drift not reviewed/revalidated;
+- broker-coverage evidence missing, invalid, stale or bound to a different candidate/broker;
+- full-catalogue discovery or post-selection metadata recheck not proven;
+- unresolved ambiguous mapping or confirmed asset-class misclassification;
+- service-collateral instrument treated as executable market;
+- asset class opens REAL exposure without matching class-specific certification;
+- OTHER/GEN instrument inherits live authorization without explicit broker-coverage evidence;
 - recovery inconsistency or non-idempotent lifecycle;
 - final review decision other than `GO`;
 - final review candidate/evidence basis mismatch;

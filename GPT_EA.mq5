@@ -4912,6 +4912,26 @@ input bool   InpReleaseExecutionLearningPassed        = false;
 input bool   InpReleaseChampionChallengerPassed       = false;
 input bool   InpReleaseLifecycleIntegrityPassed       = false;
 input bool   InpReleaseBrokerMatrixPassed             = false;
+
+// Universal broker discovery/class-specific live-execution evidence.
+// Discovery proves the full broker catalogue path; class flags authorize only
+// the asset classes explicitly covered by the matching release evidence.
+input bool   InpReleaseBrokerDiscoveryPassed          = false;
+input string InpReleaseBrokerCoverageSchemaVersion    = "";
+input string InpReleaseBrokerCoverageEvidenceId       = "";
+input string InpReleaseBrokerCoverageDigest           = "";
+input bool   InpReleaseAssetClassFXPassed             = false;
+input bool   InpReleaseAssetClassMetalPassed          = false;
+input bool   InpReleaseAssetClassIndexPassed          = false;
+input bool   InpReleaseAssetClassEnergyPassed         = false;
+input bool   InpReleaseAssetClassCommodityPassed      = false;
+input bool   InpReleaseAssetClassCryptoPassed         = false;
+input bool   InpReleaseAssetClassStockPassed          = false;
+input bool   InpReleaseAssetClassETFPassed            = false;
+input bool   InpReleaseAssetClassFuturePassed         = false;
+input bool   InpReleaseAssetClassBondRatePassed       = false;
+input bool   InpReleaseAssetClassOtherPassed          = false; // GEN/OTHER stays analysis-only unless explicitly certified.
+
 input bool   InpReleaseDeploymentProfilePassed        = false;
 input bool   InpReleaseRecoveryTestsPassed            = false;
 input bool   InpReleaseStopMatrixPassed               = false;
@@ -4973,8 +4993,9 @@ input string InpReleaseFinalReviewTimestamp           = "";
 input bool   InpWriteReleaseEvidenceSnapshot          = true;
 input string InpReleaseEvidenceSnapshotFile           = "GPT_EA_ReleaseEvidence.csv";
 
-const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID = "GPT_EA_FULL_INTELLIGENCE_R6_20260917";
-const string GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION   = "demo_soak_evidence_v1";
+const string GPT_EA_REQUIRED_RELEASE_VALIDATION_ID       = "GPT_EA_FULL_INTELLIGENCE_R6_20260917";
+const string GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION         = "demo_soak_evidence_v1";
+const string GPT_EA_REQUIRED_BROKER_COVERAGE_SCHEMA      = "broker_agnostic_coverage_v1";
 
 bool ReleaseHexString(const string value,const int expectedLen)
 {
@@ -4985,6 +5006,79 @@ bool ReleaseHexString(const string value,const int expectedLen)
       string ch=StringSubstr(value,i,1);
       if(StringFind(hex,ch)<0) return false;
    }
+   return true;
+}
+
+bool ReleaseAssetClassCertified(const string cls)
+{
+   if(cls=="FX") return InpReleaseAssetClassFXPassed;
+   if(cls=="METAL") return InpReleaseAssetClassMetalPassed;
+   if(cls=="INDEX") return InpReleaseAssetClassIndexPassed;
+   if(cls=="ENERGY") return InpReleaseAssetClassEnergyPassed;
+   if(cls=="COMMODITY") return InpReleaseAssetClassCommodityPassed;
+   if(cls=="CRYPTO") return InpReleaseAssetClassCryptoPassed;
+   if(cls=="STOCK") return InpReleaseAssetClassStockPassed;
+   if(cls=="ETF") return InpReleaseAssetClassETFPassed;
+   if(cls=="FUTURE") return InpReleaseAssetClassFuturePassed;
+   if(cls=="BOND_RATE") return InpReleaseAssetClassBondRatePassed;
+   return InpReleaseAssetClassOtherPassed;
+}
+
+bool ReleaseBrokerCoverageAllows(const string sym,string &why)
+{
+   why="";
+   if(!InpRequireReleaseEvidenceOnReal)
+   {
+      why="Broker-coverage release gate disabled with the general REAL release-evidence gate.";
+      return true;
+   }
+   if((bool)MQLInfoInteger(MQL_TESTER))
+   {
+      why="Strategy Tester: broker-coverage certification is informational only.";
+      return true;
+   }
+   ENUM_ACCOUNT_TRADE_MODE mode=(ENUM_ACCOUNT_TRADE_MODE)AccountInfoInteger(ACCOUNT_TRADE_MODE);
+   if(mode!=ACCOUNT_TRADE_MODE_REAL)
+   {
+      why="Demo/contest: broker-coverage certification is informational until REAL arming.";
+      return true;
+   }
+
+   if(!InpReleaseBrokerDiscoveryPassed)
+   {
+      why="REAL account blocked: universal broker discovery evidence has not been attested.";
+      return false;
+   }
+   if(InpReleaseBrokerCoverageSchemaVersion!=GPT_EA_REQUIRED_BROKER_COVERAGE_SCHEMA)
+   {
+      why="REAL account blocked: broker-coverage evidence schema is missing or stale.";
+      return false;
+   }
+   if(StringLen(InpReleaseBrokerCoverageEvidenceId)<4)
+   {
+      why="REAL account blocked: broker-coverage evidence ID/reference is missing.";
+      return false;
+   }
+   if(!ReleaseHexString(InpReleaseBrokerCoverageDigest,64))
+   {
+      why="REAL account blocked: broker-coverage evidence digest must be a 64-character SHA-256 value.";
+      return false;
+   }
+
+   if(sym=="")
+   {
+      why="Universal broker discovery evidence is structurally attested.";
+      return true;
+   }
+
+   string cls=AssetClassFromCanonical(CanonicalBrokerInstrumentKey(sym));
+   if(!ReleaseAssetClassCertified(cls))
+   {
+      why="REAL account blocked: asset class "+cls+" is not live-execution certified by the broker-coverage evidence for "+sym+".";
+      return false;
+   }
+
+   why="Broker coverage PASS for "+sym+" | class="+cls+" | schema="+GPT_EA_REQUIRED_BROKER_COVERAGE_SCHEMA;
    return true;
 }
 
@@ -5214,7 +5308,16 @@ bool ReleaseSafetyAllowsCertified(const string sym,string &why)
       why=evidence;
       return false;
    }
-   why=base+(base!=""?" | ":"")+stopHealth+(stopHealth!=""?" | ":"")+evidence;
+
+   string brokerCoverage="";
+   if(!ReleaseBrokerCoverageAllows(sym,brokerCoverage))
+   {
+      why=brokerCoverage;
+      return false;
+   }
+
+   why=base+(base!=""?" | ":"")+stopHealth+(stopHealth!=""?" | ":"")+evidence+
+       (brokerCoverage!=""?" | "+brokerCoverage:"");
    return true;
 }
 
@@ -5270,7 +5373,9 @@ void WriteReleaseEvidenceSnapshot()
          "time;required_release_id;entered_release_id;account_mode;broker;server;"
          "source_commit;ex5_sha256;set_sha256;compile_evidence_id;metaeditor_build;mt5_build;"
          "compile;artifact_identity;strategy_tester;intelligence_matrix;adaptive_portfolio;execution_learning;champion_challenger;lifecycle_integrity;"
-         "broker_matrix;deployment_profile;recovery;stop_matrix;broker_stop_policy;partial_protection;stop_observability;live_news_intermarket;"
+         "broker_matrix;broker_discovery;broker_coverage_schema;broker_coverage_id;broker_coverage_digest;"
+         "asset_fx;asset_metal;asset_index;asset_energy;asset_commodity;asset_crypto;asset_stock;asset_etf;asset_future;asset_bond_rate;asset_other;"
+         "deployment_profile;recovery;stop_matrix;broker_stop_policy;partial_protection;stop_observability;live_news_intermarket;"
          "web_failure_injection;demo_soak;soak_schema;soak_evidence_id;soak_digest;soak_trading_days;soak_london_sessions;soak_ny_sessions;"
          "soak_overlap;soak_news_day;soak_rollover;soak_restart;soak_reconnect;soak_scheduled_scans;soak_continuous_scans;"
          "soak_checkpoint_updates;soak_backup_updates;soak_zero_tolerance_failures;soak_unresolved_critical;soak_duplicate_orders;soak_duplicate_partials;"
@@ -5306,6 +5411,21 @@ void WriteReleaseEvidenceSnapshot()
    ReleaseCsvAppend(row,InpReleaseChampionChallengerPassed?"1":"0");
    ReleaseCsvAppend(row,InpReleaseLifecycleIntegrityPassed?"1":"0");
    ReleaseCsvAppend(row,InpReleaseBrokerMatrixPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseBrokerDiscoveryPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseBrokerCoverageSchemaVersion);
+   ReleaseCsvAppend(row,InpReleaseBrokerCoverageEvidenceId);
+   ReleaseCsvAppend(row,InpReleaseBrokerCoverageDigest);
+   ReleaseCsvAppend(row,InpReleaseAssetClassFXPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassMetalPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassIndexPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassEnergyPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassCommodityPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassCryptoPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassStockPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassETFPassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassFuturePassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassBondRatePassed?"1":"0");
+   ReleaseCsvAppend(row,InpReleaseAssetClassOtherPassed?"1":"0");
    ReleaseCsvAppend(row,InpReleaseDeploymentProfilePassed?"1":"0");
    ReleaseCsvAppend(row,InpReleaseRecoveryTestsPassed?"1":"0");
    ReleaseCsvAppend(row,InpReleaseStopMatrixPassed?"1":"0");

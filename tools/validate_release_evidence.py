@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 from validate_api_transport_evidence import validate_api_transport
+from validate_broker_coverage_evidence import validate_record as validate_broker_coverage
 from validate_ci_bundle import validate_bundle
 from validate_ci_evidence import validate_ci_value
 from validate_five_day_soak_record import validate_record
@@ -280,6 +281,64 @@ def validate_resilience_release_record(rh:dict,build_sha:str)->tuple[list[str],s
                     "resilience hardening validation output does not contain PASS marker")
     return errors,digest,actual_cfg
 
+def validate_broker_coverage_release_record(summary:dict,build:dict,deployment:dict)->tuple[list[str],str]:
+    errors:list[str]=[]
+    expected_schema=str(CONTRACT.get("broker_coverage_schema","broker_agnostic_coverage_v1"))
+    require(errors,summary.get("schema_version")==expected_schema,
+            f"broker_coverage.schema_version must be {expected_schema}")
+    require(errors,len(str(summary.get("evidence_id","")).strip())>=8,
+            "broker_coverage.evidence_id is required")
+    expected_digest=str(summary.get("evidence_digest",""))
+    require(errors,bool(HEX64.fullmatch(expected_digest)),
+            "broker_coverage.evidence_digest must be 64 hexadecimal characters")
+    require(errors,summary.get("validated") is True,
+            "broker_coverage.validated must be true")
+
+    evidence_raw=str(summary.get("evidence_path","")).strip()
+    require(errors,bool(evidence_raw),"broker_coverage.evidence_path is required")
+    digest=""
+    if evidence_raw:
+        p=resolve(evidence_raw)
+        require(errors,p.exists(),f"broker coverage evidence file not found: {p}")
+        if p.exists():
+            try:
+                value=json.loads(p.read_text(encoding="utf-8"))
+                bc_errors,digest=validate_broker_coverage(
+                    value,
+                    expected_sha=str(build.get("git_sha","")),
+                    expected_broker=deployment,
+                )
+                errors.extend(f"broker_coverage evidence: {e}" for e in bc_errors)
+                require(errors,digest.lower()==expected_digest.lower(),
+                        "broker_coverage.evidence_digest does not match evidence file")
+
+                candidate=value.get("candidate",{})
+                for rk,bk in (("git_sha","git_sha"),("ex5_sha256","ex5_sha256"),("set_sha256","set_sha256")):
+                    require(errors,str(candidate.get(rk,"")).lower()==str(build.get(bk,"")).lower(),
+                            f"broker coverage candidate.{rk} must match build.{bk}")
+
+                summary_classes=summary.get("asset_classes",{})
+                evidence_classes=value.get("asset_classes",{})
+                for cls in ("FX","METAL","INDEX","ENERGY","COMMODITY","CRYPTO","STOCK","ETF","FUTURE","BOND_RATE","OTHER"):
+                    srow=summary_classes.get(cls,{})
+                    erow=evidence_classes.get(cls,{})
+                    require(errors,
+                            srow.get("live_execution_certified") is erow.get("live_execution_certified"),
+                            f"broker_coverage.asset_classes.{cls}.live_execution_certified must match evidence")
+            except Exception as exc:
+                errors.append(f"could not validate broker coverage evidence: {exc}")
+
+    validation_raw=str(summary.get("validation_path","")).strip()
+    require(errors,bool(validation_raw),"broker_coverage.validation_path is required")
+    if validation_raw:
+        p=resolve(validation_raw)
+        require(errors,p.exists(),f"broker coverage validation output not found: {p}")
+        if p.exists():
+            require(errors,"BROKER COVERAGE EVIDENCE: PASS" in p.read_text(encoding="utf-8",errors="replace"),
+                    "broker coverage validation output does not contain PASS marker")
+    return errors,digest
+
+
 def main()->int:
     ap=argparse.ArgumentParser(description="Validate GPT_EA current compile/runner/CI/MT5/API/demo-soak/final-review release evidence")
     ap.add_argument("evidence",nargs="?",default="release_evidence.json")
@@ -347,6 +406,14 @@ def main()->int:
     for key in ("broker_company","trade_server","account_currency","margin_mode","account_leverage"):
         require(errors,bool(str(deployment.get(key,"")).strip()),f"deployment.{key} is required")
     require(errors,isinstance(deployment.get("symbols"),list) and len(deployment.get("symbols",[]))>0,"deployment.symbols must contain at least one validated symbol")
+
+    broker_coverage=data.get("broker_coverage")
+    broker_coverage_digest=""
+    if not isinstance(broker_coverage,dict):
+        errors.append("broker_coverage must be an object")
+    else:
+        bc_errors,broker_coverage_digest=validate_broker_coverage_release_record(broker_coverage,build,deployment)
+        errors.extend(bc_errors)
 
     mt5=data.get("mt5_validation")
     mt5_digest=""
@@ -419,7 +486,7 @@ def main()->int:
     required_gates=[
         "metaeditor_compile","artifact_identity","runner_recovery","runner_recovery_acceptance","ci_static","mt5_validation",
         "resilience_hardening","rollback_package","strategy_tester","intelligence_matrix","adaptive_portfolio","execution_learning","champion_challenger",
-        "lifecycle_integrity","broker_matrix","deployment_profile","recovery","stop_matrix","broker_stop_policy",
+        "lifecycle_integrity","broker_matrix","broker_coverage","deployment_profile","recovery","stop_matrix","broker_stop_policy",
         "partial_protection","stop_observability","live_news_intermarket","web_failure_injection","api_transport",
         "demo_soak","operator_review",
     ]
@@ -440,6 +507,7 @@ def main()->int:
         if runner_digest: text+=f"\nRUNNER_RECOVERY_SHA256: {runner_digest}"
         if runner_acceptance_digest: text+=f"\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}"
         if ci_bundle_digest: text+=f"\nCI_BUNDLE_SHA256: {ci_bundle_digest}"
+        if broker_coverage_digest: text+=f"\nBROKER_COVERAGE_SHA256: {broker_coverage_digest}"
         if mt5_digest: text+=f"\nMT5_VALIDATION_SHA256: {mt5_digest}"
         if resilience_digest: text+=f"\nRESILIENCE_HARDENING_SHA256: {resilience_digest}"
         if resilience_cfg: text+=f"\nCERTIFIED_CONFIG_FINGERPRINT: {resilience_cfg}"
@@ -450,6 +518,7 @@ def main()->int:
     text=(f"RELEASE EVIDENCE VALIDATION: PASS\nRELEASE_ID: {required_id}\n"
           f"RUNNER_RECOVERY_SHA256: {runner_digest}\nRUNNER_ACCEPTANCE_SHA256: {runner_acceptance_digest}\n"
           f"CI_EVIDENCE_SHA256: {ci['evidence_digest']}\nCI_BUNDLE_SHA256: {ci_bundle_digest}\n"
+          f"BROKER_COVERAGE_SHA256: {broker_coverage_digest}\n"
           f"MT5_VALIDATION_SHA256: {mt5_digest}\nRESILIENCE_HARDENING_SHA256: {resilience_digest}\n"
           f"CERTIFIED_CONFIG_FINGERPRINT: {resilience_cfg}\nAPI_TRANSPORT_SHA256: {api_digest}\n"
           f"SOAK_EVIDENCE_SHA256: {soak_digest}\nEVIDENCE_JSON_SHA256: {digest}\n")

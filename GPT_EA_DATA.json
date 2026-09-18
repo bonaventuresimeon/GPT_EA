@@ -2,7 +2,7 @@
   "_meta": {
     "format": "gpt_ea_consolidated_json_v1",
     "description": "Single source of truth for committed GPT_EA JSON registries, schemas, and templates.",
-    "document_count": 35
+    "document_count": 37
   },
   "documents": {
     "ADR_REGISTRY.json": {
@@ -536,7 +536,8 @@
         "release_candidate_smoke_pass": false,
         "demo_validation_harness_pass": false,
         "security_review_pass": false,
-        "evidence_retention_policy_reviewed": false
+        "evidence_retention_policy_reviewed": false,
+        "broker_coverage_pass": false
       },
       "unresolved_critical_count": 0,
       "zero_tolerance_failure_count": 0,
@@ -1849,6 +1850,16 @@
           "required": true
         },
         {
+          "path": "artifacts/broker-agnostic-coverage.json",
+          "evidence_type": "broker_agnostic_coverage",
+          "required": true
+        },
+        {
+          "path": "artifacts/broker-agnostic-coverage-validation.txt",
+          "evidence_type": "broker_agnostic_coverage_validation",
+          "required": true
+        },
+        {
           "path": "static-check.txt",
           "evidence_type": "static_ci",
           "required": true
@@ -2123,7 +2134,8 @@
         "release_candidate_smoke": false,
         "demo_validation_harness": false,
         "security_review": false,
-        "evidence_retention": false
+        "evidence_retention": false,
+        "broker_coverage": false
       },
       "final_review": {
         "schema_version": "final_release_review_v1",
@@ -2183,6 +2195,49 @@
         "reviewer": "",
         "jurisdiction": "",
         "reviewed_at_utc": ""
+      },
+      "broker_coverage": {
+        "schema_version": "broker_agnostic_coverage_v1",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/broker-agnostic-coverage.json",
+        "validated": false,
+        "validation_path": "artifacts/broker-agnostic-coverage-validation.txt",
+        "asset_classes": {
+          "FX": {
+            "live_execution_certified": false
+          },
+          "METAL": {
+            "live_execution_certified": false
+          },
+          "INDEX": {
+            "live_execution_certified": false
+          },
+          "ENERGY": {
+            "live_execution_certified": false
+          },
+          "COMMODITY": {
+            "live_execution_certified": false
+          },
+          "CRYPTO": {
+            "live_execution_certified": false
+          },
+          "STOCK": {
+            "live_execution_certified": false
+          },
+          "ETF": {
+            "live_execution_certified": false
+          },
+          "FUTURE": {
+            "live_execution_certified": false
+          },
+          "BOND_RATE": {
+            "live_execution_certified": false
+          },
+          "OTHER": {
+            "live_execution_certified": false
+          }
+        }
       }
     },
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": {
@@ -4192,6 +4247,581 @@
           "reason": "UNSET"
         }
       }
+    },
+    "BROKER_COVERAGE_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "GPT_EA Broker-Agnostic Coverage Evidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "evidence_id",
+        "evidence_digest",
+        "candidate",
+        "broker",
+        "catalog",
+        "controls",
+        "asset_classes",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_agnostic_coverage_v1"
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "git_sha",
+            "ex5_sha256",
+            "set_sha256"
+          ],
+          "properties": {
+            "git_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{40}$"
+            },
+            "ex5_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "set_sha256": {
+              "type": "string",
+              "pattern": "^(NONE|[0-9a-fA-F]{64})$"
+            }
+          }
+        },
+        "broker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "company",
+            "server",
+            "account_currency",
+            "margin_mode",
+            "catalog_timestamp_utc"
+          ],
+          "properties": {
+            "company": {
+              "type": "string",
+              "minLength": 1
+            },
+            "server": {
+              "type": "string",
+              "minLength": 1
+            },
+            "account_currency": {
+              "type": "string",
+              "minLength": 3
+            },
+            "margin_mode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "catalog_timestamp_utc": {
+              "type": "string",
+              "minLength": 8
+            }
+          }
+        },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_catalog_symbols",
+            "discovered_symbols",
+            "selected_rechecked_symbols",
+            "full_catalog_enumeration_passed",
+            "selection_recheck_passed",
+            "market_watch_independence_passed",
+            "unknown_generic_analyzable_passed",
+            "generic_live_fail_closed_passed",
+            "service_collateral_excluded_passed",
+            "ambiguous_mapping_count",
+            "misclassification_count",
+            "class_counts"
+          ],
+          "properties": {
+            "total_catalog_symbols": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "discovered_symbols": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "selected_rechecked_symbols": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "full_catalog_enumeration_passed": {
+              "const": true
+            },
+            "selection_recheck_passed": {
+              "const": true
+            },
+            "market_watch_independence_passed": {
+              "const": true
+            },
+            "unknown_generic_analyzable_passed": {
+              "const": true
+            },
+            "generic_live_fail_closed_passed": {
+              "const": true
+            },
+            "service_collateral_excluded_passed": {
+              "const": true
+            },
+            "ambiguous_mapping_count": {
+              "const": 0
+            },
+            "misclassification_count": {
+              "const": 0
+            },
+            "class_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "FX",
+                "METAL",
+                "INDEX",
+                "ENERGY",
+                "COMMODITY",
+                "CRYPTO",
+                "STOCK",
+                "ETF",
+                "FUTURE",
+                "BOND_RATE",
+                "OTHER"
+              ],
+              "properties": {
+                "FX": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "METAL": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "INDEX": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ENERGY": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "COMMODITY": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "CRYPTO": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "STOCK": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ETF": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "FUTURE": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "BOND_RATE": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "OTHER": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        "controls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exact_symbol_preserved",
+            "suffix_prefix_resolution_passed",
+            "description_path_metadata_passed",
+            "calc_mode_fallback_passed",
+            "currency_metadata_fallback_passed",
+            "trade_mode_filter_passed",
+            "tick_volume_stop_geometry_passed",
+            "ordercheck_margin_passed",
+            "calendar_macro_mapping_passed",
+            "round_robin_scan_passed"
+          ],
+          "properties": {
+            "exact_symbol_preserved": {
+              "const": true
+            },
+            "suffix_prefix_resolution_passed": {
+              "const": true
+            },
+            "description_path_metadata_passed": {
+              "const": true
+            },
+            "calc_mode_fallback_passed": {
+              "const": true
+            },
+            "currency_metadata_fallback_passed": {
+              "const": true
+            },
+            "trade_mode_filter_passed": {
+              "const": true
+            },
+            "tick_volume_stop_geometry_passed": {
+              "const": true
+            },
+            "ordercheck_margin_passed": {
+              "const": true
+            },
+            "calendar_macro_mapping_passed": {
+              "const": true
+            },
+            "round_robin_scan_passed": {
+              "const": true
+            }
+          }
+        },
+        "asset_classes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "FX",
+            "METAL",
+            "INDEX",
+            "ENERGY",
+            "COMMODITY",
+            "CRYPTO",
+            "STOCK",
+            "ETF",
+            "FUTURE",
+            "BOND_RATE",
+            "OTHER"
+          ],
+          "properties": {
+            "FX": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "METAL": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "INDEX": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "ENERGY": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "COMMODITY": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "CRYPTO": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "STOCK": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "ETF": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "FUTURE": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "BOND_RATE": {
+              "$ref": "#/$defs/classEvidence"
+            },
+            "OTHER": {
+              "$ref": "#/$defs/classEvidence"
+            }
+          }
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp_utc",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "enum": [
+                "HOLD",
+                "PASS"
+              ]
+            },
+            "reviewer": {
+              "type": "string"
+            },
+            "timestamp_utc": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "$defs": {
+        "classEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "discovery_risk",
+            "execution_risk",
+            "classification_passed",
+            "broker_runtime_required",
+            "broker_runtime_passed",
+            "execution_geometry_passed",
+            "macro_context_passed",
+            "live_execution_certified",
+            "examples"
+          ],
+          "properties": {
+            "discovery_risk": {
+              "enum": [
+                "MODERATE",
+                "HIGH",
+                "VERY_HIGH",
+                "CRITICAL"
+              ]
+            },
+            "execution_risk": {
+              "enum": [
+                "MODERATE",
+                "HIGH",
+                "VERY_HIGH",
+                "CRITICAL"
+              ]
+            },
+            "classification_passed": {
+              "type": "boolean"
+            },
+            "broker_runtime_required": {
+              "type": "boolean"
+            },
+            "broker_runtime_passed": {
+              "type": "boolean"
+            },
+            "execution_geometry_passed": {
+              "type": "boolean"
+            },
+            "macro_context_passed": {
+              "type": "boolean"
+            },
+            "live_execution_certified": {
+              "type": "boolean"
+            },
+            "examples": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "BROKER_COVERAGE_EVIDENCE_TEMPLATE.json": {
+      "schema_version": "broker_agnostic_coverage_v1",
+      "evidence_id": "",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "set_sha256": "NONE"
+      },
+      "broker": {
+        "company": "",
+        "server": "",
+        "account_currency": "",
+        "margin_mode": "",
+        "catalog_timestamp_utc": ""
+      },
+      "catalog": {
+        "total_catalog_symbols": 0,
+        "discovered_symbols": 0,
+        "selected_rechecked_symbols": 0,
+        "full_catalog_enumeration_passed": false,
+        "selection_recheck_passed": false,
+        "market_watch_independence_passed": false,
+        "unknown_generic_analyzable_passed": false,
+        "generic_live_fail_closed_passed": false,
+        "service_collateral_excluded_passed": false,
+        "ambiguous_mapping_count": 0,
+        "misclassification_count": 0,
+        "class_counts": {
+          "FX": 0,
+          "METAL": 0,
+          "INDEX": 0,
+          "ENERGY": 0,
+          "COMMODITY": 0,
+          "CRYPTO": 0,
+          "STOCK": 0,
+          "ETF": 0,
+          "FUTURE": 0,
+          "BOND_RATE": 0,
+          "OTHER": 0
+        }
+      },
+      "controls": {
+        "exact_symbol_preserved": false,
+        "suffix_prefix_resolution_passed": false,
+        "description_path_metadata_passed": false,
+        "calc_mode_fallback_passed": false,
+        "currency_metadata_fallback_passed": false,
+        "trade_mode_filter_passed": false,
+        "tick_volume_stop_geometry_passed": false,
+        "ordercheck_margin_passed": false,
+        "calendar_macro_mapping_passed": false,
+        "round_robin_scan_passed": false
+      },
+      "asset_classes": {
+        "FX": {
+          "discovery_risk": "MODERATE",
+          "execution_risk": "MODERATE",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "METAL": {
+          "discovery_risk": "MODERATE",
+          "execution_risk": "HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "INDEX": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "ENERGY": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "COMMODITY": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "VERY_HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "CRYPTO": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "STOCK": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "VERY_HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "ETF": {
+          "discovery_risk": "HIGH",
+          "execution_risk": "VERY_HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "FUTURE": {
+          "discovery_risk": "VERY_HIGH",
+          "execution_risk": "VERY_HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "BOND_RATE": {
+          "discovery_risk": "VERY_HIGH",
+          "execution_risk": "VERY_HIGH",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        },
+        "OTHER": {
+          "discovery_risk": "CRITICAL",
+          "execution_risk": "CRITICAL",
+          "classification_passed": false,
+          "broker_runtime_required": false,
+          "broker_runtime_passed": false,
+          "execution_geometry_passed": false,
+          "macro_context_passed": false,
+          "live_execution_certified": false,
+          "examples": []
+        }
+      },
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp_utc": "",
+        "notes": ""
+      }
     }
   },
   "release_contract": {
@@ -4222,6 +4852,7 @@
     "drift_baseline_schema": "gpt_ea_drift_baseline_v1",
     "evidence_retention_register_schema": "gpt_ea_evidence_retention_register_v1",
     "operator_status_schema": "gpt_ea_operator_status_v1",
-    "production_incident_schema": "gpt_ea_incident_v1"
+    "production_incident_schema": "gpt_ea_incident_v1",
+    "broker_coverage_schema": "broker_agnostic_coverage_v1"
   }
 }

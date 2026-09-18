@@ -2,7 +2,7 @@
   "_meta": {
     "format": "gpt_ea_consolidated_json_v1",
     "description": "Single source of truth for committed GPT_EA JSON registries, schemas, and templates.",
-    "document_count": 27
+    "document_count": 30
   },
   "documents": {
     "ADR_REGISTRY.json": {
@@ -531,7 +531,10 @@
         "resilience_hardening_pass": false,
         "rollback_package_ready": false,
         "compile_evidence_pass": false,
-        "privacy_signoff_pass": false
+        "privacy_signoff_pass": false,
+        "fail_closed_recovery_drill_pass": false,
+        "release_candidate_smoke_pass": false,
+        "demo_validation_harness_pass": false
       },
       "unresolved_critical_count": 0,
       "zero_tolerance_failure_count": 0,
@@ -2095,6 +2098,36 @@
           "path": "docs/ADR_SUPERSESSION_POLICY.md",
           "evidence_type": "architecture_decision_policy",
           "required": true
+        },
+        {
+          "path": "artifacts/fail-closed-recovery-drill.json",
+          "evidence_type": "fail_closed_recovery_drill",
+          "required": true
+        },
+        {
+          "path": "artifacts/fail-closed-recovery-drill-validation.txt",
+          "evidence_type": "fail_closed_recovery_drill_validation",
+          "required": true
+        },
+        {
+          "path": "artifacts/release-candidate-smoke.json",
+          "evidence_type": "release_candidate_smoke",
+          "required": true
+        },
+        {
+          "path": "artifacts/release-candidate-smoke-validation.txt",
+          "evidence_type": "release_candidate_smoke_validation",
+          "required": true
+        },
+        {
+          "path": "artifacts/demo-validation-run.json",
+          "evidence_type": "demo_validation_harness",
+          "required": true
+        },
+        {
+          "path": "artifacts/demo-validation-run-validation.txt",
+          "evidence_type": "demo_validation_harness_validation",
+          "required": true
         }
       ]
     },
@@ -2271,7 +2304,10 @@
         "resilience_hardening": false,
         "rollback_package": false,
         "compile_evidence": false,
-        "privacy_signoff": false
+        "privacy_signoff": false,
+        "fail_closed_recovery_drill": false,
+        "release_candidate_smoke": false,
+        "demo_validation_harness": false
       },
       "final_review": {
         "schema_version": "final_release_review_v1",
@@ -2299,6 +2335,24 @@
         "jurisdiction": "",
         "telemetry_state": "UNSET",
         "unresolved_critical_findings": 0
+      },
+      "fail_closed_recovery_drill": {
+        "schema_version": "gpt_ea_fail_closed_recovery_drill_v1",
+        "evidence_path": "artifacts/fail-closed-recovery-drill.json",
+        "validated": false,
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "release_candidate_smoke": {
+        "schema_version": "gpt_ea_release_candidate_smoke_v1",
+        "evidence_path": "artifacts/release-candidate-smoke.json",
+        "validated": false,
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "demo_validation_harness": {
+        "schema_version": "gpt_ea_demo_validation_run_v1",
+        "evidence_path": "artifacts/demo-validation-run.json",
+        "validated": false,
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
       }
     },
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": {
@@ -3496,6 +3550,515 @@
         "reason": "Not evaluated."
       },
       "overall_state": "HOLD"
+    },
+    "FAIL_CLOSED_RECOVERY_DRILL_TEMPLATE.json": {
+      "schema_version": "gpt_ea_fail_closed_recovery_drill_v1",
+      "release_id": "",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "account_mode": "DEMO",
+        "broker_company": "",
+        "trade_server": ""
+      },
+      "scenarios": [
+        {
+          "id": "FCR-001",
+          "name": "Missing primary checkpoint; valid backup",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-002",
+          "name": "Corrupt primary checkpoint",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-003",
+          "name": "Corrupt primary and backup",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-004",
+          "name": "Broker position exists; checkpoint missing",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-005",
+          "name": "Checkpoint position absent at broker",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-006",
+          "name": "Pending approval across restart",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-007",
+          "name": "Ticket changes; identifier persists",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-008",
+          "name": "Netting direction reversal",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-009",
+          "name": "Missing SL after restart",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-010",
+          "name": "TP1 partial without BE completion",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-011",
+          "name": "Disconnect during stop update",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-012",
+          "name": "Recovery account/server/magic mismatch",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-013",
+          "name": "Duplicate lifecycle finalization",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-014",
+          "name": "Recovery block while position open",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "FCR-015",
+          "name": "Recovery completes only after invariants",
+          "executed": false,
+          "started_at_utc": "",
+          "completed_at_utc": "",
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        }
+      ],
+      "zero_tolerance": {
+        "duplicate_orders": 0,
+        "duplicate_partials": 0,
+        "backward_stop_moves": 0,
+        "stale_approval_executions": 0,
+        "unsafe_new_entries": 0,
+        "phantom_positions": 0,
+        "foreign_state_accepted": 0,
+        "abandoned_open_positions": 0,
+        "unreconciled_critical_clears": 0,
+        "secrets_exposed": 0
+      },
+      "decision": "HOLD",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "RELEASE_CANDIDATE_SMOKE_TEMPLATE.json": {
+      "schema_version": "gpt_ea_release_candidate_smoke_v1",
+      "release_id": "",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "account_mode": "DEMO",
+        "broker_company": "",
+        "trade_server": "",
+        "feature_freeze_active": false,
+        "compile_evidence_validated": false
+      },
+      "cases": [
+        {
+          "id": "RCS-001",
+          "name": "EA visible in Navigator",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-002",
+          "name": "Attach to demo chart",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-003",
+          "name": "OnInit clean",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-004",
+          "name": "Required series synchronized",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-005",
+          "name": "Release gates fail closed",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-006",
+          "name": "API transport initialization",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-007",
+          "name": "Manual SCAN NOW",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-008",
+          "name": "WAIT/NO-TRADE path",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-009",
+          "name": "Approval UI path",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-010",
+          "name": "Restart without position",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-011",
+          "name": "Restart with managed demo position",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-012",
+          "name": "Disconnect/reconnect",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-013",
+          "name": "Stop-health block behavior",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-014",
+          "name": "Log safety",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "RCS-015",
+          "name": "Detach/re-attach",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        }
+      ],
+      "zero_tolerance": {
+        "critical_errors": 0,
+        "duplicate_orders": 0,
+        "phantom_orders": 0,
+        "release_bypasses": 0,
+        "secrets_exposed": 0,
+        "abandoned_open_positions": 0
+      },
+      "decision": "HOLD",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "DEMO_VALIDATION_RUN_TEMPLATE.json": {
+      "schema_version": "gpt_ea_demo_validation_run_v1",
+      "release_id": "",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "account_mode": "DEMO",
+        "broker_company": "",
+        "trade_server": "",
+        "mt5_build": ""
+      },
+      "scenarios": [
+        {
+          "id": "DV-001",
+          "name": "BUY candidate path",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-002",
+          "name": "SELL candidate path",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-003",
+          "name": "Breakout/retest",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-004",
+          "name": "Retracement",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-005",
+          "name": "Counter-trend candidate",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-006",
+          "name": "WAIT path",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-007",
+          "name": "NO TRADE path",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-008",
+          "name": "Stale approval cancellation",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-009",
+          "name": "API failure/backoff",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-010",
+          "name": "Restart",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-011",
+          "name": "Disconnect/reconnect",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-012",
+          "name": "Stop rejection/freeze",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-013",
+          "name": "TP1 partial + BE",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-014",
+          "name": "TP2/runner lifecycle",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-015",
+          "name": "Recovery/checkpoint restoration",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-016",
+          "name": "Release/legal/privacy gate block",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-017",
+          "name": "Broker mismatch/drift",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        },
+        {
+          "id": "DV-018",
+          "name": "Missing/stale market data",
+          "priority": "HIGH",
+          "executed": false,
+          "result": "NOT_RUN",
+          "observed_result": "",
+          "evidence_refs": []
+        }
+      ],
+      "zero_tolerance": {
+        "duplicate_orders": 0,
+        "duplicate_partials": 0,
+        "backward_stop_moves": 0,
+        "unresolved_missing_sl": 0,
+        "stale_approval_executions": 0,
+        "gate_bypasses": 0,
+        "secrets_exposed": 0
+      },
+      "decision": "HOLD",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   }
 }

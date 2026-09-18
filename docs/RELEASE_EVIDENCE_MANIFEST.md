@@ -561,3 +561,41 @@ For each of the five accepted days archive a dated copy of `SOAK_DAY_RECONCILIAT
 - reconciler and timestamp.
 
 The machine day's `reconciliation_checklist_path`, `day_reconciled`, `reconciled_by` and `reconciled_at` must match the retained artifact.
+
+
+## Release hardening drill / smoke evidence
+
+Archive the exact-candidate artifacts:
+
+```text
+artifacts/release-candidate-smoke.json
+artifacts/release-candidate-smoke-validation.txt
+artifacts/fail-closed-recovery-drill.json
+artifacts/fail-closed-recovery-drill-validation.txt
+artifacts/demo-validation-run.json
+artifacts/demo-validation-run-validation.txt
+artifacts/security-review.txt
+```
+
+Required:
+
+- [ ] `gates.release_candidate_smoke=true`;
+- [ ] `gates.fail_closed_recovery_drill=true`;
+- [ ] `gates.demo_validation_harness=true`;
+- [ ] `gates.security_review=true`;
+- [ ] all three evidence records match the same Git SHA / EX5 candidate;
+- [ ] all scenario evidence is executed, not inferred;
+- [ ] all zero-tolerance counters are zero;
+- [ ] repository/package secret scan PASS;
+- [ ] final review fields `release_candidate_smoke_pass`, `fail_closed_recovery_drill_pass`, `demo_validation_harness_pass`, and `security_review_pass` are true;
+- [ ] `evidence_retention_policy_reviewed=true`.
+
+Run/archive:
+
+```text
+python tools/validate_release_candidate_smoke.py artifacts/release-candidate-smoke.json
+python tools/validate_fail_closed_recovery_drill.py artifacts/fail-closed-recovery-drill.json
+python tools/validate_demo_validation_harness.py artifacts/demo-validation-run.json
+python tools/scan_release_secrets.py GPT_EA.mq5 docs COMMERCIAL_LICENSE.md
+python tools/check_release_hardening.py
+```

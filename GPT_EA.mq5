@@ -17532,9 +17532,61 @@ void ScanAll(const string reason)
                scanned,total,g_universalScanCursor,reason);
 }
 
+bool ValidateUserFacingInputs(string &why)
+{
+   why="";
+   string symbols=APITrim(InpSymbols);
+   string model=APITrim(InpOpenAIModel);
+   string endpoint=APITrim(InpOpenAIEndpoint);
+
+   if(symbols==""){ why="InpSymbols cannot be blank."; return false; }
+   if(InpRiskPercent<=0.0 || InpRiskPercent>5.0)
+   { why="InpRiskPercent must be > 0 and <= 5.00."; return false; }
+   if(InpFastEMA<2 || InpSlowEMA<=InpFastEMA)
+   { why="EMA inputs are invalid: InpSlowEMA must be greater than InpFastEMA and both must be >= 2."; return false; }
+   if(InpRSIPeriod<2 || InpATRPeriod<2 || InpSwingBars<5)
+   { why="RSI/ATR/swing periods are below safe minimums."; return false; }
+   if(InpMinConfidence<0 || InpMinConfidence>100 || InpMinAdvancedConfluence<0 || InpMinAdvancedConfluence>100)
+   { why="Confidence/confluence thresholds must stay within 0..100."; return false; }
+   if(InpMinEffectiveRR<1.0)
+   { why="InpMinEffectiveRR must be at least 1.00."; return false; }
+   if(InpApprovalTimeoutSeconds<10)
+   { why="InpApprovalTimeoutSeconds must be at least 10 seconds."; return false; }
+
+   if(InpUseOpenAI)
+   {
+      if(model==""){ why="InpOpenAIModel cannot be blank while OpenAI is enabled."; return false; }
+      if(endpoint=="" || StringFind(endpoint,"https://")!=0)
+      { why="InpOpenAIEndpoint must be a non-empty HTTPS URL while OpenAI is enabled."; return false; }
+      if(InpOpenAITimeoutMs<3000 || InpOpenAITimeoutMs>60000)
+      { why="InpOpenAITimeoutMs must be between 3000 and 60000 ms."; return false; }
+   }
+
+   if(InpDashboardX<0 || InpDashboardY<0)
+   { why="Dashboard X/Y offsets cannot be negative."; return false; }
+   if(InpDashboardMinWidth<360 || InpDashboardMaxWidth<InpDashboardMinWidth)
+   { why="Dashboard width bounds are invalid; minimum must be >= 360 and maximum >= minimum."; return false; }
+   if(InpDashboardWidth<InpDashboardMinWidth || InpDashboardWidth>InpDashboardMaxWidth)
+   { why="InpDashboardWidth must fall inside InpDashboardMinWidth..InpDashboardMaxWidth."; return false; }
+   if(InpDashboardHeight<380 || InpDashboardHeight>900)
+   { why="InpDashboardHeight must be between 380 and 900 pixels."; return false; }
+   if(InpDashboardRefreshMs<100 || InpDashboardRefreshMs>5000)
+   { why="InpDashboardRefreshMs must be between 100 and 5000 ms."; return false; }
+
+   why="OK";
+   return true;
+}
+
 // -------------------------- MT5 event hooks -----------------------
 int OnInit()
 {
+   string inputWhy="";
+   if(!ValidateUserFacingInputs(inputWhy))
+   {
+      Print("GPT_EA INPUT CONFIGURATION BLOCK: ",inputWhy);
+      return INIT_PARAMETERS_INCORRECT;
+   }
+
    if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
    if(!ResolveConfiguredSymbolsUniversal())
    { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
@@ -17558,6 +17610,12 @@ int OnInit()
    NewsIntermarketInit();
 
    Print("GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122");
+   Print("GPT_EA user inputs OK | Symbols=",InpSymbols,
+         " | OpenAI=",InpUseOpenAI?"ON":"OFF",
+         " | Model=",InpOpenAIModel,
+         " | Endpoint=",InpOpenAIEndpoint,
+         " | HUD=",IntegerToString(InpDashboardWidth),"x",IntegerToString(InpDashboardHeight),
+         " | Risk=",DoubleToString(InpRiskPercent,2),"%");
    Print("GPT_EA Full Intelligence initialized. Approval=",InpRequireApproval?"REQUIRED":"DISABLED",
          ", Timeout=",InpApprovalTimeoutSeconds,"s",
          ", Min strategy=",InpMinStrategyScore,

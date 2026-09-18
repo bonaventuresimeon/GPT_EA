@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
+def repo_path(name:str)->Path:
+    return MQH/name if name.lower().endswith(".mqh") and "/" not in name and "\\" not in name else ROOT/name
 errors:list[str]=[]
 
 required=[
@@ -26,7 +29,7 @@ required=[
     "RELEASE_EVIDENCE_TEMPLATE.json",
 ]
 for name in required:
-    if not (ROOT/name).exists(): errors.append(f"missing runner-recovery artifact: {name}")
+    if not repo_path(name).exists(): errors.append(f"missing runner-recovery artifact: {name}")
 
 if not errors:
     schema=json.loads((ROOT/"RUNNER_RECOVERY_EVIDENCE_SCHEMA.json").read_text(encoding="utf-8"))
@@ -67,7 +70,7 @@ if not errors:
     for token in ["--runner-recovery","--matrix","--candidate-sha","--ci-bundle-digest","matrix_sha256"]:
         if token not in acceptance_builder: errors.append(f"runner recovery acceptance builder missing token: {token}")
 
-    part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+    part=(MQH/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
     for token in ["GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA","ReleaseRunnerRecoveryEvidenceAllows",
                   "InpReleaseRunnerRecoveryPassed","InpReleaseRunnerRecoverySchemaVersion",
                   "InpReleaseRunnerRecoveryEvidenceId","InpReleaseRunnerRecoveryDigest",

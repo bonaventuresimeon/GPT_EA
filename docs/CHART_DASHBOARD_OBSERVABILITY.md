@@ -110,3 +110,31 @@ The default title font is `Segoe Script` for a calligraphic heading while the an
 The visual functions must remain read-only. `tools/check_chart_dashboard_static.py` rejects dashboard functions containing trade execution, position modification, close or order-send calls.
 
 This dashboard does not alter the release gate, exactly-once execution, stop policy or risk supervisor.
+
+
+## Exact stop-movement rules card
+
+The dashboard displays the same protection rules enforced by the live manager:
+
+- **B.E. trigger:** at `InpBETriggerR` (default 1.00R). The stop moves beyond entry by the larger of `InpBELockMinR × R` or the live cost allowance. The live cost allowance is `max(InpBECostATRFrac × M5 ATR, spread + learned slippage)`.
+- **Profit lock:** at `InpProfitLockTriggerR` (default 1.50R), the stop target becomes `InpProfitLockR` (default +0.50R).
+- **Strong lock:** at `InpStrongLockTriggerR` (default 2.00R), the stop target becomes `InpStrongLockR` (default +1.00R).
+- **ATR/structure trail:** begins from `InpTrailStartR` (default 2.00R). For a long, the candidate is the stronger of the strong-lock floor and the weaker of the ATR stop and buffered M5 swing-low stop; the short formula is the mirrored equivalent.
+- The trail uses `InpTrailATRMultiplier`, `InpTrailStructureBarsM5`, `InpTrailStructureBufferATR`, and requires at least `InpTrailMinStepR` improvement before another ratchet.
+- Every stop change still has to pass broker stop/freeze-distance validation. The dashboard does not move the stop itself.
+
+The profit-protection ladder is only advanced after TP1 protection is complete, matching `ManagePositionsAdvanced()` and `HandleTP1State()`.
+
+## Compact trade timeline
+
+For an open position the dashboard shows two compact timestamp lines:
+
+`ANALYZE → APPROVE → SENT → FILL`
+
+and
+
+`TP1 → B.E. → LOCK → STRONG → TP2 → TRAIL`.
+
+The execution timestamps are persisted on the position even when execution-quality learning is disabled. B.E., profit-lock, strong-lock and trail timestamps are written only after the broker accepts the corresponding stop modification. TP1 and TP2 timestamps come from the actual partial/protection lifecycle.
+
+A missing milestone is shown as `--`; the dashboard does not invent completion times.

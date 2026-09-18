@@ -64,6 +64,11 @@
       "path": "RELEASE_TRUTH_DASHBOARD.md",
       "evidence_type": "release_truth_dashboard",
       "required": true
+    },
+    {
+      "path": "release-truth-drift-validation.txt",
+      "evidence_type": "release_truth_drift_validation",
+      "required": true
     }
   ]
 }

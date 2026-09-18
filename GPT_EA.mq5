@@ -968,6 +968,10 @@ string DASH_TRADE_CARD="GPT_EA_DASH_TRADE_CARD";
 string DASH_TRADE_LABEL="GPT_EA_DASH_TRADE_LABEL";
 string DASH_RISK_CARD="GPT_EA_DASH_RISK_CARD";
 string DASH_RISK_LABEL="GPT_EA_DASH_RISK_LABEL";
+string DASH_RULES_CARD="GPT_EA_DASH_RULES_CARD";
+string DASH_RULES_LABEL="GPT_EA_DASH_RULES_LABEL";
+string DASH_TIMELINE_CARD="GPT_EA_DASH_TIMELINE_CARD";
+string DASH_TIMELINE_LABEL="GPT_EA_DASH_TIMELINE_LABEL";
 string DASH_ACTION_CARD="GPT_EA_DASH_ACTION_CARD";
 string DASH_ACTION_LABEL="GPT_EA_DASH_ACTION_LABEL";
 
@@ -1426,6 +1430,8 @@ void ClearDashboardSections()
    ObjectDelete(0,DASH_MARKET_CARD); ObjectDelete(0,DASH_MARKET_LABEL);
    ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
    ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL);
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
    ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL);
 }
 
@@ -4043,8 +4049,20 @@ bool ApplyAdvancedStop(ulong ticket,double candidate,int stage,double rNow,const
       Print(sym,": stop modification failed - ",trade.ResultRetcodeDescription());
       return false;
    }
+   datetime stageTime=TimeTradeServer();
    GVWrite(PosKey(pid,"SL_STAGE"),stage);
    GVWrite(PosKey(pid,"LASTSL"),candidate);
+   GVWrite(PosKey(pid,"SL_STAGE_TIME"),(double)stageTime);
+   GVWrite(PosKey(pid,"SL_STAGE_R"),rNow);
+   GVWrite(PosKey(pid,"SL_STAGE_PRICE"),candidate);
+   if(stage==1 && GVRead(PosKey(pid,"BE_TIME"),0)<=0) GVWrite(PosKey(pid,"BE_TIME"),(double)stageTime);
+   if(stage==2 && GVRead(PosKey(pid,"PROFIT_LOCK_TIME"),0)<=0) GVWrite(PosKey(pid,"PROFIT_LOCK_TIME"),(double)stageTime);
+   if(stage==3 && GVRead(PosKey(pid,"STRONG_LOCK_TIME"),0)<=0) GVWrite(PosKey(pid,"STRONG_LOCK_TIME"),(double)stageTime);
+   if(stage>=4)
+   {
+      if(GVRead(PosKey(pid,"TRAIL_TIME"),0)<=0) GVWrite(PosKey(pid,"TRAIL_TIME"),(double)stageTime);
+      GVWrite(PosKey(pid,"TRAIL_LAST_TIME"),(double)stageTime);
+   }
    LegacyTicketWrite(ticket,"ADV_STAGE",stage);
    SafeUniversalCheckpointNow();
    int kind=(int)GVRead(PosKey(pid,"KIND"),SETUP_PULLBACK);
@@ -13104,6 +13122,12 @@ void BindTradeIntentToPosition(ulong ticket,const TradeSetup &s,const string non
    GVWrite(PosKey(pid,"INTENT_NONCE_HASH"),IntentNonceHash(nonce));
    GVWrite(PosKey(pid,"INTENT_BOUND"),1);
    GVWrite(PosKey(pid,"DECISION_HASH"),IntegrityTextHash(IntentDecisionText(s,lots,riskMoney)));
+   GVWrite(PosKey(pid,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(s.symbol,"EXEC_ANALYSIS_TIME"),GVRead(SymKey(s.symbol,"CAND_TIME"),0)));
+   GVWrite(PosKey(pid,"EXEC_APPROVAL_TIME"),GVRead(SymKey(s.symbol,"EXEC_APPROVAL_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_SENT_TIME"),GVRead(SymKey(s.symbol,"EXEC_SENT_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_ACK_TIME"),GVRead(SymKey(s.symbol,"EXEC_ACK_TIME"),0));
+   GVWrite(PosKey(pid,"EXEC_FILL_TIME"),(double)TimeTradeServer());
+   GVWrite(PosKey(pid,"OPEN_TIME"),(double)PositionGetInteger(POSITION_TIME));
    GVWrite(PosKey(pid,"RECON_VOL"),PositionGetDouble(POSITION_VOLUME));
    GVWrite(PosKey(pid,"RECON_SL"),PositionGetDouble(POSITION_SL));
    GVWrite(PosKey(pid,"RECON_TP"),PositionGetDouble(POSITION_TP));

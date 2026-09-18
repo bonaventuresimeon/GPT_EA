@@ -41,6 +41,13 @@ def materialize_json_documents() -> Path:
     return MATERIALIZED_DIR
 
 
+def materialize_legacy_json_documents() -> Path:
+    """Create ignored root-level compatibility views for legacy tooling."""
+    for name, value in _documents().items():
+        target = ROOT / name
+        target.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return ROOT
+
 def json_doc_path(name: str) -> Path:
     if not has_json_document(name):
         raise FileNotFoundError(f"JSON document {name!r} is not present in {BUNDLE_PATH.name}")

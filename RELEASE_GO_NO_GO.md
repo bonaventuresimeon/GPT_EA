@@ -36,8 +36,17 @@ This is the final production decision contract. A candidate is **GO** only when 
 - GitHub attestation for `ci-evidence.json` is created and independently verified.
 - `ci-bundle-manifest.json` validates under `ci_evidence_bundle_v1` and all archived file hashes match.
 - `ci_static.bundle_validated=true` only from that passing bundle.
-- Validated `mt5_validation_evidence_v1` for the exact candidate, including hashed compile/tester/runtime artifacts.
+- Validated `mt5_validation_evidence_v2` for the exact candidate, including hashed compile/tester/runtime artifacts and literal PASS for M5-001 through M5-053.
 - Strategy Tester and every applicable intelligence/adaptive/broker/recovery/stop/news matrix PASS.
+- Validated `resilience_hardening_evidence_v1` for the exact Git SHA and certified configuration fingerprint, with RH-001 through RH-048 PASS.
+- Atomic intent and exactly-once execution tests PASS with zero unresolved intent and zero duplicate order.
+- Broker-versus-EA reconciliation, manual-intervention detection and learning quarantine PASS.
+- News provenance URL annotations and strict `as_of_utc` freshness tests PASS.
+- Macro stress tests PASS for USD strengthening, +20 bp yields, equity risk-off, gold ±2%, oil ±4%, volatility spike and correlated-gap scenarios.
+- Gap-risk, stressed-margin, decision-half-life and model-degradation tests PASS.
+- Chaos/fault-injection matrix PASS on DEMO/TEST and REAL-account chaos refusal PASS.
+- Critical storage failure and certified configuration drift both fail closed.
+- Rollback readiness validates as `VALIDATED_PACKAGE` or the explicitly reviewed `FIRST_CERTIFIED_RELEASE` case.
 - Deployment profile/drift validation PASS.
 - `API_TRANSPORT_TEST_MATRIX.md` HIGH-priority cases applicable to the selected mode PASS.
 - `api_transport` evidence records the tested DIRECT_OPENAI or SECURE_PROXY mode, WebRequest allow-list verification, deep-review path, web-search path, failure/recovery behavior, request tracing and zero secret leaks.
@@ -83,6 +92,14 @@ The release is **NO-GO** for any of the following:
 - runner-recovery evidence missing/invalid or recovery regresses to the pre-runner signature;
 - runner-recovery acceptance matrix incomplete, HOLD, digest-mismatched or not joined to the accepted CI bundle;
 - MT5 validation evidence missing/invalid, wrong candidate/build/broker identity, or any required M5 row not PASS;
+- MT5 validation schema is not `mt5_validation_evidence_v2` or any M5-035 through M5-053 resilience row is incomplete;
+- resilience hardening evidence missing/invalid, any RH-001 through RH-048 row not PASS, or certified configuration fingerprint mismatch;
+- unresolved PREPARED/SENT/UNCERTAIN intent, exactly-once duplicate submission, or unreconciled broker position/order/deal;
+- provenance/freshness hard failure is bypassed by fallback;
+- macro stress, gap-risk or stressed-margin limit is exceeded;
+- critical storage failure or configuration drift does not block new exposure;
+- chaos/fault injection can run on REAL;
+- rollback readiness is absent or invalid;
 - CI job completed without a real runner identity;
 - `runner_id=0`, empty runner name or empty/unexecuted step list used as release evidence;
 - CI head SHA differs from `build.git_sha`;
@@ -150,7 +167,9 @@ Record and reconcile:
 - CI evidence digest and final CI bundle digest/artifact name;
 - attestation verification output;
 - runner-recovery acceptance ID/digest;
-- MT5 validation evidence ID/digest and retained artifact hashes;
+- MT5 validation v2 evidence ID/digest and retained intent/reconciliation/provenance/model-health/runtime-report hashes;
+- resilience-hardening evidence ID/digest and certified configuration fingerprint;
+- rollback readiness mode/package digest and validation output;
 - selected API transport mode and endpoint host/origin;
 - API transport evidence digest/output;
 - soak schema/evidence ID/digest;
@@ -185,9 +204,14 @@ Part28B must receive values only from accepted runner, CI, MT5 and five-day evid
 - `InpReleaseCIBundleDigest`
 - `InpReleaseCIBundleValidated=true`
 - `InpReleaseMT5ValidationPassed=true`
-- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v1`
+- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v2`
 - `InpReleaseMT5ValidationEvidenceId`
 - `InpReleaseMT5ValidationDigest`
+- `InpReleaseResilienceHardeningPassed=true`
+- `InpReleaseResilienceSchemaVersion=resilience_hardening_evidence_v1`
+- `InpReleaseResilienceEvidenceId`
+- `InpReleaseResilienceDigest`
+- `InpReleaseCertifiedConfigFingerprint`
 - `InpReleaseSoakAcceptanceRecordId`
 - `InpReleaseSoakAcceptanceRecordDigest`.
 

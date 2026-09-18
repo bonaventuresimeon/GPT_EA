@@ -216,7 +216,7 @@ Secure-proxy mode does not expose the server-side OpenAI key to MT5, so direct m
 
 ## v1.23 runtime identity
 
-A correctly compiled and attached v1.22 EX5 prints:
+A correctly compiled and attached v1.23 EX5 prints:
 
 `GPT_EA runtime build R10-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123`
 

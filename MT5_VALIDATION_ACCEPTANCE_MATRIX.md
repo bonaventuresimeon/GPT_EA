@@ -57,10 +57,10 @@ This matrix defines the minimum MT5/MetaEditor evidence needed for `mt5_validati
 | M5-035 | Direct breakout | Direct breakout executes only as `SETUP_BREAKOUT`; breakout-retest refuses it | HOLD | |
 | M5-036 | Atomic intent | PREPARED and SENT intent records are durably written before broker submission | HOLD | |
 | M5-037 | Exactly once | Restart/duplicate timer/callback cannot resubmit unresolved SENT/UNCERTAIN nonce | HOLD | |
-| M5-038 | Ambiguous submit | Simulated broker ambiguity reconciles against orders/deals/positions without duplicate | HOLD | |
+| M5-038 | Ambiguous submit | Simulated broker ambiguity reconciles against orders/deals/positions without duplicate, including broker-comment truncation via strict time/side/volume fallback | HOLD | |
 | M5-039 | Broker reconciliation | Orphan/missing-lifecycle/unexpected pending/manual exposure is detected | HOLD | |
 | M5-040 | Manual intervention | Client/mobile/web modification is recorded and learning is quarantined | HOLD | |
-| M5-041 | Storage failure | Intent/reconciliation/storage heartbeat failure blocks new exposure | HOLD | |
+| M5-041 | Storage failure | Intent/reconciliation/storage heartbeat failure blocks new exposure and quarantines open managed positions from learning | HOLD | |
 | M5-042 | Config drift | Certified configuration fingerprint mismatch blocks REAL new entries | HOLD | |
 | M5-043 | Clock drift | Material server/GMT clock drift blocks time/news-sensitive authorization | HOLD | |
 | M5-044 | Chaos safety | Chaos mode refuses REAL accounts and all configured fault scenarios are demo/test-only | HOLD | |

@@ -56,7 +56,7 @@
     "bundle_validation_path": "artifacts/ci-bundle-validation.txt"
   },
   "mt5_validation": {
-    "schema_version": "mt5_validation_evidence_v1",
+    "schema_version": "mt5_validation_evidence_v2",
     "evidence_id": "",
     "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
     "evidence_path": "artifacts/mt5-validation-evidence.json",

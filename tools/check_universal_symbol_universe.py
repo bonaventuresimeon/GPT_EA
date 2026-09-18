@@ -26,6 +26,10 @@ require("SymbolName(i,false)" in text, "broker-universe discovery must read symb
 require("SymbolsTotal(true)" in text and "SymbolName(i,true)" in text,
         "optional Market Watch supplementation is missing")
 require("BrokerSymbolEligibleForUniverse" in text, "universal eligibility filter is missing")
+require('if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) return true;' in text,
+        "full-catalog discovery must defer entry-eligibility checks until unselected symbols are selected")
+require("if(!BrokerSymbolEligibleForUniverse(sym))" in text,
+        "ScanSymbol must recheck exact broker eligibility after EnsureSymbol selects the instrument")
 require("SYMBOL_TRADE_MODE_DISABLED" in text, "disabled symbols must be filtered")
 require("SYMBOL_TRADE_MODE_CLOSEONLY" in text, "close-only handling must be explicit")
 require("SYMBOL_CALC_MODE_SERV_COLLATERAL" in text,
@@ -49,6 +53,10 @@ require("|universe=%d:%d:%d:%d:%d:%d:%d:%s" in text and
         "universal symbol controls must be bound into the configuration fingerprint")
 require('return "GEN:"+c;' in text,
         "unknown but tradeable broker symbols must remain generically analyzable")
+require("CleanCryptoPairContains" in text,
+        "crypto classification must require token/quote structure rather than arbitrary ticker substrings")
+require("Strong broker-native product identity comes first" in text,
+        "stock/ETF/future/bond product identity must outrank descriptive underlying aliases")
 
 # Broker-native classification must combine names/metadata with MT5 contract metadata.
 for token in (

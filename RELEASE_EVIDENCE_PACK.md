@@ -49,6 +49,7 @@ GPT_EA_RELEASE_<RELEASE_ID>/
     ├── release-evidence-validation.txt
     ├── evidence-pack-manifest.sha256
     ├── release-truth-dashboard.md
+    ├── release-truth-drift-validation.txt
     └── archive-index.txt
 ```
 
@@ -156,6 +157,10 @@ relative_path | sha256 | size_bytes | evidence_type | generated_by | timestamp_u
 
 Then hash the completed manifest itself.
 
+## 🚦 Dashboard integrity
+
+See `DASHBOARD_DRIFT_DETECTION.md`. The dashboard is a derived artifact and must match the evidence SHA/fingerprint used to generate it.
+
 ## 🚦 Final acceptance
 - [ ] Candidate identity exact.
 - [ ] Compile evidence passes.
@@ -168,6 +173,7 @@ Then hash the completed manifest itself.
 - [ ] Secret scan clean.
 - [ ] Archive manifest hashed.
 - [ ] Candidate release-truth dashboard generated from the same evidence JSON.
+- [ ] Dashboard drift detector PASS for the same evidence/dashboard pair.
 - [ ] Pack stored in immutable/versioned archive.
 
 ## 🤖 Pack generator
@@ -185,6 +191,7 @@ Use `RELEASE_EVIDENCE_PACK_TEMPLATE.json` as the input manifest and run:
 
 ```text
 python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md
+python tools/check_release_truth_drift.py release_evidence.json --dashboard RELEASE_TRUTH_DASHBOARD.md --output release-truth-drift-validation.txt
 python tools/build_release_evidence_pack.py RELEASE_EVIDENCE_PACK_TEMPLATE.json
 ```
 

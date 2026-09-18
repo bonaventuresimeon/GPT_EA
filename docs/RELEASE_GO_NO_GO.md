@@ -286,3 +286,14 @@ Decision: **GO / NO-GO / HOLD**
 Notes:
 
 Passing this contract does not guarantee profitability. It means the exact candidate has met the defined engineering, protection, recovery, broker-compatibility, CI-provenance, API-transport, evidence-integrity and operational release requirements.
+
+
+## Readiness interpretation
+
+A green source/static check is not a GO decision.
+
+- `CODE_STATIC_READY + EVIDENCE_HOLD` = **HOLD**
+- `CODE_STATIC_READY + EVIDENCE_READY_FOR_FINAL_REVIEW` = **HOLD**
+- `PRODUCTION_GO` from the active R10 evidence/final-review validators = eligible for the runtime release chain, subject to the matching MT5 attestations.
+
+Use `tools/build_release_readiness_status.py` only as a diagnostic summary. It cannot override any Part28/R10 gate.

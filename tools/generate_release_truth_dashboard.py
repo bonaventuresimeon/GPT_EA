@@ -192,11 +192,11 @@ def render(data: dict[str, Any], source: Path) -> str:
 
 **AI-Assisted MT5 Intelligence • Risk • Execution • Recovery • Governance**
 
-[🏠 Home](README.md) · [🏗 Architecture](ARCHITECTURE.md) · [🗺 Roadmap](ROADMAP.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md)
+[🏠 Home](README.md) · [🏗 Architecture](docs/ARCHITECTURE.md) · [🗺 Roadmap](docs/ROADMAP.md) · [🔐 Privacy](docs/PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](docs/RELEASE_EVIDENCE_PACK.md)
 
 </div>
 
-> 🚦 **Document:** `RELEASE_TRUTH_DASHBOARD.md`
+> 🚦 **Document:** `docs/RELEASE_TRUTH_DASHBOARD.md`
 
 ---
 
@@ -234,13 +234,13 @@ This dashboard reports evidence state; it does **not** estimate profitability or
 Generate from the exact candidate evidence file:
 
 ```text
-python tools/generate_release_truth_dashboard.py release_evidence.json --output RELEASE_TRUTH_DASHBOARD.md
+python tools/generate_release_truth_dashboard.py release_evidence.json --output docs/RELEASE_TRUTH_DASHBOARD.md
 ```
 
 For a repository baseline using the intentionally unapproved template:
 
 ```text
-python tools/generate_release_truth_dashboard.py RELEASE_EVIDENCE_TEMPLATE.json --output RELEASE_TRUTH_DASHBOARD.md
+python tools/generate_release_truth_dashboard.py RELEASE_EVIDENCE_TEMPLATE.json --output docs/RELEASE_TRUTH_DASHBOARD.md
 ```
 
 ## 🔐 Release rule
@@ -256,7 +256,7 @@ A green dashboard is not sufficient by itself. The canonical release validators,
 def main() -> int:
     ap = argparse.ArgumentParser(description="Generate the GPT_EA release-truth dashboard from machine-readable release evidence.")
     ap.add_argument("evidence", nargs="?", default="release_evidence.json")
-    ap.add_argument("--output", default="RELEASE_TRUTH_DASHBOARD.md")
+    ap.add_argument("--output", default="docs/RELEASE_TRUTH_DASHBOARD.md")
     ap.add_argument("--require-pass", action="store_true", help="return nonzero unless the evaluated dashboard state is PASS")
     args = ap.parse_args()
 

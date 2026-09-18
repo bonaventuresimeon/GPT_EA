@@ -19,9 +19,13 @@ text=MAIN.read_text(encoding="utf-8")
 required=[
     "InpElegantChartDashboard","InpDrawLiveManagementLevels","InpDrawTrailingMovement",
     "InpTrailMovementSegments","InpDashboardRefreshMs","InpDashboardTitleFont","Segoe Script",
-    "DASH_SUBTITLE","DASH_STATUS","LEVEL_BE","LEVEL_LIVE_SL","TAG_ENTRY","TAG_BE","TAG_TRAIL",
+    "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
+    "LEVEL_BE","LEVEL_LIVE_SL","TAG_ENTRY","TAG_BE","TAG_TRAIL",
     "RenderCandidateOperationalDashboard","RenderLiveManagementDashboard","DrawLiveManagementMap",
     "RecordTrailingMovement","RefreshElegantChartDashboard","VisualBreakEvenLevel",
+    "VisualStopRulesText","VisualTradeTimeline","EXACT STOP-MOVEMENT RULES","COMPACT TRADE TIMELINE",
+    "BE_TIME","PROFIT_LOCK_TIME","STRONG_LOCK_TIME","TRAIL_TIME","TRAIL_LAST_TIME",
+    "InpBECostATRFrac","InpProfitLockTriggerR","InpStrongLockTriggerR","InpTrailStructureBarsM5","InpTrailMinStepR",
     "StopStageName(stage)","CurrentPortfolioRiskPercent()","CurrentModelTrustMode",
     "BrokerHealthScore","LifecycleStateName","CHART_SHIFT_SIZE","CHART_SHOW_OBJECT_DESCR",
     'RefreshElegantChartDashboard(true);','RefreshElegantChartDashboard(false);',
@@ -32,6 +36,21 @@ for token in required:
 
 if 'if(!InpDrawDashboard || s.symbol!=_Symbol) return;' not in text:
     errors.append("scan dashboard must be restricted to the attached chart symbol")
+
+
+for token in (
+    'GVWrite(PosKey(pid,"BE_TIME")',
+    'GVWrite(PosKey(pid,"PROFIT_LOCK_TIME")',
+    'GVWrite(PosKey(pid,"STRONG_LOCK_TIME")',
+    'GVWrite(PosKey(pid,"TRAIL_TIME")',
+    'GVWrite(PosKey(pid,"TRAIL_LAST_TIME")',
+    'GVWrite(PosKey(pid,"EXEC_ANALYSIS_TIME")',
+    'GVWrite(PosKey(pid,"EXEC_APPROVAL_TIME")',
+    'GVWrite(PosKey(pid,"EXEC_SENT_TIME")',
+    'GVWrite(PosKey(pid,"EXEC_FILL_TIME")',
+):
+    if token not in text:
+        errors.append(f"dashboard timeline/stage persistence missing: {token}")
 
 # Extract balanced function bodies and ensure visual functions cannot trade.
 def function_body(name:str)->str:
@@ -70,6 +89,7 @@ def function_body(name:str)->str:
 
 visual_functions=[
     "SetVisualPriceTag","SetVisualBand","RecordTrailingMovement","DrawLiveManagementMap",
+    "VisualStopRulesText","VisualTradeTimeline",
     "RenderLiveManagementDashboard","RenderCandidateOperationalDashboard","RefreshElegantChartDashboard",
 ]
 for name in visual_functions:

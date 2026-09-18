@@ -70,8 +70,20 @@ This is the final production decision contract. A candidate is **GO** only when 
 - `tools/validate_final_release_review_r10.py` returns PASS.
 - all release-validation outputs and final evidence hashes are archived.
 - candidate release-truth dashboard is regenerated from the same final evidence JSON and `--require-pass` succeeds.
+- dashboard drift validation PASS for the same final evidence/dashboard pair.
+- ADR registry/index/supersession graph static validation PASS.
 
 ## Automatic NO-GO conditions
+
+Architecture/dashboard integrity automatic NO-GO also includes:
+
+- dashboard/evidence fingerprint drift;
+- missing deterministic release-truth markers;
+- ADR ID reuse/duplication;
+- broken reciprocal supersession links;
+- ADR supersession cycle;
+- missing superseded ADR record;
+- ADR registry/index mismatch;
 
 R10/compile automatic NO-GO also includes:
 
@@ -233,6 +245,8 @@ After final review has been incorporated into `release_evidence.json`, run:
 python tools/validate_release_evidence.py release_evidence.json
 python tools/validate_api_transport_evidence.py release_evidence.json
 python tools/validate_release_evidence_r7.py release_evidence.json
+python tools/check_architecture_release_truth.py
+python tools/check_release_truth_drift.py release_evidence.json --dashboard RELEASE_TRUTH_DASHBOARD.md --output release-truth-drift-validation.txt
 ```
 
 All results must be PASS.

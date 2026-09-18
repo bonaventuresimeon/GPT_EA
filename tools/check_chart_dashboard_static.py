@@ -18,12 +18,14 @@ text=MAIN.read_text(encoding="utf-8")
 
 required=[
     "InpElegantChartDashboard","InpDrawLiveManagementLevels","InpDrawTrailingMovement",
+    "InpShowStopMovementRules","InpShowCompactTradeTimeline",
     "InpTrailMovementSegments","InpDashboardRefreshMs","InpDashboardTitleFont","Segoe Script",
     "DASH_SUBTITLE","DASH_STATUS","DASH_RULES_CARD","DASH_TIMELINE_CARD",
     "LEVEL_BE","LEVEL_LIVE_SL","TAG_ENTRY","TAG_BE","TAG_TRAIL",
     "RenderCandidateOperationalDashboard","RenderLiveManagementDashboard","DrawLiveManagementMap",
     "RecordTrailingMovement","RefreshElegantChartDashboard","VisualBreakEvenLevel",
-    "VisualStopRulesText","VisualTradeTimeline","EXACT STOP-MOVEMENT RULES","COMPACT TRADE TIMELINE",
+    "VisualStopRulesText","VisualTradeTimeline","VisualTimelineNode",
+    "EXACT STOP-MOVEMENT RULES","COMPACT TRADE TIMELINE","SL never regresses","last ratchet",
     "BE_TIME","PROFIT_LOCK_TIME","STRONG_LOCK_TIME","TRAIL_TIME","TRAIL_LAST_TIME",
     "InpBECostATRFrac","InpProfitLockTriggerR","InpStrongLockTriggerR","InpTrailStructureBarsM5","InpTrailMinStepR",
     "StopStageName(stage)","CurrentPortfolioRiskPercent()","CurrentModelTrustMode",

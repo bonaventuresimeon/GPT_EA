@@ -34,6 +34,8 @@ CHECKS = [
     ROOT / "tools" / "check_r10_privacy_compile.py",
     ROOT / "tools" / "check_architecture_release_truth.py",
     ROOT / "tools" / "check_release_truth_drift.py",
+    ROOT / "tools" / "check_release_hardening.py",
+    ROOT / "tools" / "scan_release_secrets.py",
 ]
 
 

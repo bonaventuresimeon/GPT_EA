@@ -6,6 +6,9 @@ import json
 import re
 import sys
 from pathlib import Path
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT = Path(__file__).resolve().parents[1]
 errors: list[str] = []

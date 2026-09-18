@@ -38,6 +38,7 @@ def release_basis(data:dict[str,Any])->dict[str,Any]:
         "resilience_hardening":data.get("resilience_hardening",{}),
         "rollback_package":data.get("rollback_package",{}),
         "deployment":data.get("deployment",{}),
+        "broker_coverage":data.get("broker_coverage",{}),
         "api_transport":data.get("api_transport",{}),
         "demo_soak":data.get("demo_soak",{}),
         "gates":gates,
@@ -92,7 +93,7 @@ def main()->int:
     checks=review.get("review",{})
     required_checks=[
         "compile_contract_pass","runner_recovery_pass","runner_recovery_acceptance_pass","ci_bundle_pass",
-        "ci_attestation_verified","mt5_validation_pass","resilience_hardening_pass","rollback_package_ready",
+        "ci_attestation_verified","mt5_validation_pass","broker_coverage_pass","resilience_hardening_pass","rollback_package_ready",
         "api_transport_pass","five_day_acceptance_pass",
         "soak_day_reconciliation_pass","five_day_operator_record_complete","soak_schema_pass",
         "release_evidence_validator_pass","all_release_gates_pass","zero_unresolved_critical_states",
@@ -125,6 +126,17 @@ def main()->int:
         require(errors,ci.get("attestation_verified") is True,"release evidence CI attestation must be verified before final review")
         require(errors,bool(HEX64.fullmatch(str(ci.get("bundle_digest","")))),"release evidence CI bundle digest must be valid")
         require(errors,str(ci.get("head_sha","")).lower()==str(build.get("git_sha","")).lower(),"release evidence CI head SHA must match build Git SHA")
+
+    bc=evidence.get("broker_coverage",{})
+    require(errors,isinstance(bc,dict),"release evidence broker_coverage must be an object")
+    if isinstance(bc,dict):
+        require(errors,bc.get("schema_version")=="broker_agnostic_coverage_v1","broker coverage schema must be current")
+        require(errors,bc.get("validated") is True,"broker coverage evidence must be validated before final review")
+        require(errors,bool(HEX64.fullmatch(str(bc.get("evidence_digest","")))),"broker coverage digest must be valid")
+        require(errors,len(str(bc.get("evidence_id","")).strip())>=8,"broker coverage evidence ID is required")
+        classes=bc.get("asset_classes",{})
+        for cls in ("FX","METAL","INDEX","ENERGY","COMMODITY","CRYPTO","STOCK","ETF","FUTURE","BOND_RATE","OTHER"):
+            require(errors,isinstance(classes.get(cls),dict),f"broker coverage asset class {cls} summary is required")
 
     mt5=evidence.get("mt5_validation",{})
     require(errors,isinstance(mt5,dict),"release evidence mt5_validation must be an object")

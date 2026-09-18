@@ -1596,9 +1596,9 @@ void DashboardLayout(const bool live,int &panelW,int &panelH,bool &compact)
    int minW=(int)MathMax(360,InpDashboardMinWidth);
    int maxW=(int)MathMax(minW,InpDashboardMaxWidth);
    int preferred=(int)MathMax(minW,MathMin(maxW,InpDashboardWidth));
-   int byChart=(int)MathMax(360.0,MathFloor((double)chartW*0.44)-(double)(InpDashboardX*2+InpDashboardChartGap));
+   int byChart=(int)MathMax((double)minW,MathFloor((double)chartW*0.44)-(double)(InpDashboardX*2+InpDashboardChartGap));
    panelW=(int)MathMin(preferred,byChart);
-   if(panelW<360) panelW=360;
+   if(panelW<minW) panelW=minW;
 
    compact=(chartW<1120 || chartH<640 || panelW<470);
    int minH=(compact?420:500);
@@ -16919,12 +16919,13 @@ void RenderLiveManagementDashboard(ulong ticket)
    int top=InpDashboardY+header;
    int bottom=InpDashboardY+panelH-controls-3;
    int avail=bottom-top-gap*4;
-   int h1=(int)MathMax(62.0,avail*0.22);
-   int h2=(int)MathMax(66.0,avail*0.23);
-   int h3=(int)MathMax(62.0,avail*0.19);
-   int h4=(int)MathMax(58.0,avail*0.18);
+   int h1=(int)MathMax(compact?48.0:62.0,avail*0.22);
+   int h2=(int)MathMax(compact?52.0:66.0,avail*0.23);
+   int h3=(int)MathMax(compact?48.0:62.0,avail*0.19);
+   int h4=(int)MathMax(compact?44.0:58.0,avail*0.18);
    int h5=avail-h1-h2-h3-h4;
-   if(h5<50) h5=50;
+   int minActionH=(compact?42:50);
+   if(h5<minActionH) h5=minActionH;
    int y=top;
 
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,h1,
@@ -17072,12 +17073,13 @@ void RenderCandidateOperationalDashboard()
    int top=InpDashboardY+header;
    int bottom=InpDashboardY+panelH-controls-3;
    int avail=bottom-top-gap*4;
-   int h1=(int)MathMax(66.0,avail*0.23);
-   int h2=(int)MathMax(66.0,avail*0.23);
-   int h3=(int)MathMax(60.0,avail*0.19);
-   int h4=(int)MathMax(56.0,avail*0.17);
+   int h1=(int)MathMax(compact?50.0:66.0,avail*0.23);
+   int h2=(int)MathMax(compact?52.0:66.0,avail*0.23);
+   int h3=(int)MathMax(compact?46.0:60.0,avail*0.19);
+   int h4=(int)MathMax(compact?44.0:56.0,avail*0.17);
    int h5=avail-h1-h2-h3-h4;
-   if(h5<50) h5=50;
+   int minActionH=(compact?42:50);
+   if(h5<minActionH) h5=minActionH;
    int y=top;
 
    string structure=(r.structureAligned?"ALIGNED":"MIXED");
@@ -17165,7 +17167,9 @@ void RenderScanningDashboard()
 
    int sx=InpDashboardX+12, sw=panelW-24;
    int y=InpDashboardY+(compact?84:92);
-   int cardH=compact?90:105;
+   int footerTop=InpDashboardY+panelH-38;
+   int availableCards=footerTop-y-12;
+   int cardH=(int)MathMax(compact?72.0:84.0,MathFloor((double)availableCards/3.0));
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
       "SCANNER STATUS",
       "Attached market "+_Symbol+"\nUniverse: broker symbols are scanned dynamically\nRequired TF: D1 • H4 • H1 • M30 • M15 • M5\nData: "+VisualOneLine(g_visualDataState,compact?58:88),

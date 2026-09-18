@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
-PART38=(ROOT/"GPT_EA_Part38_LegalLicenseGate.mqh").read_text(encoding="utf-8")
-PART39=(ROOT/"GPT_EA_Part39_CustomerRiskAcknowledgement.mqh").read_text(encoding="utf-8")
+PART38=(MQH/"GPT_EA_Part38_LegalLicenseGate.mqh").read_text(encoding="utf-8")
+PART39=(MQH/"GPT_EA_Part39_CustomerRiskAcknowledgement.mqh").read_text(encoding="utf-8")
 errors=[]
 
 for token in [

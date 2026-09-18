@@ -28,6 +28,7 @@ main = MAIN.read_text(encoding="utf-8")
 checks = {
     "release_validation_id": r'GPT_EA_REQUIRED_RELEASE_VALIDATION_ID\s*=\s*"([^"]+)"',
     "demo_soak_schema": r'GPT_EA_REQUIRED_SOAK_SCHEMA_VERSION\s*=\s*"([^"]+)"',
+    "broker_coverage_schema": r'GPT_EA_REQUIRED_BROKER_COVERAGE_SCHEMA\s*=\s*"([^"]+)"',
     "runner_recovery_schema": r'GPT_EA_REQUIRED_RUNNER_RECOVERY_SCHEMA\s*=\s*"([^"]+)"',
     "runner_acceptance_schema": r'GPT_EA_REQUIRED_RUNNER_ACCEPTANCE_SCHEMA\s*=\s*"([^"]+)"',
     "ci_schema": r'GPT_EA_REQUIRED_CI_SCHEMA_VERSION\s*=\s*"([^"]+)"',
@@ -64,6 +65,7 @@ json_contracts = {
     "CI_EVIDENCE_BUNDLE_SCHEMA.json": "ci_bundle_schema",
     "MT5_VALIDATION_EVIDENCE_SCHEMA.json": "mt5_validation_schema",
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": "resilience_schema",
+    "BROKER_COVERAGE_EVIDENCE_SCHEMA.json": "broker_coverage_schema",
     "FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json": "soak_acceptance_schema",
     "CUSTOMER_RISK_ACKNOWLEDGEMENT_SCHEMA.json": "risk_ack_schema",
     "PRIVACY_SIGN_OFF_TEMPLATE.json": "privacy_schema",
@@ -93,6 +95,7 @@ for section, key in (
     ("runner_recovery_acceptance", "runner_acceptance_schema"),
     ("mt5_validation", "mt5_validation_schema"),
     ("resilience_hardening", "resilience_schema"),
+    ("broker_coverage", "broker_coverage_schema"),
     ("compile_evidence", "compile_evidence_schema"),
     ("privacy_signoff", "privacy_schema"),
 ):
@@ -132,6 +135,7 @@ contract_consumers = [
     "validate_runner_recovery_evidence.py",
     "validate_runner_recovery_acceptance.py",
     "validate_resilience_hardening_evidence.py",
+    "validate_broker_coverage_evidence.py",
     "validate_five_day_soak_record.py",
     "validate_ci_evidence.py",
     "validate_ci_bundle.py",

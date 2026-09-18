@@ -304,3 +304,32 @@ Archive together:
 ## Invalidation rule
 
 Any executable-source change after evidence is captured creates a new candidate. Changes to EX5/SET, release contract, API transport/endpoint, broker/server/account or material symbol/deployment profile invalidate the affected evidence and require revalidation. Documentation-only changes may be treated separately only when they cannot alter executable/release behavior and are explicitly recorded in the review.
+
+
+## R6 resilience, MT5 v2 and rollback validation
+
+The base release validator now treats the resilience controls as mandatory evidence rather than optional documentation.
+
+Required before PASS:
+
+- `mt5_validation.schema_version=mt5_validation_evidence_v2`;
+- the MT5 working matrix has literal PASS for M5-001 through M5-053;
+- the MT5 evidence record hashes the atomic intent ledger, broker/EA reconciliation journal, web-intelligence provenance journal, model-health journal and resilience runtime report;
+- `resilience_hardening_evidence_v1` validates for the exact candidate SHA and certified configuration fingerprint with RH-001 through RH-048 PASS;
+- macro stress, gap-risk, stressed-margin, decision-half-life and model-degradation runtime cases are included;
+- exactly-once execution and ambiguous-submit reconciliation have zero duplicate order and zero unresolved intent;
+- provenance URL annotations and strict `as_of_utc` freshness fail closed;
+- critical storage failure and configuration drift fail closed;
+- chaos/fault-injection refuses REAL accounts;
+- `rollback_package` validates as a previous-certified package or the explicit first-certified-release case.
+
+Run the resilience validators as part of the evidence build:
+
+```text
+python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-evidence.json
+python tools/validate_resilience_hardening_evidence.py artifacts/r6-resilience-hardening.json
+python tools/validate_rollback_readiness.py release_evidence.json
+python tools/validate_release_evidence.py release_evidence.json
+```
+
+A missing or stale v1 MT5 record is HOLD/NO-GO and cannot be grandfathered into the current release.

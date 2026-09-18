@@ -218,10 +218,12 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
 {
    ArrayResize(result,0);
    result_headers="";
+   GVWrite(SysKey("MODEL_REQ"),GVRead(SysKey("MODEL_REQ"),0)+1);
 
    string config="";
    if(!APITransportConfigurationAllows(config))
    {
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
       APIStringToResult("API transport configuration blocked: "+config,result);
       return 598;
    }
@@ -229,13 +231,13 @@ int GPTAPIWebRequest(const string method,const string url,const string headers,c
    datetime now=TimeLocal();
    if(InpAPIBlockDuringBackoff && g_apiTransportNextRetry>now)
    {
+      GVWrite(SysKey("MODEL_FAIL"),GVRead(SysKey("MODEL_FAIL"),0)+1);
       APIStringToResult(StringFormat("API transport backoff active until %s.",TimeToString(g_apiTransportNextRetry,TIME_DATE|TIME_SECONDS)),result);
       result_headers="X-GPT-EA-Transport: backoff\r\n";
       return 598;
    }
 
    string trace=APINewTraceId();
-   GVWrite(SysKey("MODEL_REQ"),GVRead(SysKey("MODEL_REQ"),0)+1);
    if(ChaosInjectAPITimeout())
    {
       APIStringToResult("CHAOS: synthetic API timeout before network transport.",result);

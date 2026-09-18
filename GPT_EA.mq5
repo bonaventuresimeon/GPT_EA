@@ -2615,7 +2615,7 @@ bool BrokerSymbolEligibleForUniverse(const string sym)
    return true;
 }
 
-bool UniverseCapacityAvailable(const string &arr[])
+bool UniverseCapacityAvailable(string &arr[])
 {
    return (InpMaxBrokerUniverseSymbols<=0 || ArraySize(arr)<InpMaxBrokerUniverseSymbols);
 }
@@ -2655,6 +2655,7 @@ bool ResolveConfiguredSymbolsUniversal()
    string resolved[];
    bool autoRequested=false;
    bool allRequested=false;
+   g_universalUniverseTotal=SymbolsTotal(false);
 
    for(int i=0;i<ArraySize(g_symbols);i++)
    {
@@ -8503,8 +8504,11 @@ bool ContinuousIntelligenceScanDue(string &why)
    if(InpScanOnEveryNewM5Bar)
    {
       datetime newest=0;
-      for(int i=0;i<ArraySize(g_symbols);i++)
+      int total=ArraySize(g_symbols);
+      int probes=MathMin(total,MathMax(1,InpUniverseClockProbeSymbols));
+      for(int p=0;p<probes;p++)
       {
+         int i=(g_universalScanCursor+p)%total;
          if(g_symbols[i]=="") continue;
          datetime bt=iTime(g_symbols[i],PERIOD_M5,0);
          if(bt>newest) newest=bt;

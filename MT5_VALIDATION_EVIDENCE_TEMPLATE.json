@@ -1,5 +1,5 @@
 {
-  "schema_version": "mt5_validation_evidence_v1",
+  "schema_version": "mt5_validation_evidence_v2",
   "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
   "evidence_id": "",
   "evidence_digest": "",
@@ -87,12 +87,43 @@
     "broker_history_path": "artifacts/broker-history.csv",
     "broker_history_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
     "matrix_bundle_path": "artifacts/mt5-validation-matrix.md",
-    "matrix_bundle_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "matrix_bundle_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "intent_ledger_path": "artifacts/GPT_EA_TradeIntentLedger.csv",
+    "intent_ledger_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "reconciliation_path": "artifacts/GPT_EA_BrokerReconciliation.csv",
+    "reconciliation_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "web_provenance_path": "artifacts/GPT_EA_WebIntelProvenance.csv",
+    "web_provenance_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "model_health_path": "artifacts/GPT_EA_ModelHealth.csv",
+    "model_health_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "resilience_runtime_report_path": "artifacts/mt5-resilience-runtime-report.md",
+    "resilience_runtime_report_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "operator_review": {
     "decision": "HOLD",
     "reviewer": "",
     "timestamp": "",
     "notes": ""
+  },
+  "resilience_runtime": {
+    "direct_breakout_separation_passed": false,
+    "atomic_intent_ordering_passed": false,
+    "exactly_once_restart_passed": false,
+    "ambiguous_submit_reconciliation_passed": false,
+    "broker_reconciliation_passed": false,
+    "manual_intervention_detection_passed": false,
+    "storage_failure_fail_closed": false,
+    "config_drift_fail_closed": false,
+    "clock_drift_passed": false,
+    "chaos_real_account_refusal_passed": false,
+    "chaos_fault_matrix_passed": false,
+    "macro_scenario_stress_passed": false,
+    "gap_risk_passed": false,
+    "margin_stress_passed": false,
+    "decision_half_life_passed": false,
+    "model_degradation_fallback_passed": false,
+    "news_provenance_timestamp_passed": false,
+    "learning_quarantine_passed": false,
+    "promotion_rollback_passed": false
   }
 }

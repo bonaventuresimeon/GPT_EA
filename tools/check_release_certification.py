@@ -7,11 +7,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+MQH = ROOT / "mqh"
 MAIN = (ROOT / "GPT_EA.mq5").read_text(encoding="utf-8")
-PART28 = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
-PART28B = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
-PART29 = (ROOT / "GPT_EA_Part29_DeploymentDriftGuard.mqh").read_text(encoding="utf-8")
-PART37 = (ROOT / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
+PART28 = (MQH / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+PART28B = (MQH / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+PART29 = (MQH / "GPT_EA_Part29_DeploymentDriftGuard.mqh").read_text(encoding="utf-8")
+PART37 = (MQH / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github/workflows/static-quality.yml").read_text(encoding="utf-8")
 errors: list[str] = []
 

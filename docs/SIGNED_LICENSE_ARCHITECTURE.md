@@ -65,3 +65,22 @@ Only VALID (and policy-approved GRACE) can permit new-risk licensing. REVOKED/EX
 7. fresh compile/evidence cycle before production.
 
 > 🔏 **Rule:** a license check is an authorization gate, never a mechanism for destructive behavior.
+
+
+## 🧪 Entitlement validation tool
+
+The consolidated JSON bundle now contains:
+
+- `SIGNED_LICENSE_ENTITLEMENT_SCHEMA.json`
+- `SIGNED_LICENSE_ENTITLEMENT_TEMPLATE.json`
+
+Structural validation and optional Ed25519 verification are available with:
+
+```text
+python tools/validate_signed_license_entitlement.py entitlement.json
+python tools/validate_signed_license_entitlement.py entitlement.json --public-key vendor-license-public.pem
+```
+
+Without `--public-key`, the tool validates structure/time/scope/signature encoding only and explicitly reports `SIGNATURE_VERIFIED=false`. Production authorization must require actual signature verification.
+
+The vendor private signing key must remain outside the repository, EX5, customer package and ordinary support systems.

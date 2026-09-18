@@ -112,6 +112,44 @@ $warnings = $log | Where-Object {
     $_ -match "(?i)\bwarning\b" -and $_ -notmatch "(?i)\b0\s+warnings?\b"
 } | Select-Object -First 10
 
+function Get-DiagnosticHint {
+    param([string]$Line)
+    switch -Regex ($Line) {
+        "(?i)undeclared identifier" {
+            return "Check declaration order, forward declarations, spelling, and any active #define rename around this symbol."
+        }
+        "(?i)(function|variable|identifier).*(already defined|already declared)|already defined" {
+            return "This is a name collision. Keep one implementation, rename the helper, or consolidate duplicate event handlers."
+        }
+        "(?i)wrong parameters count|parameter count" {
+            return "The call does not match the available MQL5 signature/overload. Compare argument count and types with the declaration."
+        }
+        "(?i)cannot open include|include file.*not found" {
+            return "The MetaEditor MQL5 include root is wrong or incomplete. Verify Include\\Trade\\Trade.mqh and pass -Mql5Root if needed."
+        }
+        "(?i)ambiguous call|ambiguous overload" {
+            return "More than one overload/macro-expanded function matches. Inspect aliases and make argument types explicit."
+        }
+        "(?i)cannot convert|conversion|enum" {
+            return "Check the MQL5 type/enum expected by the target API. Use the correct enum or an explicit safe cast only when semantically valid."
+        }
+        "(?i)unexpected token|syntax error|unbalanced|expression expected" {
+            return "Treat this as a possible cascade. Inspect this line and the immediately preceding statement/function for a missing delimiter or terminator."
+        }
+        default {
+            return "Fix the earliest error first, then recompile; later MetaEditor diagnostics may be cascading from this one."
+        }
+    }
+}
+
+$interpretations = @()
+if ($errors) {
+    foreach ($err in $errors) {
+        $interpretations += $err
+        $interpretations += ("  -> " + (Get-DiagnosticHint $err))
+    }
+}
+
 $report = @()
 $report += "GPT_EA MetaEditor compile report"
 $report += "Source: $Source"
@@ -120,8 +158,8 @@ $report += "MQL5 root: $mql5"
 $report += "Process exit code: $($process.ExitCode)"
 $report += "Summary: $summary"
 $report += ""
-$report += "FIRST ERRORS:"
-if ($errors) { $report += $errors } else { $report += "(none)" }
+$report += "FIRST ERRORS + INTERPRETATION:"
+if ($interpretations) { $report += $interpretations } else { $report += "(none)" }
 $report += ""
 $report += "FIRST WARNINGS:"
 if ($warnings) { $report += $warnings } else { $report += "(none)" }

@@ -28,7 +28,8 @@ required=[
     "GPT_EA_Part44_ChaosFaultInjection.mqh","R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json","RESILIENCE_HARDENING_EVIDENCE_TEMPLATE.json",
     "MT5_VALIDATION_EVIDENCE_SCHEMA.json","MT5_VALIDATION_EVIDENCE_TEMPLATE.json",
-    "MT5_VALIDATION_ACCEPTANCE_MATRIX.md","ROLLBACK_PACKAGE_CONTRACT.md",
+    "MT5_VALIDATION_ACCEPTANCE_MATRIX.md","CHAOS_FAULT_INJECTION_TEST_MATRIX.md",
+    "MT5_RESILIENCE_RUNTIME_REPORT_TEMPLATE.md","ROLLBACK_PACKAGE_CONTRACT.md",
     "ROLLBACK_PACKAGE_MANIFEST_SCHEMA.json","tools/validate_resilience_hardening_evidence.py",
     "tools/validate_rollback_readiness.py","tools/build_release_rollback_package.py",
     "tools/validate_release_rollback_package.py",
@@ -136,6 +137,16 @@ if any(p<0 for p in pos) or pos!=sorted(pos):
     errors.append("R6 resilience include/dependency order is invalid")
 
 # Evidence/matrix contracts.
+chaos_text=read("CHAOS_FAULT_INJECTION_TEST_MATRIX.md")
+for i in range(1,17):
+    token=f"CF-{i:03d}"
+    if token not in chaos_text: errors.append(f"CHAOS_FAULT_INJECTION_TEST_MATRIX.md missing {token}")
+runtime_template=read("MT5_RESILIENCE_RUNTIME_REPORT_TEMPLATE.md")
+for marker in ("DUPLICATE_ORDER_COUNT=0","UNRESOLVED_INTENT_COUNT=0","UNRECONCILED_POSITION_COUNT=0",
+               "CHAOS_REAL_ACCOUNT_REFUSAL=PASS","MACRO_STRESS_MATRIX=PASS","PROVENANCE_FRESHNESS=PASS",
+               "STORAGE_FAILURE_FAIL_CLOSED=PASS","CONFIG_DRIFT_FAIL_CLOSED=PASS"):
+    if marker not in runtime_template: errors.append(f"MT5 resilience runtime template missing final marker: {marker}")
+
 for matrix_name,prefix,last in [
     ("R6_RESILIENCE_HARDENING_TEST_MATRIX.md","RH-",48),
     ("MT5_VALIDATION_ACCEPTANCE_MATRIX.md","M5-",53),

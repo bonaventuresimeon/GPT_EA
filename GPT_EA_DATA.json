@@ -2,7 +2,7 @@
   "_meta": {
     "format": "gpt_ea_consolidated_json_v1",
     "description": "Single source of truth for committed GPT_EA JSON registries, schemas, and templates.",
-    "document_count": 35
+    "document_count": 37
   },
   "documents": {
     "ADR_REGISTRY.json": {

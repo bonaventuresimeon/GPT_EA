@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.22"
+#property version   "1.23"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -74,6 +74,9 @@ input bool   InpUseOpenAI               = true;
 input string InpOpenAIAPIKey            = "";         // Direct mode only. Keep blank in source/Git; enter locally or use the key file.
 input string InpOpenAIModel             = "gpt-5.6-sol";
 input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
+input bool   InpOpenAIModelAutoResolve  = true;        // verify the requested model with the API key and automatically select an available text model if needed
+input string InpOpenAIModelFallbacks    = "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna,gpt-5.6,gpt-5.2,gpt-5.1,gpt-5,gpt-4.1,gpt-4o";
+input int    InpOpenAIModelScanMinutes  = 60;          // periodically refresh model availability while the EA is running
 input int    InpOpenAITimeoutMs         = 15000;
 input bool   InpOpenAIKeyPreferFile     = true;       // Prefer a local key file over the EA input field.
 input bool   InpOpenAIKeyUseCommonFile  = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
@@ -208,6 +211,34 @@ string g_openAIKeyCache="";
 bool   g_openAIKeyCacheLoaded=false;
 string g_openAIKeySource="MISSING";
 
+string   g_activeOpenAIModel="";
+string   g_activeDeepOpenAIModel="";
+string   g_openAIModelResolution="UNRESOLVED";
+datetime g_openAIModelResolvedAt=0;
+bool     g_openAIModelFallbackUsed=false;
+
+string ActiveOpenAIModel()
+{
+   string selected=OpenAISecretTrim(g_activeOpenAIModel);
+   if(selected!="") return selected;
+   selected=OpenAISecretTrim(InpOpenAIModel);
+   return selected;
+}
+
+string ActiveDeepOpenAIModel()
+{
+   string selected=OpenAISecretTrim(g_activeDeepOpenAIModel);
+   if(selected!="") return selected;
+   return ActiveOpenAIModel();
+}
+
+string OpenAIModelResolutionText()
+{
+   string active=ActiveOpenAIModel();
+   if(active=="") active="--";
+   return active+" • "+g_openAIModelResolution;
+}
+
 string OpenAISecretTrim(string value)
 {
    StringTrimLeft(value);
@@ -302,7 +333,7 @@ bool CallOpenAI(const string prompt,string &answer,string &errorText)
    string apiKey=OpenAILocalCredential();
    if(StringLen(apiKey)<20){ errorText="OpenAI API key not configured. Add it to the local key file or EA input."; return false; }
 
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\",\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+apiKey+"\r\n";
    char data[],result[];
    string resultHeaders="";
@@ -9618,7 +9649,7 @@ bool CallOpenAIWebIntel(const string prompt,string &answer,string &errorText)
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest/web search unavailable in Strategy Tester."; return false; }
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured."; return false; }
 
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"tools\":[{\"type\":\"web_search\",\"search_context_size\":\"medium\"}],\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\",\"tools\":[{\"type\":\"web_search\",\"search_context_size\":\"medium\"}],\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
    char data[],result[]; string resultHeaders="";
    int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
@@ -9964,7 +9995,7 @@ bool CallOpenAIWebIntelStructured(const string prompt,string &answer,string &ver
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ g_lastWebIntelFailureClass="UNAVAILABLE"; errorText="OpenAI API key not configured."; return false; }
 
    string schema=WebIntelJsonSchema();
-   string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\","
+   string body="{\"model\":\""+JsonEscape(ActiveOpenAIModel())+"\","
                "\"tools\":[{\"type\":\"web_search\"}],"
                "\"input\":\""+JsonEscape(prompt+" Return the requested result as strict JSON matching the supplied schema.")+"\","
                "\"text\":{\"format\":{\"type\":\"json_schema\",\"name\":\"market_intelligence\",\"strict\":true,\"schema\":"+schema+"}}}";
@@ -10441,8 +10472,8 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest unavailable in Strategy Tester."; return false; }
    if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured in EA inputs."; return false; }
 
-   string model=(InpUseDeepGPTReviewModel?Trim(InpDeepGPTReviewModel):Trim(InpOpenAIModel));
-   if(model=="") model=InpOpenAIModel;
+   string model=(InpUseDeepGPTReviewModel?ActiveDeepOpenAIModel():ActiveOpenAIModel());
+   if(model=="") model=ActiveOpenAIModel();
    string effort=ValidReasoningEffort(InpDeepGPTReasoningEffort);
    int maxTokens=(InpDeepGPTMaxOutputTokens<200?200:InpDeepGPTMaxOutputTokens);
    string body="{\"model\":\""+JsonEscape(model)+"\","

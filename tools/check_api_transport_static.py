@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
-PART37=(ROOT/"GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37_APITransport.mqh").exists() else ""
-COMPAT=(ROOT/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (ROOT/"GPT_EA_Part37A_APICompat.mqh").exists() else ""
+PART37=(MQH/"GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8") if (MQH/"GPT_EA_Part37_APITransport.mqh").exists() else ""
+COMPAT=(MQH/"GPT_EA_Part37A_APICompat.mqh").read_text(encoding="utf-8") if (MQH/"GPT_EA_Part37A_APICompat.mqh").exists() else ""
 TEMPLATE=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
 errors=[]
 
@@ -40,7 +41,7 @@ for token in [
     if token not in PART37:
         errors.append(f"Part37 missing API transport contract token: {token}")
 
-for name in ["docs/API_TRANSPORT_docs/ARCHITECTURE.md","docs/MT5_WEBREQUEST_REQUIREMENTS.md","docs/API_TRANSPORT_TEST_MATRIX.md"]:
+for name in ["docs/API_TRANSPORT_ARCHITECTURE.md","docs/MT5_WEBREQUEST_REQUIREMENTS.md","docs/API_TRANSPORT_TEST_MATRIX.md"]:
     path=ROOT/name
     if not path.exists() or len(path.read_text(encoding="utf-8").strip())<300:
         errors.append(f"missing/too-small API transport contract: {name}")

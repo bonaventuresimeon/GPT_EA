@@ -7,11 +7,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+MQH = ROOT / "mqh"
 MAIN = (ROOT / "GPT_EA.mq5").read_text(encoding="utf-8")
-PART28 = (ROOT / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
-PART28B = (ROOT / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
-PART29 = (ROOT / "GPT_EA_Part29_DeploymentDriftGuard.mqh").read_text(encoding="utf-8")
-PART37 = (ROOT / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
+PART28 = (MQH / "GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+PART28B = (MQH / "GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
+PART29 = (MQH / "GPT_EA_Part29_DeploymentDriftGuard.mqh").read_text(encoding="utf-8")
+PART37 = (MQH / "GPT_EA_Part37_APITransport.mqh").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github/workflows/static-quality.yml").read_text(encoding="utf-8")
 errors: list[str] = []
 
@@ -91,7 +92,7 @@ docs = [
     "docs/RELEASE_CERTIFICATION.md", "docs/METAEDITOR_COMPILE_GATE.md", "docs/DEMO_SOAK_ACCEPTANCE.md", "docs/DEMO_SOAK_EVIDENCE.md",
     "docs/CI_EVIDENCE_CONTRACT.md", "docs/RUNNER_RECOVERY_EVIDENCE.md", "docs/RUNNER_RECOVERY_TEST_MATRIX.md", "docs/RUNNER_RECOVERY_ACCEPTANCE_MATRIX.md", "docs/MT5_VALIDATION_EVIDENCE.md", "docs/MT5_VALIDATION_ACCEPTANCE_MATRIX.md", "docs/FIVE_DAY_SOAK_ACCEPTANCE_RECORD.md", "docs/FIVE_DAY_SOAK_OPERATOR_RECORD_TEMPLATE.md", "docs/SOAK_DAY_RECONCILIATION_CHECKLIST.md",
     "docs/RELEASE_GO_NO_GO.md", "docs/FINAL_GO_NO_GO_REVIEW.md", "docs/DEPLOYMENT_DRIFT_TESTS.md", "docs/RELEASE_EVIDENCE_VALIDATION.md",
-    "docs/RELEASE_EVIDENCE_MANIFEST.md", "docs/API_TRANSPORT_docs/ARCHITECTURE.md", "docs/MT5_WEBREQUEST_REQUIREMENTS.md", "docs/API_TRANSPORT_TEST_MATRIX.md",
+    "docs/RELEASE_EVIDENCE_MANIFEST.md", "docs/API_TRANSPORT_ARCHITECTURE.md", "docs/MT5_WEBREQUEST_REQUIREMENTS.md", "docs/API_TRANSPORT_TEST_MATRIX.md",
     "docs/R6_RESILIENCE_HARDENING_TEST_MATRIX.md", "docs/ROLLBACK_PACKAGE_CONTRACT.md",
 ]
 combined = ""

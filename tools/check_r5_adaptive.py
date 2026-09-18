@@ -6,11 +6,14 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+MQH=ROOT/"mqh"
+def repo_path(name:str)->Path:
+    return MQH/name if name.lower().endswith(".mqh") and "/" not in name and "\\" not in name else ROOT/name
 MAIN=(ROOT/"GPT_EA.mq5").read_text(encoding="utf-8")
-PART05=(ROOT/"GPT_EA_Part05.mqh").read_text(encoding="utf-8")
-PART28=(ROOT/"GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
-PART35=(ROOT/"GPT_EA_Part35_AdaptiveIntegration.mqh").read_text(encoding="utf-8")
-PART36=(ROOT/"GPT_EA_Part36_DemoSoakEvidence.mqh").read_text(encoding="utf-8")
+PART05=(MQH/"GPT_EA_Part05.mqh").read_text(encoding="utf-8")
+PART28=(MQH/"GPT_EA_Part28_ReleaseCertification.mqh").read_text(encoding="utf-8")
+PART35=(MQH/"GPT_EA_Part35_AdaptiveIntegration.mqh").read_text(encoding="utf-8")
+PART36=(MQH/"GPT_EA_Part36_DemoSoakEvidence.mqh").read_text(encoding="utf-8")
 errors=[]
 
 files=[
@@ -21,12 +24,12 @@ files=[
  "GPT_EA_Part36_DemoSoakEvidence.mqh","GPT_EA_Part39_DataIntegrityQuarantine.mqh",
  "GPT_EA_Part40_ModelClockTrust.mqh","GPT_EA_Part41_PortfolioStressLatency.mqh",
  "GPT_EA_Part42_ExecutionReliability.mqh","GPT_EA_Part43_CausalAttribution.mqh",
- "GPT_EA_Part44_ChaosFaultInjection.mqh","docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md",
+ "GPT_EA_Part44_ChaosFaultInjection.mqh","docs/ADAPTIVE_EXECUTION_ARCHITECTURE.md",
  "docs/ADAPTIVE_EXECUTION_TEST_MATRIX.md","docs/R6_RESILIENCE_HARDENING_TEST_MATRIX.md",
  "docs/DEMO_SOAK_EVIDENCE.md","docs/DEMO_SOAK_REPORT_TEMPLATE.md",
 ]
 for f in files:
- if not (ROOT/f).exists(): errors.append(f"missing adaptive/release file: {f}")
+ if not repo_path(f).exists(): errors.append(f"missing adaptive/release file: {f}")
 
 main_tokens=[
  '#include "GPT_EA_Part30_AdaptiveRiskPortfolio.mqh"',
@@ -75,7 +78,7 @@ contracts={
  "GPT_EA_Part44_ChaosFaultInjection.mqh":["ChaosEnvironmentAllows","CHAOS_CORRUPT_CHECKPOINT","ChaosInjectPostFillPreBind"],
 }
 for f,tokens in contracts.items():
- p=ROOT/f
+ p=repo_path(f)
  if not p.exists(): continue
  text=p.read_text(encoding="utf-8")
  for t in tokens:
@@ -95,7 +98,7 @@ if "GPT_EA_FULL_INTELLIGENCE_R6_20260917" not in PART28:
 if "demo_soak_evidence_v1" not in PART28:
  errors.append("R6 demo-soak schema contract missing")
 
-p32=(ROOT/"GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
+p32=(MQH/"GPT_EA_Part32_ChampionChallenger.mqh").read_text(encoding="utf-8")
 if not re.search(r"InpAutoPromoteChallenger\s*=\s*false\s*;",p32):
  errors.append("challenger auto-promotion must default false")
 
@@ -104,7 +107,7 @@ if "ExecutionLearningInitR5();" not in PART35 or "ExecutionLearningTimerR5();" n
 if "DemoSoakEvidenceTimer();" not in PART35 or "ReconcileStaleApprovalWaitStates" not in PART36:
  errors.append("R6 demo-soak/lifecycle reconciliation runtime path is incomplete")
 
-arch=(ROOT/"docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md").read_text(encoding="utf-8") if (ROOT/"docs/ADAPTIVE_EXECUTION_docs/ARCHITECTURE.md").exists() else ""
+arch=(ROOT/"docs/ADAPTIVE_EXECUTION_ARCHITECTURE.md").read_text(encoding="utf-8") if (ROOT/"docs/ADAPTIVE_EXECUTION_ARCHITECTURE.md").exists() else ""
 for i in range(1,21):
  if f"## {i}." not in arch: errors.append(f"adaptive architecture mapping missing item {i}")
 

@@ -27,3 +27,6 @@ void NotifyCardObserved(const string card);
 // Defined in Part39 and used by pre-Part39 historical finalizers.
 int IntegrityTextHash(const string text);
 string CurrentSensitiveConfigText();
+
+// Defined in Part40 and used by strict revalidation before Part40 is included.
+bool DeterministicEmergencyExecutionActive(const string sym,StrategyClass c,string &why);

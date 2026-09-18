@@ -242,6 +242,19 @@ string OpenAIModelResolutionText()
    return active+" • "+g_openAIModelResolution;
 }
 
+string OpenAIModelHUDState()
+{
+   if(!InpUseOpenAI) return "OFF";
+   string active=ActiveOpenAIModel();
+   if(active=="") active="--";
+   string state="UNVERIFIED";
+   if(g_openAIModelFallbackUsed) state="FALLBACK";
+   else if(StringFind(g_openAIModelResolution,"VERIFIED")>=0 || StringFind(g_openAIModelResolution,"AVAILABLE")>=0) state="VERIFIED";
+   else if(StringFind(g_openAIModelResolution,"PROXY")>=0) state="PROXY";
+   else if(StringFind(g_openAIModelResolution,"NO COMPATIBLE")>=0) state="NO MODEL";
+   return active+" "+state;
+}
+
 string OpenAISecretTrim(string value)
 {
    StringTrimLeft(value);
@@ -17217,7 +17230,7 @@ void RenderLiveManagementDashboard(ulong ticket)
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Live Trade HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      StringFormat("v1.23 • R9 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
@@ -17291,9 +17304,9 @@ void RenderLiveManagementDashboard(ulong ticket)
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
       "RISK / SAFETY",
-      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s",
+      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Trust %s  •  API %s  •  Release %s\nAI %s",
          riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
-         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState),
+         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,OpenAIModelHUDState()),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 
@@ -17368,7 +17381,7 @@ void RenderCandidateOperationalDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Intelligence HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.22 • R8 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+      StringFormat("v1.23 • R9 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
                    g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
 
@@ -17427,10 +17440,10 @@ void RenderCandidateOperationalDashboard()
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
       "RISK / NEWS / SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nModel %s  •  OpenAI %s  •  Release %s  •  News %s\n%s",
+      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nTrust %s  •  API %s  •  Release %s  •  News %s\nAI %s\n%s",
          CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
          ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,g_visualNewsRisk,
-         VisualOneLine(g_visualNewsSummary,compact?76:108)),
+         OpenAIModelHUDState(),VisualOneLine(g_visualNewsSummary,compact?76:108)),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 
@@ -17472,7 +17485,7 @@ void RenderScanningDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Market Scan HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.22 • R8 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      "v1.23 • R9 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
@@ -17489,8 +17502,8 @@ void RenderScanningDashboard()
    y+=cardH+6;
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,cardH,
       "RISK / SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nOpenAI %s  •  Release %s\nNo order is opened without the configured authorization gates.",
-         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),APITransportVisualState(),g_releaseBlocked?"BLOCK":"PASS"),
+      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nAPI %s  •  AI %s  •  Release %s\nNo order is opened without the configured authorization gates.",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),APITransportVisualState(),OpenAIModelHUDState(),g_releaseBlocked?"BLOCK":"PASS"),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=cardH+6;
    SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,cardH,
@@ -17525,7 +17538,7 @@ void RenderClosedDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Lifecycle HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.22 • R8 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      "v1.23 • R9 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
@@ -17876,6 +17889,10 @@ bool ValidateUserFacingInputs(string &why)
       { why="InpOpenAIEndpoint must be a non-empty HTTPS URL while OpenAI is enabled."; return false; }
       if(InpOpenAITimeoutMs<3000 || InpOpenAITimeoutMs>60000)
       { why="InpOpenAITimeoutMs must be between 3000 and 60000 ms."; return false; }
+      if(InpOpenAIModelScanMinutes<1 || InpOpenAIModelScanMinutes>1440)
+      { why="InpOpenAIModelScanMinutes must be between 1 and 1440 minutes."; return false; }
+      if(InpOpenAIModelAutoResolve && APITrim(InpOpenAIModelFallbacks)=="")
+      { why="InpOpenAIModelFallbacks cannot be blank while automatic model resolution is enabled."; return false; }
    }
 
    if(InpDashboardX<0 || InpDashboardY<0)
@@ -17912,6 +17929,7 @@ int OnInit()
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
+   Print("GPT_EA runtime build R9-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123");
    ChartSetInteger(0,CHART_EVENT_MOUSE_MOVE,true);
    EventSetTimer(MathMax(1,InpTimerSeconds));
    RiskRecoveryInit();
@@ -17922,13 +17940,22 @@ int OnInit()
    AdvancedSafetyInit();
    StopFailurePolicyInit();
    StopFailureObservabilityInit();
+
+   string modelResolutionWhy="";
+   bool modelResolutionOK=ResolveOpenAIModels(true,modelResolutionWhy);
+   Print("OpenAI model resolution: ",modelResolutionOK?"OK":"UNVERIFIED",
+         " | requested=",InpOpenAIModel,
+         " | active=",ActiveOpenAIModel(),
+         " | deep=",ActiveDeepOpenAIModel(),
+         " | status=",modelResolutionWhy);
+
    StrategyIntelligenceInit();
    NewsIntermarketInit();
 
-   Print("GPT_EA runtime build R8-ELEGANT-HUD-INPUTS-20260918 • source version 1.22 • EX5 marker HUD122");
    Print("GPT_EA user inputs OK | Symbols=",InpSymbols,
          " | OpenAI=",InpUseOpenAI?"ON":"OFF",
-         " | Model=",InpOpenAIModel,
+         " | RequestedModel=",InpOpenAIModel,
+         " | ActiveModel=",ActiveOpenAIModel(),
          " | Endpoint=",InpOpenAIEndpoint,
          " | HUD=",IntegerToString(InpDashboardWidth),"x",IntegerToString(InpDashboardHeight),
          " | Risk=",DoubleToString(InpRiskPercent,2),"%");
@@ -17981,6 +18008,7 @@ void OnTimer()
    StopFailureObservabilityTimer();
    StrategyIntelligenceTimer();
    NewsIntermarketTimer();
+   RefreshOpenAIModelResolutionIfDue();
    StyleApprovalUI();
    RefreshFullBrokerUniverseIfDue(false);
 

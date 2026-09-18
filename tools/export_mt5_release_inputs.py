@@ -249,6 +249,8 @@ def main() -> int:
     ra = evidence.get("runner_recovery_acceptance", {})
     mt5 = evidence.get("mt5_validation", {})
     rh = evidence.get("resilience_hardening", {})
+    broker_cov = evidence.get("broker_coverage", {})
+    broker_classes = broker_cov.get("asset_classes", {}) if isinstance(broker_cov, dict) else {}
     review = evidence.get("final_review", {})
     deployment = evidence.get("deployment", {})
     api = evidence.get("api_transport", {})
@@ -347,6 +349,21 @@ def main() -> int:
         ("InpReleaseCIBundleSchemaVersion", ci.get("bundle_schema_version", ""), "string"),
         ("InpReleaseCIBundleDigest", ci.get("bundle_digest", ""), "string"),
         ("InpReleaseCIBundleValidated", ci.get("bundle_validated", False), "bool"),
+        ("InpReleaseBrokerDiscoveryPassed", gate(evidence, "broker_coverage"), "bool"),
+        ("InpReleaseBrokerCoverageSchemaVersion", broker_cov.get("schema_version", ""), "string"),
+        ("InpReleaseBrokerCoverageEvidenceId", broker_cov.get("evidence_id", ""), "string"),
+        ("InpReleaseBrokerCoverageDigest", broker_cov.get("evidence_digest", ""), "string"),
+        ("InpReleaseAssetClassFXPassed", broker_classes.get("FX", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassMetalPassed", broker_classes.get("METAL", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassIndexPassed", broker_classes.get("INDEX", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassEnergyPassed", broker_classes.get("ENERGY", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassCommodityPassed", broker_classes.get("COMMODITY", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassCryptoPassed", broker_classes.get("CRYPTO", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassStockPassed", broker_classes.get("STOCK", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassETFPassed", broker_classes.get("ETF", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassFuturePassed", broker_classes.get("FUTURE", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassBondRatePassed", broker_classes.get("BOND_RATE", {}).get("live_execution_certified", False), "bool"),
+        ("InpReleaseAssetClassOtherPassed", broker_classes.get("OTHER", {}).get("live_execution_certified", False), "bool"),
         ("InpReleaseMT5ValidationPassed", gate(evidence, "mt5_validation"), "bool"),
         ("InpReleaseMT5ValidationSchemaVersion", mt5.get("schema_version", ""), "string"),
         ("InpReleaseMT5ValidationEvidenceId", mt5.get("evidence_id", ""), "string"),

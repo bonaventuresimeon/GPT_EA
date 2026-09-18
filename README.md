@@ -104,6 +104,8 @@ Dashboard integrity: **[drift-detection contract](docs/DASHBOARD_DRIFT_DETECTION
 
 > ⚠️ **Repository source does not equal live certification.** The current executable source still needs a fresh MetaEditor compile and complete evidence cycle after executable changes.
 
+Local compile helper: **[docs/METAEDITOR_LOCAL_COMPILE.md](docs/METAEDITOR_LOCAL_COMPILE.md)** — runs the real MetaEditor compiler on Windows and extracts the first actionable errors into `metaeditor-first-errors.txt`.
+
 ## 🚀 Start here
 
 ```text

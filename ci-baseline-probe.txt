@@ -1,0 +1,1 @@
+Temporary baseline probe for GPT_EA Static Release Gate on current main. No runtime or release behavior changes.

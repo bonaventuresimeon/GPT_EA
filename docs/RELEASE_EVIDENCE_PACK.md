@@ -36,6 +36,8 @@ GPT_EA_RELEASE_<RELEASE_ID>/
 │   └── ci-run-reference.txt
 ├── 03_strategy_tester/
 ├── 04_broker_matrix/
+│   ├── broker-agnostic-coverage.json
+│   └── broker-agnostic-coverage-validation.txt
 ├── 05_intelligence/
 ├── 06_execution_recovery/
 ├── 07_demo_soak/
@@ -101,6 +103,12 @@ Never accept screenshots alone as artifact identity.
 - expected exclusions such as live WebRequest.
 
 ### 🏦 4. Broker / deployment
+- complete broker catalogue discovery outside Market Watch where applicable.
+- selected/rechecked symbol count and per-class counts.
+- `broker_agnostic_coverage_v1` evidence + validator PASS.
+- class-scoped REAL authorization for broker-present asset classes.
+- zero unresolved ambiguous mappings/misclassifications.
+- OTHER/GEN fail-closed unless exhaustively certified.
 - symbol properties.
 - account/margin mode.
 - filling/execution.
@@ -175,6 +183,7 @@ See `DASHBOARD_DRIFT_DETECTION.md`. The dashboard is a derived artifact and must
 - [ ] Candidate identity exact.
 - [ ] Compile evidence passes.
 - [ ] Required matrices pass.
+- [ ] Broker-agnostic coverage evidence validates and class flags match intended live markets.
 - [ ] Soak evidence validates.
 - [ ] Deployment identity validates.
 - [ ] Legal/privacy references present.
@@ -192,6 +201,7 @@ Before building the pack, validate the compile and privacy records:
 
 ```text
 python tools/validate_compile_evidence.py artifacts/compile-evidence.json
+python tools/validate_broker_coverage_evidence.py artifacts/broker-agnostic-coverage.json
 python tools/validate_privacy_signoff.py artifacts/privacy-signoff.json
 python tools/validate_release_evidence_r10.py release_evidence.json
 python tools/validate_final_release_review_r10.py release_evidence.json final_release_review.json

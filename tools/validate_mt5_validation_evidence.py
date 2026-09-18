@@ -172,6 +172,7 @@ def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str=""
                 "PROVENANCE_FRESHNESS=PASS",
                 "STORAGE_FAILURE_FAIL_CLOSED=PASS",
                 "CONFIG_DRIFT_FAIL_CLOSED=PASS",
+                "DETERMINISTIC_FALLBACK_BOUNDARY=PASS",
             ):
                 require(errors,marker in runtime_text,f"resilience runtime report missing marker: {marker}")
 

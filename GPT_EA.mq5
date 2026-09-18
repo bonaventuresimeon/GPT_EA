@@ -66,7 +66,7 @@
 CTrade trade;
 
 // ----------------------------- Inputs -----------------------------
-input string InpSymbols                 = "XAUUSD,US100.cash,GER40.cash";
+input string InpSymbols                 = "ALL";        // ALL = every tradeable broker symbol; AUTO = curated major universe; or comma-separated manual list
 input double InpRiskPercent             = 1.00;       // % of equity/balance risked per trade
 input bool   InpUseEquity               = true;
 input bool   InpRequireApproval         = true;       // signal must be approved before execution
@@ -2402,8 +2402,13 @@ void ChaosInit()
 input bool   InpAutoResolveBrokerSymbols      = true;
 input bool   InpUseMarketWatchUniverse        = false;
 input int    InpMaxMarketWatchSymbols         = 40;
-input string InpAutoMajorUniverse             = "XAUUSD,XAGUSD,US100,US30,US500,GER40,UK100,JP225,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,WTI,BRENT,BTCUSD,ETHUSD";
-input bool   InpPrintBrokerSymbolProfiles     = true;
+input bool   InpIncludeCloseOnlySymbols       = false;   // normally exclude symbols that cannot accept new entries
+input int    InpMaxBrokerUniverseSymbols      = 0;       // 0 = unlimited; applies to ALL/full-broker discovery
+input int    InpUniversalScanBatchSize        = 40;      // <=0 = scan the whole resolved universe in one cycle
+input int    InpUniverseClockProbeSymbols     = 12;      // bounded M5-bar probes for continuous-scan scheduling
+input string InpAutoMajorUniverse             = "XAUUSD,XAGUSD,US100,US30,US500,GER40,UK100,JP225,HK50,AUS200,FRA40,EU50,EURUSD,GBPUSD,GBPCAD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,USOIL,UKOIL,NATGAS,BTCUSD,ETHUSD,SOLUSD,XRPUSD,LTCUSD,UNIUSD,BNBUSD";
+input bool   InpPrintBrokerSymbolProfiles     = false;
+input int    InpMaxPrintedBrokerProfiles      = 50;      // <=0 = print every resolved profile
 input bool   InpCheckBrokerExecutionRules     = true;
 input double InpMaxNewTradeMarginPctFree      = 35.0;
 
@@ -2461,6 +2466,10 @@ struct GPTSymbolProfile
 };
 
 datetime g_lastUniversalCheckpoint=0;
+int      g_universalScanCursor=0;
+int      g_universalUniverseTotal=0;
+int      g_universalUniverseEligible=0;
+bool     g_fullBrokerUniverseMode=false;
 
 // ----------------------- Symbol normalization -------------------------
 string UpperCopy(string s){ StringToUpper(s); return s; }
@@ -2501,22 +2510,31 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
    if(StringFind(u,"BRENT")>=0 || StringFind(u,"UKOIL")>=0) return "ENERGY:BRENT";
    if(StringFind(u,"NATGAS")>=0 || StringFind(u,"NATURAL GAS")>=0 || StringFind(u,"NGAS")>=0) return "ENERGY:NATGAS";
 
-   // Crypto
-   string crypto[10]={"BTC","ETH","SOL","XRP","ADA","DOGE","LTC","BNB","DOT","AVAX"};
-   for(int k=0;k<10;k++) if(StringFind(u,crypto[k])>=0) return "CRYPTO:"+crypto[k];
+   // Crypto - explicit liquid aliases first, then broker category metadata catches unfamiliar tokens.
+   string crypto[]={"BTC","ETH","SOL","XRP","ADA","DOGE","LTC","BNB","DOT","AVAX","UNI","LINK","TRX","BCH","ETC","XLM","ATOM","NEAR","AAVE","MATIC","POL","TON","SHIB","SUI","APT","FIL","ICP","ARB","OP","PEPE"};
+   for(int k=0;k<ArraySize(crypto);k++) if(StringFind(c,crypto[k])>=0) return "CRYPTO:"+crypto[k];
 
-   // FX - match any recognized currency pair in broker symbol, description or path.
-   string cc[12]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","SGD","CNH"};
+   // FX - match a broad set of developed/emerging-market currency pairs.
+   string cc[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR"};
    string compact=CleanSymbolToken(u);
-   for(int i=0;i<12;i++)
-      for(int j=0;j<12;j++)
+   for(int i=0;i<ArraySize(cc);i++)
+      for(int j=0;j<ArraySize(cc);j++)
          if(i!=j)
          {
             string pair=cc[i]+cc[j];
             if(StringFind(c,pair)>=0 || StringFind(compact,pair)>=0) return "FX:"+pair;
          }
 
-   // Broker-specific stock/ETF/future names can still be suffix/prefix resolved by cleaned token.
+   // Broker folders/descriptions provide a robust fallback for symbols whose ticker is proprietary.
+   if(StringFind(u,"CRYPTO")>=0 || StringFind(u,"DIGITAL ASSET")>=0) return "CRYPTO:"+c;
+   if(StringFind(u,"ENERG")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"GAS")>=0) return "ENERGY:"+c;
+   if(StringFind(u,"INDICES")>=0 || StringFind(u,"EQUITY INDEX")>=0 || StringFind(u,"INDEX CFD")>=0 || StringFind(u,"IDX_")>=0) return "INDEX:"+c;
+   if(StringFind(u,"ETF")>=0 || StringFind(u,"EXCHANGE TRADED FUND")>=0) return "ETF:"+c;
+   if(StringFind(u,"FUTURE")>=0) return "FUTURE:"+c;
+   if(StringFind(u,"STOCK")>=0 || StringFind(u,"SHARE")>=0 || StringFind(u,"EQUITY")>=0) return "STOCK:"+c;
+   if(StringFind(u,"FOREX")>=0 || StringFind(u,"CURRENCY")>=0) return "FX:"+c;
+
+   // Unknown but tradeable broker instruments remain eligible and are analyzed generically.
    return "GEN:"+c;
 }
 
@@ -2527,6 +2545,9 @@ string AssetClassFromCanonical(const string key)
    if(StringFind(key,"INDEX:")==0) return "INDEX";
    if(StringFind(key,"ENERGY:")==0) return "ENERGY";
    if(StringFind(key,"CRYPTO:")==0) return "CRYPTO";
+   if(StringFind(key,"STOCK:")==0) return "STOCK";
+   if(StringFind(key,"ETF:")==0) return "ETF";
+   if(StringFind(key,"FUTURE:")==0) return "FUTURE";
    return "OTHER";
 }
 
@@ -2586,21 +2607,70 @@ bool ArrayContainsString(string &arr[],const string value)
    return false;
 }
 
+bool BrokerSymbolEligibleForUniverse(const string sym)
+{
+   if(sym=="") return false;
+   ENUM_SYMBOL_TRADE_MODE tm=(ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
+   if(tm==SYMBOL_TRADE_MODE_DISABLED) return false;
+   if(tm==SYMBOL_TRADE_MODE_CLOSEONLY && !InpIncludeCloseOnlySymbols) return false;
+   return true;
+}
+
+bool UniverseCapacityAvailable(string &arr[])
+{
+   return (InpMaxBrokerUniverseSymbols<=0 || ArraySize(arr)<InpMaxBrokerUniverseSymbols);
+}
+
+void AddDiscoveredBrokerSymbol(string &arr[],const string sym)
+{
+   if(!UniverseCapacityAvailable(arr) || !BrokerSymbolEligibleForUniverse(sym) || ArrayContainsString(arr,sym)) return;
+   int n=ArraySize(arr);
+   ArrayResize(arr,n+1);
+   arr[n]=sym;
+}
+
 void AddResolvedSymbol(string &arr[],const string requested)
 {
+   if(!UniverseCapacityAvailable(arr)) return;
    string s=ResolveBrokerSymbol(requested);
-   if(s=="" || ArrayContainsString(arr,s)) return;
+   if(s=="" || !BrokerSymbolEligibleForUniverse(s) || ArrayContainsString(arr,s)) return;
    int n=ArraySize(arr); ArrayResize(arr,n+1); arr[n]=s;
+}
+
+int DiscoverFullBrokerUniverse(string &arr[])
+{
+   int before=ArraySize(arr);
+   int total=SymbolsTotal(false);
+   g_universalUniverseTotal=total;
+   for(int i=0;i<total && UniverseCapacityAvailable(arr);i++)
+   {
+      string s=SymbolName(i,false);
+      AddDiscoveredBrokerSymbol(arr,s);
+   }
+   g_universalUniverseEligible=ArraySize(arr);
+   return ArraySize(arr)-before;
 }
 
 bool ResolveConfiguredSymbolsUniversal()
 {
    string resolved[];
    bool autoRequested=false;
+   bool allRequested=false;
+   g_universalUniverseTotal=SymbolsTotal(false);
+
    for(int i=0;i<ArraySize(g_symbols);i++)
    {
       string u=UpperCopy(Trim(g_symbols[i]));
-      if(u=="AUTO" || u=="ALL") { autoRequested=true; continue; }
+      if(u=="ALL" || u=="BROKER" || u=="UNIVERSE" || u=="ALL_MARKETS")
+      {
+         allRequested=true;
+         continue;
+      }
+      if(u=="AUTO")
+      {
+         autoRequested=true;
+         continue;
+      }
       AddResolvedSymbol(resolved,g_symbols[i]);
    }
 
@@ -2610,24 +2680,36 @@ bool ResolveConfiguredSymbolsUniversal()
       for(int i=0;i<n;i++) AddResolvedSymbol(resolved,Trim(majors[i]));
    }
 
+   g_fullBrokerUniverseMode=allRequested;
+
+   if(allRequested)
+   {
+      int added=DiscoverFullBrokerUniverse(resolved);
+      PrintFormat("GPT_EA full broker universe: catalog=%d, eligible/resolved=%d, newly added=%d, cap=%d",
+                  g_universalUniverseTotal,ArraySize(resolved),added,InpMaxBrokerUniverseSymbols);
+   }
+
    if(InpUseMarketWatchUniverse)
    {
       int total=SymbolsTotal(true);
       int cap=MathMax(1,InpMaxMarketWatchSymbols);
-      for(int i=0;i<total && ArraySize(resolved)<cap;i++)
+      int added=0;
+      for(int i=0;i<total && added<cap && UniverseCapacityAvailable(resolved);i++)
       {
          string s=SymbolName(i,true);
-         if(s=="") continue;
-         long tm=SymbolInfoInteger(s,SYMBOL_TRADE_MODE);
-         if(tm==SYMBOL_TRADE_MODE_DISABLED) continue;
-         if(!ArrayContainsString(resolved,s))
-         { int z=ArraySize(resolved); ArrayResize(resolved,z+1); resolved[z]=s; }
+         int before=ArraySize(resolved);
+         AddDiscoveredBrokerSymbol(resolved,s);
+         if(ArraySize(resolved)>before) added++;
       }
    }
 
    if(ArraySize(resolved)<=0) return false;
    ArrayResize(g_symbols,ArraySize(resolved));
    for(int i=0;i<ArraySize(resolved);i++) g_symbols[i]=resolved[i];
+
+   g_universalUniverseEligible=ArraySize(g_symbols);
+   g_universalScanCursor=0;
+   PrintFormat("GPT_EA resolved symbol universe ready: %d tradeable symbols.",ArraySize(g_symbols));
    return true;
 }
 
@@ -2706,8 +2788,14 @@ string SymbolProfileSummary(const string sym)
 void PrintResolvedBrokerProfiles()
 {
    Print("GPT_EA broker environment: ",BrokerEnvironmentSummary());
+   PrintFormat("GPT_EA symbol universe: resolved=%d | broker catalog=%d | scan batch=%d",
+               ArraySize(g_symbols),g_universalUniverseTotal,InpUniversalScanBatchSize);
    if(!InpPrintBrokerSymbolProfiles) return;
-   for(int i=0;i<ArraySize(g_symbols);i++) Print("GPT_EA profile: ",SymbolProfileSummary(g_symbols[i]));
+   int total=ArraySize(g_symbols);
+   int cap=total;
+   if(InpMaxPrintedBrokerProfiles>0 && InpMaxPrintedBrokerProfiles<cap) cap=InpMaxPrintedBrokerProfiles;
+   for(int i=0;i<cap;i++) Print("GPT_EA profile: ",SymbolProfileSummary(g_symbols[i]));
+   if(cap<total) PrintFormat("GPT_EA profile logging capped at %d/%d symbols.",cap,total);
 }
 
 double DirectionalVolume(const string sym,bool bull)
@@ -3657,19 +3745,14 @@ void RefreshReleaseSafetyGate()
    bool oldBlocked=g_releaseBlocked;
    string oldReason=g_releaseBlockReason;
    string why="";
+   // Global release state checks account/terminal/recovery configuration only.
+   // Per-symbol series, quote freshness and broker order-mode checks are enforced
+   // immediately before approval/execution, so a closed market cannot block every other market.
    bool ok=ReleaseSafetyAllows("",why);
-   if(ok)
-   {
-      for(int i=0;i<ArraySize(g_symbols);i++)
-      {
-         if(g_symbols[i]=="") continue;
-         if(!ReleaseSafetyAllows(g_symbols[i],why)){ ok=false; break; }
-      }
-   }
    g_releaseBlocked=!ok;
-   g_releaseBlockReason=(ok?"All release-blocking safety gates pass.":why);
+   g_releaseBlockReason=(ok?"All global release-blocking safety gates pass.":why);
    if(g_releaseBlocked && (!oldBlocked || oldReason!=g_releaseBlockReason)) Print("GPT_EA RELEASE BLOCK: ",g_releaseBlockReason);
-   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all release-blocking safety gates pass.");
+   else if(!g_releaseBlocked && oldBlocked) Print("GPT_EA RELEASE GATE CLEARED: all global release-blocking safety gates pass.");
 }
 
 string ReleaseGateSummary(){ return (g_releaseBlocked?"BLOCKED - "+g_releaseBlockReason:"PASS"); }
@@ -5109,7 +5192,14 @@ void CaptureDeploymentBaseline()
    for(int i=0;i<ArraySize(g_symbols);i++)
    {
       string sym=g_symbols[i];
-      if(sym=="" || !EnsureSymbol(sym)) continue;
+      if(sym=="") continue;
+      // In ALL/full-broker mode do not force-load the complete catalog merely to capture metadata.
+      // Symbols become selected naturally as the round-robin scanner reaches them.
+      if(g_fullBrokerUniverseMode)
+      {
+         if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) continue;
+      }
+      else if(!EnsureSymbol(sym)) continue;
       int n=ArraySize(g_deploymentBaseline);
       ArrayResize(g_deploymentBaseline,n+1);
       g_deploymentBaseline[n].symbol=sym;
@@ -5172,6 +5262,13 @@ bool StructuralSymbolDriftAllows(string &why)
 {
    why="";
    if(!InpUseDeploymentDriftGuard || !InpBlockOnStructuralSymbolDrift) return true;
+   if(g_fullBrokerUniverseMode)
+   {
+      // Broker catalogs are dynamic. Live per-symbol broker gates still validate tick size,
+      // volume, stops, margin and order modes before any new entry.
+      why="Full broker universe uses live per-symbol execution validation.";
+      return true;
+   }
    for(int i=0;i<ArraySize(g_deploymentBaseline);i++)
    {
       string sym=g_deploymentBaseline[i].symbol;
@@ -8420,8 +8517,13 @@ bool ContinuousIntelligenceScanDue(string &why)
    if(InpScanOnEveryNewM5Bar)
    {
       datetime newest=0;
-      for(int i=0;i<ArraySize(g_symbols);i++)
+      int total=ArraySize(g_symbols);
+      int probes=InpUniverseClockProbeSymbols;
+      if(probes<1) probes=1;
+      if(probes>total) probes=total;
+      for(int p=0;p<probes;p++)
       {
+         int i=(g_universalScanCursor+p)%total;
          if(g_symbols[i]=="") continue;
          datetime bt=iTime(g_symbols[i],PERIOD_M5,0);
          if(bt>newest) newest=bt;
@@ -8620,6 +8722,9 @@ string WebIntelInstrumentContext(const string sym)
    if(StringFind(key,"ENERGY:")==0) return "oil/gas inventories, OPEC+, geopolitical supply, demand growth, USD and risk sentiment";
    if(StringFind(key,"FX:")==0) return "central banks, inflation, labor, GDP/PMI, rates/yields, political and currency-specific headlines";
    if(StringFind(key,"CRYPTO:")==0) return "liquidity, regulation, ETF/flow, risk sentiment, rates, USD and crypto-specific headlines";
+   if(StringFind(key,"STOCK:")==0) return "company earnings/guidance, sector flows, valuation, rates, corporate actions and material company-specific news";
+   if(StringFind(key,"ETF:")==0) return "underlying holdings/index drivers, fund flows, rates, volatility, sector/macro and issuer-specific developments";
+   if(StringFind(key,"FUTURE:")==0) return "underlying spot/forward market, term structure, inventory/supply-demand, rates, session liquidity and contract-specific events";
    return "macro, sector/company where relevant, rates, volatility and instrument-specific breaking news";
 }
 
@@ -10645,7 +10750,7 @@ string CurrentSensitiveConfigText()
       "news=%d|nb=%d|na=%d|yield=%d|directbo=%d|bovol=%.3f|boadx=%.3f|bozone=%.3f|"
       "portfolio=%d|corr=%.3f|maxcorr=%.3f|maxmacro=%.3f|quality=%d|minmult=%.3f|maxmult=%.3f|"
       "trail=%.3f|lock1=%.3f:%.3f|lock2=%.3f:%.3f|api_mode=%d|proxy=%s|https=%d|"
-      "model=%s|policy=%s|symbols=%s",
+      "model=%s|policy=%s|symbols=%s|universe=%d:%d:%d:%d:%d:%d:%d:%s",
       InpRiskPercent,InpUseEquity?1:0,InpRequireApproval?1:0,InpEnableApprovedExecution?1:0,InpMaxPositionsPerSymbol,
       InpMinConfidence,InpMinEffectiveRR,InpMaxSpreadATRFrac,InpMaxSlippagePoints,
       InpFastEMA,InpSlowEMA,InpRSIPeriod,InpATRPeriod,InpSwingBars,InpPullbackExpiryM15,InpBreakoutExpiryM15,
@@ -10657,7 +10762,10 @@ string CurrentSensitiveConfigText()
       InpMaxMacroFactorRiskPercent,InpUseDynamicQualitySizing?1:0,InpMinAdaptiveRiskMultiplier,InpMaxAdaptiveRiskMultiplier,
       InpTrailStartR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
       (int)InpAPITransportMode,InpAPIProxyEndpoint,InpAPIRequireHTTPS?1:0,
-      InpOpenAIModel,InpModelPolicyVersion,InpSymbols);
+      InpOpenAIModel,InpModelPolicyVersion,InpSymbols,
+      InpAutoResolveBrokerSymbols?1:0,InpUseMarketWatchUniverse?1:0,InpMaxMarketWatchSymbols,
+      InpIncludeCloseOnlySymbols?1:0,InpMaxBrokerUniverseSymbols,InpUniversalScanBatchSize,
+      InpUniverseClockProbeSymbols,InpAutoMajorUniverse);
 
    cfg+=StringFormat(
       "|clock=%d:%d:%d|modelhealth=%d:%d:%.4f:%.4f:%.3f:%.3f:det%d|"
@@ -16108,7 +16216,27 @@ void ScanSymbol(const string sym,const string scanReason)
 
 void ScanAll(const string reason)
 {
-   for(int i=0;i<ArraySize(g_symbols);i++) if(g_symbols[i]!="") ScanSymbol(g_symbols[i],reason);
+   int total=ArraySize(g_symbols);
+   if(total<=0) return;
+
+   int batch=total;
+   if(InpUniversalScanBatchSize>0 && InpUniversalScanBatchSize<batch) batch=InpUniversalScanBatchSize;
+   int scanned=0;
+   int visited=0;
+   int start=g_universalScanCursor;
+   while(scanned<batch && visited<total)
+   {
+      int idx=(start+visited)%total;
+      string sym=g_symbols[idx];
+      visited++;
+      if(sym=="") continue;
+      ScanSymbol(sym,reason);
+      scanned++;
+   }
+
+   g_universalScanCursor=(start+visited)%total;
+   PrintFormat("GPT_EA universe scan: %d/%d symbols processed | next cursor=%d | reason=%s",
+               scanned,total,g_universalScanCursor,reason);
 }
 
 // -------------------------- MT5 event hooks -----------------------

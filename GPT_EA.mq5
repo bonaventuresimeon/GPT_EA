@@ -2534,16 +2534,49 @@ bool IsKnownFiatCurrencyCode(const string raw)
    return false;
 }
 
+bool CleanCryptoPairContains(const string cleanSymbol,const string token)
+{
+   if(cleanSymbol==token) return true;
+   string quotes[]={"USD","USDT","USDC","EUR","GBP","JPY","CHF","AUD","CAD","BTC","ETH"};
+   for(int i=0;i<ArraySize(quotes);i++)
+   {
+      if(StringFind(cleanSymbol,token+quotes[i])>=0) return true;
+      if(StringFind(cleanSymbol,quotes[i]+token)>=0) return true;
+   }
+   return false;
+}
+
 string CanonicalInstrumentKey(const string name,const string description="",const string path="",
                               const long calcMode=-1,const string baseCurrency="",
                               const string profitCurrency="",const string marginCurrency="")
 {
    string u=UpperCopy(name+" "+description+" "+path);
+   string meta=UpperCopy(description+" "+path);
    string c=CleanSymbolToken(name);
    string base=UpperCopy(baseCurrency),profit=UpperCopy(profitCurrency),margin=UpperCopy(marginCurrency);
    if(base=="CNH") base="CNY";
    if(profit=="CNH") profit="CNY";
    if(margin=="CNH") margin="CNY";
+
+   // Strong broker-native product identity comes first so a stock named after gold,
+   // an ETF tracking an index, or a futures contract is not misclassified by its description.
+   if(StringFind(meta,"ETF")>=0 || StringFind(meta,"EXCHANGE TRADED FUND")>=0) return "ETF:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_EXCH_BONDS || calcMode==SYMBOL_CALC_MODE_EXCH_BONDS_MOEX ||
+      StringFind(meta,"\\BONDS")>=0 || StringFind(meta,"/BONDS")>=0 ||
+      StringFind(meta,"TREASURY")>=0 || StringFind(meta,"GILT")>=0 ||
+      StringFind(meta,"BUND")>=0 || StringFind(meta,"JGB")>=0) return "BOND_RATE:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS || calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS_MOEX ||
+      StringFind(meta,"\\STOCKS")>=0 || StringFind(meta,"/STOCKS")>=0 ||
+      StringFind(meta,"\\SHARES")>=0 || StringFind(meta,"/SHARES")>=0) return "STOCK:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_FUTURES || calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES ||
+      calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES_FORTS ||
+      StringFind(meta,"\\FUTURES")>=0 || StringFind(meta,"/FUTURES")>=0) return "FUTURE:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_FOREX || calcMode==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE)
+   {
+      if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(profit) && base!=profit) return "FX:"+base+profit;
+      if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(margin) && base!=margin) return "FX:"+base+margin;
+      return "FX:"+c;
+   }
 
    // Precious metals
    if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0) return "METAL:XAU";
@@ -2564,7 +2597,8 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
    if(StringFind(u,"FRA40")>=0 || StringFind(u,"FR40")>=0 || StringFind(u,"CAC40")>=0) return "INDEX:FRA40";
    if(StringFind(u,"EU50")>=0 || StringFind(u,"STOXX50")>=0 || StringFind(u,"EURO STOXX")>=0) return "INDEX:EU50";
    if(StringFind(u,"ES35")>=0 || StringFind(u,"IBEX35")>=0) return "INDEX:ES35";
-   if(StringFind(u,"CH20")>=0 || StringFind(u,"SWISS20")>=0 || StringFind(u,"SMI")>=0) return "INDEX:CH20";
+   if(StringFind(u,"CH20")>=0 || StringFind(u,"SWISS20")>=0 || StringFind(u,"SWISS MARKET INDEX")>=0 ||
+      StringFind(c,"SMI20")==0 || c=="SMI") return "INDEX:CH20";
    if(StringFind(u,"SA40")>=0 || StringFind(u,"JSE40")>=0) return "INDEX:SA40";
    if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY INDEX")>=0) return "INDEX:VIX";
 
@@ -2587,9 +2621,9 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
    if(StringFind(u,"SOYBEAN")>=0 || StringFind(u,"SOY")>=0) return "COMMODITY:SOY";
    if(StringFind(u,"LUMBER")>=0) return "COMMODITY:LUMBER";
 
-   // Crypto - explicit liquid aliases first, then broker category metadata catches unfamiliar tokens.
+   // Crypto - require a recognizable token/quote pair unless broker metadata explicitly says crypto.
    string crypto[]={"BTC","ETH","SOL","XRP","ADA","DOGE","LTC","BNB","DOT","AVAX","UNI","LINK","TRX","BCH","ETC","XLM","ATOM","NEAR","AAVE","MATIC","POL","TON","SHIB","SUI","APT","FIL","ICP","ARB","OP","PEPE"};
-   for(int k=0;k<ArraySize(crypto);k++) if(StringFind(c,crypto[k])>=0) return "CRYPTO:"+crypto[k];
+   for(int k=0;k<ArraySize(crypto);k++) if(CleanCryptoPairContains(c,crypto[k])) return "CRYPTO:"+crypto[k];
 
    // FX - broad developed/emerging-market recognition.
    string cc[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR","RUB","KRW"};
@@ -2602,8 +2636,7 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
             if(StringFind(c,pair)>=0 || StringFind(compact,pair)>=0) return "FX:"+pair;
          }
 
-   // Broker folder/description metadata. Product labels take precedence when explicit.
-   if(StringFind(u,"ETF")>=0 || StringFind(u,"EXCHANGE TRADED FUND")>=0) return "ETF:"+c;
+   // Broker folder/description metadata for CFD/OTC products not identified by an exchange calculation mode.
    if(StringFind(u,"CRYPTO")>=0 || StringFind(u,"DIGITAL ASSET")>=0) return "CRYPTO:"+c;
    if(StringFind(u,"ENERG")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"NATURAL GAS")>=0) return "ENERGY:"+c;
    if(StringFind(u,"COMMODIT")>=0 || StringFind(u,"AGRICULT")>=0 || StringFind(u,"SOFTS")>=0) return "COMMODITY:"+c;
@@ -2612,23 +2645,17 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
       StringFind(u,"INTEREST RATE")>=0 || StringFind(u,"GILT")>=0 || StringFind(u,"BUND")>=0 ||
       StringFind(u,"BOBL")>=0 || StringFind(u,"SCHATZ")>=0 || StringFind(u,"JGB")>=0) return "BOND_RATE:"+c;
    if(StringFind(u,"FUTURE")>=0) return "FUTURE:"+c;
-   if(StringFind(u,"STOCK")>=0 || StringFind(u,"SHARE")>=0 || StringFind(u,"EQUITY")>=0) return "STOCK:"+c;
+   if(StringFind(u,"STOCK")>=0 || StringFind(u,"SHARE")>=0 ||
+      (StringFind(u,"EQUITY")>=0 && StringFind(u,"EQUITY INDEX")<0)) return "STOCK:"+c;
    if(StringFind(u,"FOREX")>=0 || StringFind(u,"CURRENCY")>=0) return "FX:"+c;
 
-   // MT5 contract-calculation mode is the strongest broker-native fallback when naming is proprietary.
-   if(calcMode==SYMBOL_CALC_MODE_FOREX || calcMode==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE)
-   {
-      if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(profit)) return "FX:"+base+profit;
-      return "FX:"+c;
-   }
+   // Remaining MT5 calculation-mode fallbacks for proprietary CFD names.
    if(calcMode==SYMBOL_CALC_MODE_CFDINDEX) return "INDEX:"+c;
-   if(calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS || calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS_MOEX) return "STOCK:"+c;
-   if(calcMode==SYMBOL_CALC_MODE_FUTURES || calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES || calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES_FORTS) return "FUTURE:"+c;
-   if(calcMode==SYMBOL_CALC_MODE_EXCH_BONDS || calcMode==SYMBOL_CALC_MODE_EXCH_BONDS_MOEX) return "BOND_RATE:"+c;
    if(calcMode==SYMBOL_CALC_MODE_SERV_COLLATERAL) return "OTHER:COLLATERAL";
 
    // Currency metadata remains useful even when a broker reports a generic CFD calculation mode.
    if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(profit) && base!=profit) return "FX:"+base+profit;
+   if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(margin) && base!=margin) return "FX:"+base+margin;
 
    // Unknown but tradeable broker instruments remain eligible and are analyzed generically.
    return "GEN:"+c;
@@ -2719,6 +2746,12 @@ bool ArrayContainsString(string &arr[],const string value)
 bool BrokerSymbolEligibleForUniverse(const string sym)
 {
    if(sym=="") return false;
+
+   // SymbolsTotal(false) includes instruments outside Market Watch. Discovery must not
+   // interpret unavailable pre-selection metadata as "disabled"; exact eligibility is
+   // rechecked after EnsureSymbol() selects the instrument for analysis.
+   if(!(bool)SymbolInfoInteger(sym,SYMBOL_SELECT)) return true;
+
    ENUM_SYMBOL_TRADE_MODE tm=(ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
    if(tm==SYMBOL_TRADE_MODE_DISABLED) return false;
    if(tm==SYMBOL_TRADE_MODE_CLOSEONLY && !InpIncludeCloseOnlySymbols) return false;
@@ -16170,6 +16203,11 @@ void RefreshElegantChartDashboard(bool force=false)
 void ScanSymbol(const string sym,const string scanReason)
 {
    if(!EnsureSymbol(sym)){ Print("Symbol unavailable: ",sym); return; }
+   if(!BrokerSymbolEligibleForUniverse(sym))
+   {
+      if(InpPrintBrokerSymbolProfiles) Print("GPT_EA universe skip (not entry-eligible): ",sym);
+      return;
+   }
 
    string trend="";
    bool alignedBull=false,alignedBear=false;

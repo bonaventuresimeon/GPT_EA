@@ -69,6 +69,12 @@ require_tokens("GPT_EA_Part10_BrokerUniversalRecovery.mqh",[
 ])
 require_tokens("GPT_EA_Part22_IntelligenceFreshness.mqh",[
     "ExtractResponseAnnotationURLs","WebIntelAsOfFresh","PROVENANCE_HARD_FAIL","RESPONSE_URL_ANNOTATIONS",
+    "g_lastWebIntelFailureClass","UNAVAILABLE","SCHEMA","PROVENANCE","STALE","VERDICT_BLOCK",
+    "hardStructuredFailure",
+])
+require_tokens("GPT_EA_Part16A_StrictRevalidation.mqh",[
+    'g_lastWebIntelFailureClass=="UNAVAILABLE"',"DeterministicEmergencyExecutionActive",
+    "emergencyWebBypass",
 ])
 require_tokens("GPT_EA_Part30_AdaptiveRiskPortfolio.mqh",[
     "ModelClockExecutionAllows","PortfolioStressLatencyAllows","ModelTrustRiskMultiplier",
@@ -81,6 +87,11 @@ require_tokens("GPT_EA_Part32_ChampionChallenger.mqh",[
 require_tokens("GPT_EA_Part35_AdaptiveIntegration.mqh",[
     "ModelClockTrustInit","DataIntegrityInit","ExecutionReliabilityInit","CausalAttributionInit",
     "ModelClockTrustTimer","ExecutionReliabilityTimer","CausalAttributionTimer",
+    "DeterministicEmergencyExecutionActive","storedAvailable","!aiAvailable",
+    "unavailable GPT transport bypassed",
+])
+require_tokens("GPT_EA_Part07.mqh",[
+    'g_lastWebIntelFailureClass=="UNAVAILABLE"',"DeterministicEmergencyExecutionActive","emergencyWebBypass",
 ])
 require_tokens("GPT_EA_Part37_APITransport.mqh",["ChaosInjectAPITimeout","MODEL_REQ","MODEL_FAIL","MODEL_LATENCY_EWMA_MS"])
 require_tokens("GPT_EA_Part39_DataIntegrityQuarantine.mqh",[
@@ -89,7 +100,7 @@ require_tokens("GPT_EA_Part39_DataIntegrityQuarantine.mqh",[
 ])
 require_tokens("GPT_EA_Part40_ModelClockTrust.mqh",[
     "ClockDriftAllows","MODEL_TRUST_NORMAL","MODEL_TRUST_REDUCED","MODEL_TRUST_DETERMINISTIC_ONLY",
-    "DeterministicEmergencyStrategyAllowed","GPT_EA_ModelHealth.csv",
+    "DeterministicEmergencyStrategyAllowed","DeterministicEmergencyExecutionActive","GPT_EA_ModelHealth.csv",
 ])
 require_tokens("GPT_EA_Part41_PortfolioStressLatency.mqh",[
     "PORT_STRESS_USD_UP","PORT_STRESS_YIELDS_UP","PORT_STRESS_EQUITY_RISK_OFF","PORT_STRESS_GOLD_UP",

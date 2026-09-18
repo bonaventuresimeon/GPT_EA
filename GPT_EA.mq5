@@ -219,15 +219,18 @@ bool     g_openAIModelFallbackUsed=false;
 
 string ActiveOpenAIModel()
 {
-   string selected=OpenAISecretTrim(g_activeOpenAIModel);
+   string selected=g_activeOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
    if(selected!="") return selected;
-   selected=OpenAISecretTrim(InpOpenAIModel);
+   selected=InpOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
    return selected;
 }
 
 string ActiveDeepOpenAIModel()
 {
-   string selected=OpenAISecretTrim(g_activeDeepOpenAIModel);
+   string selected=g_activeDeepOpenAIModel;
+   StringTrimLeft(selected); StringTrimRight(selected);
    if(selected!="") return selected;
    return ActiveOpenAIModel();
 }
@@ -10508,6 +10511,284 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
 #undef ExtractOpenAIText
 #undef WebRequest
 #undef InpOpenAIAPIKey
+
+// GPT_EA Part 39A - OpenAI model discovery / automatic availability fallback
+string OpenAIModelsEndpoint()
+{
+   string endpoint=APITrim(InpOpenAIEndpoint);
+   int p=StringFind(endpoint,"/v1/");
+   if(p>=0) return StringSubstr(endpoint,0,p)+"/v1/models";
+   if(StringLen(endpoint)>=3 && StringSubstr(endpoint,StringLen(endpoint)-3)=="/v1")
+      return endpoint+"/models";
+   return "https://api.openai.com/v1/models";
+}
+
+bool OpenAIModelCatalogContains(const string &ids[],const string model)
+{
+   string needle=APITrim(model);
+   if(needle=="") return false;
+   for(int i=0;i<ArraySize(ids);i++)
+      if(ids[i]==needle) return true;
+   return false;
+}
+
+int ExtractOpenAIModelIds(const string json,string &ids[])
+{
+   ArrayResize(ids,0);
+   int pos=0;
+   while(pos<StringLen(json))
+   {
+      int p=StringFind(json,"\"id\"",pos);
+      if(p<0) break;
+      int colon=StringFind(json,":",p+4);
+      if(colon<0) break;
+      int q1=StringFind(json,"\"",colon+1);
+      if(q1<0) break;
+      int q2=StringFind(json,"\"",q1+1);
+      if(q2<0) break;
+      string id=StringSubstr(json,q1+1,q2-q1-1);
+      if(id!="")
+      {
+         bool duplicate=false;
+         for(int i=0;i<ArraySize(ids);i++) if(ids[i]==id){ duplicate=true; break; }
+         if(!duplicate)
+         {
+            int n=ArraySize(ids);
+            ArrayResize(ids,n+1);
+            ids[n]=id;
+         }
+      }
+      pos=q2+1;
+   }
+   return ArraySize(ids);
+}
+
+bool OpenAIModelIsEAResponsesCandidate(string id)
+{
+   id=APITrim(id);
+   StringToLower(id);
+   if(StringFind(id,"gpt-")!=0) return false;
+   string excluded[]={"realtime","audio","transcribe","tts","image","embedding","moderation",
+                      "search","chat","codex","cyber","computer-use"};
+   for(int i=0;i<ArraySize(excluded);i++)
+      if(StringFind(id,excluded[i])>=0) return false;
+   return true;
+}
+
+int OpenAIModelFallbackRank(string id)
+{
+   id=APITrim(id);
+   StringToLower(id);
+   if(!OpenAIModelIsEAResponsesCandidate(id)) return -1;
+   if(id=="gpt-5.6-sol") return 10000;
+   if(id=="gpt-5.6") return 9950;
+   if(id=="gpt-5.6-terra") return 9900;
+   if(id=="gpt-5.6-luna") return 9850;
+   if(StringFind(id,"gpt-5.6")==0) return 9700-StringLen(id);
+   if(StringFind(id,"gpt-5.2")==0) return 9300-StringLen(id);
+   if(StringFind(id,"gpt-5.1")==0) return 9200-StringLen(id);
+   if(id=="gpt-5") return 9100;
+   if(StringFind(id,"gpt-5")==0) return 9000-StringLen(id);
+   if(StringFind(id,"gpt-4.1")==0) return 8000-StringLen(id);
+   if(StringFind(id,"gpt-4o")==0) return 7000-StringLen(id);
+   return 1000-StringLen(id);
+}
+
+bool SelectAvailableOpenAIModel(const string requested,const string &ids[],string &selected,string &why)
+{
+   selected=""; why="";
+   string wanted=APITrim(requested);
+   if(OpenAIModelCatalogContains(ids,wanted) && OpenAIModelIsEAResponsesCandidate(wanted))
+   {
+      selected=wanted;
+      why="REQUESTED MODEL AVAILABLE";
+      return true;
+   }
+
+   string choices[];
+   int n=StringSplit(InpOpenAIModelFallbacks,',',choices);
+   for(int i=0;i<n;i++)
+   {
+      string candidate=APITrim(choices[i]);
+      if(candidate!="" && OpenAIModelCatalogContains(ids,candidate) && OpenAIModelIsEAResponsesCandidate(candidate))
+      {
+         selected=candidate;
+         why="REQUESTED UNAVAILABLE → FALLBACK FROM PRIORITY LIST";
+         return true;
+      }
+   }
+
+   int best=-2147483647;
+   for(int i=0;i<ArraySize(ids);i++)
+   {
+      int rank=OpenAIModelFallbackRank(ids[i]);
+      if(rank>best)
+      {
+         best=rank;
+         selected=ids[i];
+      }
+   }
+   if(selected!="" && best>0)
+   {
+      why="REQUESTED/FALLBACK LIST UNAVAILABLE → BEST DISCOVERED TEXT MODEL";
+      return true;
+   }
+
+   why="NO COMPATIBLE GPT TEXT MODEL FOUND IN API MODEL CATALOG";
+   return false;
+}
+
+bool FetchOpenAIModelCatalog(string &ids[],string &why)
+{
+   ArrayResize(ids,0);
+   why="";
+   if(!InpUseOpenAI){ why="OpenAI disabled."; return false; }
+   if((bool)MQLInfoInteger(MQL_TESTER)){ why="Strategy Tester cannot query the model catalog."; return false; }
+   if(InpAPITransportMode!=GPT_API_DIRECT_OPENAI)
+   {
+      why="Secure proxy mode: model discovery is delegated to the proxy; direct bearer-key catalog scan skipped.";
+      return false;
+   }
+
+   string key=OpenAILocalCredential();
+   if(StringLen(key)<20){ why="No direct-mode OpenAI API key is configured."; return false; }
+
+   string url=OpenAIModelsEndpoint();
+   if(!APITrustedDirectEndpoint(url))
+   { why="Model discovery refused a non-OpenAI endpoint."; return false; }
+
+   string headers="Authorization: Bearer "+key+"\r\nAccept: application/json\r\n";
+   char data[],result[];
+   ArrayResize(data,0);
+   string resultHeaders="";
+   ResetLastError();
+   int code=WebRequest("GET",url,headers,InpOpenAITimeoutMs,data,result,resultHeaders);
+   if(code==-1)
+   {
+      why=StringFormat("Model catalog WebRequest failed (MT5 error %d). Allow https://api.openai.com in MT5 WebRequest settings.",GetLastError());
+      return false;
+   }
+
+   string raw=CharArrayToString(result,0,-1,CP_UTF8);
+   if(code<200 || code>=300)
+   {
+      string classText=(code==401||code==403?"AUTHORIZATION FAILED":(code==429?"RATE LIMITED":"HTTP ERROR"));
+      why=StringFormat("%s while scanning OpenAI models (HTTP %d): %s",classText,code,StringSubstr(raw,0,280));
+      return false;
+   }
+
+   int found=ExtractOpenAIModelIds(raw,ids);
+   if(found<=0)
+   {
+      why="OpenAI model catalog returned no parseable model IDs.";
+      return false;
+   }
+   why=StringFormat("MODEL CATALOG OK • %d model IDs discovered",found);
+   return true;
+}
+
+bool ResolveOpenAIModels(const bool force,string &why)
+{
+   why="";
+   string requested=APITrim(InpOpenAIModel);
+   if(requested=="") requested="gpt-5.6-sol";
+
+   if(!InpUseOpenAI)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=requested;
+      g_openAIModelResolution="OFF";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="OpenAI disabled.";
+      return true;
+   }
+
+   if(!InpOpenAIModelAutoResolve)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="MANUAL / AUTO-RESOLVE OFF";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="Automatic model resolution disabled; using configured model.";
+      return true;
+   }
+
+   if(!force && g_openAIModelResolvedAt>0)
+   {
+      int ttl=MathMax(1,InpOpenAIModelScanMinutes)*60;
+      if(TimeTradeServer()-g_openAIModelResolvedAt<ttl)
+      {
+         why=g_openAIModelResolution;
+         return true;
+      }
+   }
+
+   if(InpAPITransportMode==GPT_API_SECURE_PROXY)
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="PROXY • DISCOVERY DELEGATED";
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why="Secure proxy mode keeps the server-side key private; direct model-list scan skipped.";
+      return true;
+   }
+
+   string ids[];
+   string catalogWhy="";
+   if(!FetchOpenAIModelCatalog(ids,catalogWhy))
+   {
+      // Network/auth discovery failure is not proof that the configured model is invalid.
+      // Preserve the requested model but mark it UNVERIFIED; normal request gates still apply.
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=(InpUseDeepGPTReviewModel && APITrim(InpDeepGPTReviewModel)!=""?APITrim(InpDeepGPTReviewModel):requested);
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="UNVERIFIED • "+catalogWhy;
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why=g_openAIModelResolution;
+      return false;
+   }
+
+   string selected="",selectWhy="";
+   if(!SelectAvailableOpenAIModel(requested,ids,selected,selectWhy))
+   {
+      g_activeOpenAIModel=requested;
+      g_activeDeepOpenAIModel=requested;
+      g_openAIModelFallbackUsed=false;
+      g_openAIModelResolution="NO COMPATIBLE MODEL • "+selectWhy;
+      g_openAIModelResolvedAt=TimeTradeServer();
+      why=g_openAIModelResolution;
+      return false;
+   }
+
+   g_activeOpenAIModel=selected;
+   g_openAIModelFallbackUsed=(selected!=requested);
+
+   string deepRequested=(InpUseDeepGPTReviewModel?APITrim(InpDeepGPTReviewModel):selected);
+   if(deepRequested!="" && OpenAIModelCatalogContains(ids,deepRequested) && OpenAIModelIsEAResponsesCandidate(deepRequested))
+      g_activeDeepOpenAIModel=deepRequested;
+   else
+      g_activeDeepOpenAIModel=selected;
+
+   g_openAIModelResolution=(g_openAIModelFallbackUsed?
+      "FALLBACK ACTIVE • requested "+requested+" → "+selected:
+      "REQUESTED MODEL VERIFIED • "+selected);
+   g_openAIModelResolvedAt=TimeTradeServer();
+   why=catalogWhy+" | "+selectWhy+" | "+g_openAIModelResolution;
+   return true;
+}
+
+void RefreshOpenAIModelResolutionIfDue()
+{
+   if(!InpUseOpenAI || !InpOpenAIModelAutoResolve) return;
+   int ttl=MathMax(1,InpOpenAIModelScanMinutes)*60;
+   if(g_openAIModelResolvedAt>0 && TimeTradeServer()-g_openAIModelResolvedAt<ttl) return;
+   string why="";
+   bool ok=ResolveOpenAIModels(true,why);
+   Print("OpenAI model refresh: ",ok?"OK":"UNVERIFIED"," | ",why,
+         " | active=",ActiveOpenAIModel()," | deep=",ActiveDeepOpenAIModel());
+}
 
 // GPT_EA Part 40 - Clock integrity, model degradation and deterministic fallback
 

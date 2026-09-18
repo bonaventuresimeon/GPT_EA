@@ -16,9 +16,12 @@
 
 # ADR-008: Shadow-First Adaptive Learning
 
+**ADR ID:** ADR-008  
 **Status:** Accepted  
 **Decision date:** 2026-09-18  
 **Scope:** GPT_EA architecture and release governance
+**Supersedes:** None  
+**Superseded by:** None
 
 ## 🎯 Context
 

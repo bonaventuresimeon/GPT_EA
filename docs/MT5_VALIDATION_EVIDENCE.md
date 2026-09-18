@@ -157,3 +157,10 @@ python tools/validate_mt5_validation_evidence.py artifacts/mt5-validation-eviden
 ```
 
 The resulting evidence ID/digest and PASS status are required by the R6 supplemental gate. This record is engineering evidence; it does not guarantee trading profitability.
+
+
+## Minimum proof view
+
+For operator execution, `MT5_MINIMUM_PROOF_SET.md` groups M5-001 through M5-053 into eight proof bundles (MP-01 through MP-08). This is a compact execution plan, not a reduced acceptance standard.
+
+After the authoritative `mt5_validation_evidence_v2` record passes, `tools/build_mt5_minimum_proof_summary.py` may derive the compact summary. It cannot create PASS from incomplete MT5 evidence and Part28B continues to trust the MT5 v2 evidence digest, not the summary.

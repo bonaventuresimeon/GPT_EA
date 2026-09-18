@@ -26,7 +26,7 @@ def set_file(data:dict,section:str,path_key:str,hash_key:str,value:str)->None:
     data[section][hash_key]=sha256_file(p)
 
 def main()->int:
-    ap=argparse.ArgumentParser(description="Build a draft GPT_EA MT5 validation evidence record and hash retained artifacts")
+    ap=argparse.ArgumentParser(description="Build a draft GPT_EA MT5 validation evidence v2 record and hash retained artifacts")
     ap.add_argument("--git-sha",required=True)
     ap.add_argument("--ex5-sha256",required=True)
     ap.add_argument("--set-sha256",default="NONE")
@@ -43,6 +43,11 @@ def main()->int:
     ap.add_argument("--journal-log",required=True)
     ap.add_argument("--broker-history",required=True)
     ap.add_argument("--matrix-bundle",required=True)
+    ap.add_argument("--intent-ledger",required=True)
+    ap.add_argument("--reconciliation",required=True)
+    ap.add_argument("--web-provenance",required=True)
+    ap.add_argument("--model-health",required=True)
+    ap.add_argument("--resilience-runtime-report",required=True)
     ap.add_argument("--output",default="artifacts/mt5-validation-evidence.json")
     args=ap.parse_args()
 
@@ -60,6 +65,11 @@ def main()->int:
     set_file(data,"artifacts","journal_log_path","journal_log_sha256",args.journal_log)
     set_file(data,"artifacts","broker_history_path","broker_history_sha256",args.broker_history)
     set_file(data,"artifacts","matrix_bundle_path","matrix_bundle_sha256",args.matrix_bundle)
+    set_file(data,"artifacts","intent_ledger_path","intent_ledger_sha256",args.intent_ledger)
+    set_file(data,"artifacts","reconciliation_path","reconciliation_sha256",args.reconciliation)
+    set_file(data,"artifacts","web_provenance_path","web_provenance_sha256",args.web_provenance)
+    set_file(data,"artifacts","model_health_path","model_health_sha256",args.model_health)
+    set_file(data,"artifacts","resilience_runtime_report_path","resilience_runtime_report_sha256",args.resilience_runtime_report)
 
     out=resolve(args.output); out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(data,indent=2)+"\n",encoding="utf-8")

@@ -1850,6 +1850,16 @@
           "required": true
         },
         {
+          "path": "artifacts/broker-agnostic-coverage.json",
+          "evidence_type": "broker_agnostic_coverage",
+          "required": true
+        },
+        {
+          "path": "artifacts/broker-agnostic-coverage-validation.txt",
+          "evidence_type": "broker_agnostic_coverage_validation",
+          "required": true
+        },
+        {
           "path": "static-check.txt",
           "evidence_type": "static_ci",
           "required": true

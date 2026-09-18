@@ -95,7 +95,9 @@ require_tokens("GPT_EA_Part07.mqh",[
 ])
 require_tokens("GPT_EA_Part37_APITransport.mqh",["ChaosInjectAPITimeout","MODEL_REQ","MODEL_FAIL","MODEL_LATENCY_EWMA_MS"])
 require_tokens("GPT_EA_Part39_DataIntegrityQuarantine.mqh",[
-    "CurrentConfigFingerprint","SymbolContractFingerprint","StrategyConfigVersion","WriteStrategyConfigRegistry",
+    "CurrentConfigFingerprint","CurrentSensitiveConfigText","LateResilienceConfigText",
+    "InpStressYieldShockBps","InpModelDeterministicFailureRate","InpWebIntelMaxAsOfAgeMinutes",
+    "InpEnableChaosFaultInjection","SymbolContractFingerprint","StrategyConfigVersion","WriteStrategyConfigRegistry",
     "LearningSampleShouldQuarantine","GPT_EA_QuarantinedLearning.csv",
 ])
 require_tokens("GPT_EA_Part40_ModelClockTrust.mqh",[
@@ -114,7 +116,8 @@ require_tokens("GPT_EA_Part42_ExecutionReliability.mqh",[
     "MarkTradeIntentSent","PositionOrHistoryMatchesIntent","IntentGeometryMatchesPosition",
     "IntentGeometryMatchesDeal","IntentGeometryMatchesHistoryOrder","INTENT_COMMENT_FALLBACK_POSITION",
     "ReconcileBrokerAgainstEA","CriticalStorageHealthCheck","MarkOpenPositionsStorageAnomaly",
-    "ConfigurationDriftAllows","MarkManualIntervention",
+    "ConfigurationDriftAllows","MarkManualIntervention","LateResilienceConfigText",
+    "InpUseExactlyOnceExecution","InpUseBrokerEAReconciliation","InpUsePromotionSignificance",
     "HandleReliabilityTradeTransaction","GPT_EA_TradeIntentLedger.csv","GPT_EA_BrokerReconciliation.csv",
 ])
 require_tokens("GPT_EA_Part43_CausalAttribution.mqh",["CausalAttributionForPosition","FinalizeCausalAttributionHistory","GPT_EA_CausalAttribution.csv"])
@@ -129,6 +132,16 @@ require_tokens("GPT_EA_Part28B_CIReleaseEvidence.mqh",[
     "InpReleaseResilienceHardeningPassed","ReleaseResilienceHardeningAllows",
     "InpReleaseCertifiedConfigFingerprint",
 ])
+
+
+# History reconciliation must not mutate HistorySelect lists inside indexed loops.
+p42=read("GPT_EA_Part42_ExecutionReliability.mqh")
+deal_helper=re.search(r"bool\s+IntentGeometryMatchesDeal\([^\)]*\)\s*\{(.*?)\n\}",p42,re.S)
+order_helper=re.search(r"bool\s+IntentGeometryMatchesHistoryOrder\([^\)]*\)\s*\{(.*?)\n\}",p42,re.S)
+if deal_helper and "HistoryDealSelect(" in deal_helper.group(1):
+    errors.append("IntentGeometryMatchesDeal must not call HistoryDealSelect inside indexed history reconciliation")
+if order_helper and "HistoryOrderSelect(" in order_helper.group(1):
+    errors.append("IntentGeometryMatchesHistoryOrder must not call HistoryOrderSelect inside indexed history reconciliation")
 
 # Fail-closed defaults.
 p44=read("GPT_EA_Part44_ChaosFaultInjection.mqh")
@@ -161,7 +174,8 @@ for i in range(1,17):
 runtime_template=read("MT5_RESILIENCE_RUNTIME_REPORT_TEMPLATE.md")
 for marker in ("DUPLICATE_ORDER_COUNT=0","UNRESOLVED_INTENT_COUNT=0","UNRECONCILED_POSITION_COUNT=0",
                "CHAOS_REAL_ACCOUNT_REFUSAL=PASS","MACRO_STRESS_MATRIX=PASS","PROVENANCE_FRESHNESS=PASS",
-               "STORAGE_FAILURE_FAIL_CLOSED=PASS","CONFIG_DRIFT_FAIL_CLOSED=PASS"):
+               "STORAGE_FAILURE_FAIL_CLOSED=PASS","CONFIG_DRIFT_FAIL_CLOSED=PASS",
+               "DETERMINISTIC_FALLBACK_BOUNDARY=PASS"):
     if marker not in runtime_template: errors.append(f"MT5 resilience runtime template missing final marker: {marker}")
 
 for matrix_name,prefix,last in [

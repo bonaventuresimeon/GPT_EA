@@ -2130,6 +2130,16 @@
           "path": "artifacts/demo-validation-run-validation.txt",
           "evidence_type": "demo_validation_harness_validation",
           "required": true
+        },
+        {
+          "path": "artifacts/security-review.txt",
+          "evidence_type": "security_review",
+          "required": true
+        },
+        {
+          "path": "artifacts/evidence-retention-register.json",
+          "evidence_type": "evidence_retention_register",
+          "required": true
         }
       ]
     },
@@ -2310,7 +2320,8 @@
         "fail_closed_recovery_drill": false,
         "release_candidate_smoke": false,
         "demo_validation_harness": false,
-        "security_review": false
+        "security_review": false,
+        "evidence_retention": false
       },
       "final_review": {
         "schema_version": "final_release_review_v1",
@@ -2362,6 +2373,14 @@
         "secret_scan_passed": false,
         "prompt_injection_review_passed": false,
         "evidence_path": "artifacts/security-review.txt"
+      },
+      "evidence_retention": {
+        "policy": "docs/EVIDENCE_RETENTION_POLICY.md",
+        "register_path": "artifacts/evidence-retention-register.json",
+        "reviewed": false,
+        "reviewer": "",
+        "jurisdiction": "",
+        "reviewed_at_utc": ""
       }
     },
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": {

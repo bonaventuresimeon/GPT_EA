@@ -69,7 +69,7 @@ This matrix defines the minimum MT5/MetaEditor evidence needed for `mt5_validati
 | M5-047 | Gap risk | Worst proposed gap/scenario loss multiple is bounded by policy | HOLD | |
 | M5-048 | Margin stress | Worst-scenario stressed margin level remains above configured floor | HOLD | |
 | M5-049 | Decision lifetime | Strategy-specific half-life and learned latency budget invalidate stale execution | HOLD | |
-| M5-050 | Model degradation | NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY and emergency strategy policy PASS | HOLD | |
+| M5-050 | Model degradation | NORMAL → REDUCED_TRUST → DETERMINISTIC_ONLY PASS; emergency mode may bypass unavailable GPT/web transport only, never an available veto, BLOCK verdict, stale/schema/provenance failure, calendar/yield/intermarket conflict or disallowed strategy | HOLD | |
 | M5-051 | Provenance freshness | Raw URL annotations, authoritative-source rule and `as_of_utc` freshness fail closed | HOLD | |
 | M5-052 | Learning quarantine | Corrupted/manual/chaos/config-mismatch samples cannot alter adaptive evidence | HOLD | |
 | M5-053 | Champion rollback | Statistical promotion significance and probation rollback/requalification PASS | HOLD | |

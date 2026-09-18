@@ -20,7 +20,8 @@ from validate_rollback_readiness import validate_rollback_readiness
 from validate_soak_evidence import validate_soak
 
 ROOT=Path(__file__).resolve().parents[1]
-PART28=ROOT/"GPT_EA_Part28_ReleaseCertification.mqh"
+MQH=ROOT/"mqh"
+PART28=MQH/"GPT_EA_Part28_ReleaseCertification.mqh"
 SOAK_SCHEMA=ROOT/"SOAK_EVIDENCE_SCHEMA.json"
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")

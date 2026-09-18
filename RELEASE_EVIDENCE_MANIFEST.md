@@ -158,7 +158,7 @@ Set these only from the accepted bundle.
 
 ## 5. MT5/MetaEditor validation evidence
 
-Complete `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` and `mt5_validation_evidence_v1` for the exact candidate.
+Complete `MT5_VALIDATION_ACCEPTANCE_MATRIX.md` and `mt5_validation_evidence_v2` for the exact candidate.
 
 Record/verify:
 
@@ -177,7 +177,7 @@ Record/verify:
 Concrete Part28B inputs:
 
 - `InpReleaseMT5ValidationPassed=true`
-- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v1`
+- `InpReleaseMT5ValidationSchemaVersion=mt5_validation_evidence_v2`
 - `InpReleaseMT5ValidationEvidenceId=`
 - `InpReleaseMT5ValidationDigest=`
 

@@ -1151,6 +1151,11 @@ void DrawTradeMap(const TradeSetup &s)
    SetHLine(LEVEL_TP1,s.tp1,clrLimeGreen,STYLE_DASH,1);
    SetHLine(LEVEL_TP2,s.tp2,clrLimeGreen,STYLE_DASH,1);
    SetHLine(LEVEL_TP3,s.tp3,clrLimeGreen,STYLE_DOT,1);
+   ObjectSetString(0,LEVEL_ENTRY,OBJPROP_TEXT,"ENTRY / PREFERRED");
+   ObjectSetString(0,LEVEL_SL,OBJPROP_TEXT,"INITIAL SL");
+   ObjectSetString(0,LEVEL_TP1,OBJPROP_TEXT,"TP1");
+   ObjectSetString(0,LEVEL_TP2,OBJPROP_TEXT,"TP2");
+   ObjectSetString(0,LEVEL_TP3,OBJPROP_TEXT,"TP3 / RUNNER");
 
    datetime left=TimeCurrent()-6*3600;
    datetime right=TimeCurrent()+6*3600;
@@ -1167,6 +1172,9 @@ void ApplyChartPolish()
    if(!InpPolishChart) return;
    ChartSetInteger(0,CHART_MODE,CHART_CANDLES);
    ChartSetInteger(0,CHART_SHOW_GRID,false);
+   ChartSetInteger(0,CHART_SHIFT,true);
+   ChartSetDouble(0,CHART_SHIFT_SIZE,18.0);
+   ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,true);
    ChartSetInteger(0,CHART_COLOR_BACKGROUND,C'11,15,22');
    ChartSetInteger(0,CHART_COLOR_FOREGROUND,clrSilver);
    ChartSetInteger(0,CHART_COLOR_CHART_UP,C'35,196,131');
@@ -15336,7 +15344,12 @@ void RenderLiveManagementDashboard(ulong ticket)
    if(R<=0) return;
 
    double rNow=0,liveR=0,liveEntry=0,px=0; bool liveBull=bull;
-   CurrentPositionR(ticket,rNow,liveR,liveEntry,px,liveBull);
+   if(CurrentPositionR(ticket,rNow,liveR,liveEntry,px,liveBull))
+   {
+      R=liveR;
+      entry=liveEntry;
+      bull=liveBull;
+   }
    double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
    double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
    double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
@@ -15355,6 +15368,8 @@ void RenderLiveManagementDashboard(ulong ticket)
    int life=(int)GVRead(PosKey(pid,"LIFECYCLE_STATE"),LIFE_FILLED);
    string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
    string brokerDetail=""; double brokerHealth=BrokerHealthScore(sym,brokerDetail);
+   string modelBrief=VisualShortText(modelDetail,86);
+   string brokerBrief=VisualShortText(brokerDetail,86);
    double riskMoney=GVRead(PosKey(pid,"RISK"),0);
    string action=LiveManagementAction(tp1done,tp2partial,stage,rNow,expiry,elapsedM15);
    string releaseState=g_releaseBlocked?"BLOCK":"PASS";
@@ -15421,6 +15436,8 @@ void RenderLiveManagementDashboard(ulong ticket)
       "Initial risk %.2f   •   Floating P/L %.2f   •   Portfolio risk %.2f%%\n"
       "Daily loss %.2f%%   •   Drawdown %.2f%%   •   Broker health %.0f/100\n"
       "Model %s   •   Release %s   •   Manual pause %s\n"
+      "Broker: %s\n"
+      "Model health: %s\n"
       "Release detail: %s\n"
       "EA management: %s",
       ticket,volume,TimeToString(opened,TIME_DATE|TIME_MINUTES),
@@ -15430,7 +15447,7 @@ void RenderLiveManagementDashboard(ulong ticket)
       riskMoney,floating,CurrentPortfolioRiskPercent(),
       DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
       modelState,releaseState,g_manualPaused?"YES":"NO",
-      releaseWhy,action);
+      brokerBrief,modelBrief,releaseWhy,action);
    ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
 
    if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
@@ -15465,6 +15482,8 @@ void RenderCandidateOperationalDashboard()
    StrategyClass strategy=CandidateStrategyForSymbol(s.symbol);
    string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
    string brokerDetail=""; double brokerHealth=BrokerHealthScore(s.symbol,brokerDetail);
+   string modelBrief=VisualShortText(modelDetail,82);
+   string brokerBrief=VisualShortText(brokerDetail,82);
    int pending=ActivePendingForSymbol(s.symbol);
    string releaseState=g_releaseBlocked?"BLOCK":"PASS";
    string releaseWhy=VisualShortText(g_releaseBlockReason,82);
@@ -15534,6 +15553,8 @@ void RenderCandidateOperationalDashboard()
       "Structure %s   •   Sweep %s   •   FVG %s   •   Rejection %s\n"
       "Portfolio risk %.2f%%   •   Daily loss %.2f%%   •   Drawdown %.2f%%\n"
       "Broker health %.0f/100   •   Model %s   •   Release %s\n"
+      "Broker: %s\n"
+      "Model health: %s\n"
       "Filters: %s\n"
       "Release detail: %s\n"
       "EA action: %s",
@@ -15544,7 +15565,7 @@ void RenderCandidateOperationalDashboard()
       r.structureAligned?"YES":"NO",r.liquiditySweep?"YES":"NO",r.fairValueGap?"YES":"NO",r.rejectionCandle?"YES":"NO",
       CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
       brokerHealth,ModelTrustModeName(modelMode),releaseState,
-      VisualShortText(g_visualLastFilter,110),releaseWhy,action);
+      brokerBrief,modelBrief,VisualShortText(g_visualLastFilter,110),releaseWhy,action);
    ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
 
    if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);

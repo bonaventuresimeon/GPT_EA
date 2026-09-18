@@ -109,6 +109,8 @@ flowchart TD
 
 The major irreversible or safety-relevant design choices are recorded in **[ADR_INDEX.md](ADR_INDEX.md)** rather than being left implicit in code comments.
 
+Supersession and history-preservation are governed by **[ADR_SUPERSESSION_POLICY.md](ADR_SUPERSESSION_POLICY.md)** and the machine-readable `ADR_REGISTRY.json`.
+
 Current accepted ADR themes include fail-closed new-entry governance, customer-owned API keys, human approval, existing-position safety during governance blocks, evidence-bound releases, versioned legal/risk/privacy approval, privacy-minimized licensing/telemetry, and shadow-first adaptive learning.
 
 ```mermaid
@@ -121,6 +123,7 @@ flowchart LR
 ```
 
 See also **[RELEASE_TRUTH_DASHBOARD.md](RELEASE_TRUTH_DASHBOARD.md)**.
+Dashboard/evidence drift is defined in **[DASHBOARD_DRIFT_DETECTION.md](DASHBOARD_DRIFT_DETECTION.md)**.
 
 ## ⚠️ Non-goals
 

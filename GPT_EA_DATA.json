@@ -4336,7 +4336,8 @@
             "generic_live_fail_closed_passed",
             "service_collateral_excluded_passed",
             "ambiguous_mapping_count",
-            "misclassification_count"
+            "misclassification_count",
+            "class_counts"
           ],
           "properties": {
             "total_catalog_symbols": {
@@ -4374,6 +4375,69 @@
             },
             "misclassification_count": {
               "const": 0
+            },
+            "class_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "FX",
+                "METAL",
+                "INDEX",
+                "ENERGY",
+                "COMMODITY",
+                "CRYPTO",
+                "STOCK",
+                "ETF",
+                "FUTURE",
+                "BOND_RATE",
+                "OTHER"
+              ],
+              "properties": {
+                "FX": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "METAL": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "INDEX": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ENERGY": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "COMMODITY": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "CRYPTO": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "STOCK": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ETF": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "FUTURE": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "BOND_RATE": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "OTHER": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
             }
           }
         },
@@ -4592,7 +4656,20 @@
         "generic_live_fail_closed_passed": false,
         "service_collateral_excluded_passed": false,
         "ambiguous_mapping_count": 0,
-        "misclassification_count": 0
+        "misclassification_count": 0,
+        "class_counts": {
+          "FX": 0,
+          "METAL": 0,
+          "INDEX": 0,
+          "ENERGY": 0,
+          "COMMODITY": 0,
+          "CRYPTO": 0,
+          "STOCK": 0,
+          "ETF": 0,
+          "FUTURE": 0,
+          "BOND_RATE": 0,
+          "OTHER": 0
+        }
       },
       "controls": {
         "exact_symbol_preserved": false,

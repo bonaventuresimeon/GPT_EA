@@ -16058,7 +16058,7 @@ string VisualClock(datetime t)
    return TimeToString(t,TIME_MINUTES|TIME_SECONDS);
 }
 
-string VisualStopRulesText(const string sym,const bool bull)
+string VisualStopRulesText(const bool bull)
 {
    string dir=(bull?"LONG":"SHORT");
    string trailFormula=(bull?
@@ -16066,9 +16066,10 @@ string VisualStopRulesText(const string sym,const bool bull)
       "trail=min(+strong lock, max(price+ATR*x, M5high+buffer))");
    return StringFormat(
       "%s  •  TP1 completion gates the protection ladder\n"
-      "B.E. @ %.2fR → entry +/− max(cost, %.2fR)  •  Lock @ %.2fR → %.2fR  •  Strong @ %.2fR → %.2fR\n"
-      "Trail @ %.2fR → %s  •  ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR  •  broker stop/freeze safe",
-      dir,InpBETriggerR,InpBELockMinR,InpProfitLockTriggerR,InpProfitLockR,
+      "B.E. @ %.2fR → entry +/− max(cost, %.2fR), cost=max(%.2fx ATR, spread+learned slip)\n"
+      "Lock @ %.2fR → %.2fR  •  Strong @ %.2fR → %.2fR  •  Trail @ %.2fR → %s\n"
+      "Trail inputs: ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR  •  broker stop/freeze safe",
+      dir,InpBETriggerR,InpBELockMinR,InpBECostATRFrac,InpProfitLockTriggerR,InpProfitLockR,
       InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,trailFormula,
       InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR);
 }
@@ -16187,7 +16188,7 @@ void RenderLiveManagementDashboard(ulong ticket)
 
    SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+302,sw,90,
       "EXACT STOP-MOVEMENT RULES",
-      VisualStopRulesText(sym,bull),
+      VisualStopRulesText(bull),
       C'182,137,68');
 
    SetDashboardSection(DASH_TIMELINE_CARD,DASH_TIMELINE_LABEL,sx,InpDashboardY+400,sw,80,
@@ -16304,7 +16305,7 @@ void RenderCandidateOperationalDashboard()
 
    SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,InpDashboardY+314,sw,90,
       "PROTECTION RULES IF FILLED",
-      VisualStopRulesText(s.symbol,s.bullish),
+      VisualStopRulesText(s.bullish),
       C'182,137,68');
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,InpDashboardY+412,sw,96,

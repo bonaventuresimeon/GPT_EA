@@ -38,8 +38,8 @@ for token in [
     "InpOpenAIModelAutoResolve","InpOpenAIModelFallbacks","InpOpenAIModelScanMinutes",
     "OpenAIModelsEndpoint","FetchOpenAIModelCatalog","ExtractOpenAIModelIds",
     "SelectAvailableOpenAIModel","ResolveOpenAIModels","RefreshOpenAIModelResolutionIfDue",
-    "ActiveOpenAIModel","ActiveDeepOpenAIModel","OpenAIModelHUDState",
-    "https://api.openai.com/v1/models","FALLBACK ACTIVE",
+    "ActiveOpenAIModel","ActiveDeepOpenAIModel","OpenAIModelHUDState","OpenAIModelSupportsReasoningConfig",
+    "https://api.openai.com/v1/models","FALLBACK ACTIVE","REQUESTED MODEL VERIFIED",
 ]:
     if token not in MAIN:
         errors.append(f"GPT_EA.mq5 missing automatic OpenAI model-resolution token: {token}")

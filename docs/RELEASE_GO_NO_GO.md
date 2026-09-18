@@ -297,3 +297,40 @@ A green source/static check is not a GO decision.
 - `PRODUCTION_GO` from the active R10 evidence/final-review validators = eligible for the runtime release chain, subject to the matching MT5 attestations.
 
 Use `tools/build_release_readiness_status.py` only as a diagnostic summary. It cannot override any Part28/R10 gate.
+
+
+## 🧪 Additional hardening gates
+
+Before final GO, require all of the following for the exact candidate:
+
+- [ ] feature freeze active and candidate SHA fixed;
+- [ ] release-candidate smoke test PASS;
+- [ ] fail-closed recovery drill PASS;
+- [ ] automated demo validation harness PASS;
+- [ ] repository/release-package secret scan PASS;
+- [ ] security threat-model review completed;
+- [ ] prompt-injection hardening review/test evidence completed;
+- [ ] evidence-retention policy reviewed for the target jurisdiction;
+- [ ] no executable source change after the certified compile.
+
+Automatic **HOLD / NO-GO** includes:
+
+- any RCS/FCR/DV scenario not executed;
+- any scenario result other than PASS;
+- any duplicate order/partial, stale approval execution, backward stop, unresolved missing protection or gate bypass;
+- any detected live secret;
+- recovery uncertainty that still permits new risk;
+- smoke/recovery/demo evidence bound to a different Git SHA or EX5 hash;
+- packaging attempted while release truth is HOLD/NO-GO.
+
+Machine validation:
+
+```text
+python tools/validate_release_candidate_smoke.py artifacts/release-candidate-smoke.json
+python tools/validate_fail_closed_recovery_drill.py artifacts/fail-closed-recovery-drill.json
+python tools/validate_demo_validation_harness.py artifacts/demo-validation-run.json
+python tools/scan_release_secrets.py GPT_EA.mq5 docs COMMERCIAL_LICENSE.md
+python tools/check_release_hardening.py
+```
+
+Signed-license **runtime** integration is intentionally not introduced into the current feature-frozen candidate. The architecture and entitlement contracts may be prepared now; executable license-verification behavior requires a new candidate and fresh compile/evidence cycle.

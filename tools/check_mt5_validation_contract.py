@@ -25,15 +25,16 @@ for name in required:
 
 if not errors:
     schema=json.loads((ROOT/"MT5_VALIDATION_EVIDENCE_SCHEMA.json").read_text(encoding="utf-8"))
-    if schema.get("properties",{}).get("schema_version",{}).get("const")!="mt5_validation_evidence_v1":
+    if schema.get("properties",{}).get("schema_version",{}).get("const")!="mt5_validation_evidence_v2":
         errors.append("MT5 validation schema version mismatch")
 
     template=json.loads((ROOT/"MT5_VALIDATION_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
-    if template.get("schema_version")!="mt5_validation_evidence_v1":
+    if template.get("schema_version")!="mt5_validation_evidence_v2":
         errors.append("MT5 validation template schema mismatch")
     for section,key in (
         ("compile","passed"),("strategy_tester","passed"),("broker_runtime","broker_matrix_passed"),
         ("protection","stop_matrix_passed"),("live_api_news","webrequest_allow_list_verified"),
+        ("resilience_runtime","direct_breakout_separation_passed"),
     ):
         if template.get(section,{}).get(key) is not False:
             errors.append(f"MT5 validation template {section}.{key} must default false")
@@ -41,16 +42,19 @@ if not errors:
         errors.append("MT5 validation template operator decision must default HOLD")
 
     validator=(ROOT/"tools/validate_mt5_validation_evidence.py").read_text(encoding="utf-8")
-    for token in ["mt5_validation_evidence_v1","compile_log_sha256","report_sha256","broker_history_sha256",
-                  "required_failure_fail_closed","secret_leak_count","validate_matrix_bundle","M5-","MT5 VALIDATION EVIDENCE"]:
+    for token in ["mt5_validation_evidence_v2","compile_log_sha256","report_sha256","broker_history_sha256",
+                  "intent_ledger_sha256","reconciliation_sha256","web_provenance_sha256","model_health_sha256",
+                  "resilience_runtime_report_sha256","direct_breakout_separation_passed","macro_scenario_stress_passed",
+                  "required_failure_fail_closed","secret_leak_count","validate_matrix_bundle","M5-053","MT5 VALIDATION EVIDENCE"]:
         if token not in validator: errors.append(f"MT5 validator missing token: {token}")
 
     builder=(ROOT/"tools/build_mt5_validation_evidence.py").read_text(encoding="utf-8")
-    for token in ["--git-sha","--ex5-sha256","--compile-log","--tester-report","--experts-log","--journal-log","--broker-history","--matrix-bundle"]:
+    for token in ["--git-sha","--ex5-sha256","--compile-log","--tester-report","--experts-log","--journal-log","--broker-history","--matrix-bundle",
+                  "--intent-ledger","--reconciliation","--web-provenance","--model-health","--resilience-runtime-report"]:
         if token not in builder: errors.append(f"MT5 evidence builder missing token: {token}")
 
     matrix=(ROOT/"MT5_VALIDATION_ACCEPTANCE_MATRIX.md").read_text(encoding="utf-8")
-    for token in ["M5-001","M5-007","M5-016","M5-023","M5-029","M5-034"]:
+    for token in ["M5-001","M5-007","M5-016","M5-023","M5-029","M5-034","M5-035","M5-044","M5-046","M5-053"]:
         if token not in matrix: errors.append(f"MT5 acceptance matrix missing {token}")
 
     part=(ROOT/"GPT_EA_Part28B_CIReleaseEvidence.mqh").read_text(encoding="utf-8")
@@ -62,7 +66,7 @@ if not errors:
         errors.append("InpReleaseMT5ValidationPassed must default false")
 
     release=json.loads((ROOT/"RELEASE_EVIDENCE_TEMPLATE.json").read_text(encoding="utf-8"))
-    if release.get("mt5_validation",{}).get("schema_version")!="mt5_validation_evidence_v1":
+    if release.get("mt5_validation",{}).get("schema_version")!="mt5_validation_evidence_v2":
         errors.append("release evidence template missing MT5 validation object")
     if release.get("gates",{}).get("mt5_validation") is not False:
         errors.append("release evidence mt5_validation gate must default false")

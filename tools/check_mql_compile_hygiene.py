@@ -79,37 +79,60 @@ for api in ("OrderCalcMargin", "OrderCheck", "OrderSend", "OrderSendAsync"):
         if not checked:
             errors.append(f"line {line_no}: return value of {api} appears unchecked: {text}")
 
+def function_body(signature_pattern: str) -> str | None:
+    match = re.search(signature_pattern, source)
+    if not match:
+        return None
+    open_brace = source.find("{", match.end())
+    if open_brace < 0:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    i = open_brace
+    while i < len(source):
+        ch = source[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        else:
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return source[open_brace + 1 : i]
+        i += 1
+    return None
+
+
 # Preserve the explicit cast that removes MetaEditor's long -> datetime warning.
-server_fn = re.search(
-    r"datetime\s+ServerToUTC\s*\([^)]*\)\s*\{(?P<body>.*?)\n\}",
-    source,
-    re.S,
-)
-if not server_fn:
+server_body = function_body(r"datetime\s+ServerToUTC\s*\([^)]*\)")
+if server_body is None:
     errors.append("ServerToUTC function not found")
 else:
-    body = server_fn.group("body")
-    if "long off=" not in body:
+    normalized = re.sub(r"\s+", " ", server_body)
+    if "long off=" not in normalized and "long off =" not in normalized:
         errors.append("ServerToUTC no longer records the server/GMT offset as long")
-    if "return (datetime)(serverTime-off);" not in body.replace(" ", ""):
-        compact = re.sub(r"\s+", "", body)
-        if "return(datetime)(serverTime-off);" not in compact:
-            errors.append("ServerToUTC must explicitly cast serverTime-off to datetime")
+    compact = re.sub(r"\s+", "", server_body)
+    if "return(datetime)(serverTime-off);" not in compact:
+        errors.append("ServerToUTC must explicitly cast serverTime-off to datetime")
 
 # The release snapshot intentionally uses FileWriteString so it is not constrained
 # by FileWrite's 63-value limit.
-snapshot = re.search(
-    r"void\s+WriteReleaseEvidenceSnapshot\s*\(\)\s*\{(?P<body>.*?)\n\}",
-    source,
-    re.S,
-)
-if not snapshot:
+snapshot_body = function_body(r"void\s+WriteReleaseEvidenceSnapshot\s*\(\)")
+if snapshot_body is None:
     errors.append("WriteReleaseEvidenceSnapshot function not found")
 else:
-    body = snapshot.group("body")
-    if "FileWrite(" in body:
+    if "FileWrite(" in snapshot_body:
         errors.append("WriteReleaseEvidenceSnapshot must not use variadic FileWrite")
-    if "FileWriteString(" not in body:
+    if "FileWriteString(" not in snapshot_body:
         errors.append("WriteReleaseEvidenceSnapshot must use FileWriteString")
 
 notes.append(f"FILEWRITE_CALLS={len(filewrite_calls)}")

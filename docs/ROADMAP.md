@@ -64,20 +64,29 @@ flowchart LR
 - Jurisdiction legal-review framework.
 
 ## 🔜 Phase 6 — Commercial hardening
-- Signed customer entitlement.
-- Cryptographic license verification.
-- Account/server scope and revocation.
-- Offline grace policy.
-- Privacy-minimized licensing.
-- Signed release manifests.
+
+Prepared in the current feature-freeze cycle:
+
+- signed-entitlement architecture and machine-readable contract;
+- privacy-minimized account/server scope;
+- revocation/expiry/offline-grace policy;
+- release-package secret scanning and PASS-only packaging tooling;
+- update/rollback architecture;
+- incident, drift and operator-status contracts.
+
+Executable cryptographic license verification is intentionally deferred to a **new candidate** after the current candidate completes compile/evidence validation.
+
 
 ## 🔜 Phase 7 — Operational scale
-- Release-evidence pack generator.
-- Privacy-safe support bundle generator.
-- Structured incident IDs.
-- Version/update notices.
-- Optional privacy-reviewed telemetry.
-- Support dashboard and SLA metrics.
+
+- privacy-safe support bundle generator;
+- structured incident IDs/evidence bundles;
+- version/update notices and signed package verification;
+- optional privacy-reviewed telemetry;
+- operator dashboard implementation;
+- research-vs-demo/live drift automation;
+- support dashboard and SLA metrics.
+
 
 ## 🧪 Phase 8 — Research
 - Champion/challenger experiments.

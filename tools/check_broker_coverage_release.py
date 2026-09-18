@@ -96,6 +96,8 @@ if VALIDATOR.exists():
         "broker_runtime_required",
         "live_execution_certified",
         "generic_live_fail_closed_passed",
+        "class_counts",
+        "selected_rechecked_symbols must equal discovered_symbols",
         "misclassification_count",
     ):
         require(token in text, f"broker coverage evidence validator missing token: {token}")

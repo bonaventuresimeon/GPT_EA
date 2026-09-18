@@ -403,7 +403,7 @@ bool IntentGeometryMatchesPosition(const string sym,ulong ticket)
 
 bool IntentGeometryMatchesDeal(const string sym,ulong deal)
 {
-   if(deal==0 || !HistoryDealSelect(deal)) return false;
+   if(deal==0) return false;
    if(HistoryDealGetString(deal,DEAL_SYMBOL)!=sym || HistoryDealGetInteger(deal,DEAL_MAGIC)!=InpMagic) return false;
    ENUM_DEAL_ENTRY entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal,DEAL_ENTRY);
    if(entry!=DEAL_ENTRY_IN && entry!=DEAL_ENTRY_INOUT) return false;
@@ -421,7 +421,7 @@ bool IntentGeometryMatchesDeal(const string sym,ulong deal)
 
 bool IntentGeometryMatchesHistoryOrder(const string sym,ulong order)
 {
-   if(order==0 || !HistoryOrderSelect(order)) return false;
+   if(order==0) return false;
    if(HistoryOrderGetString(order,ORDER_SYMBOL)!=sym || HistoryOrderGetInteger(order,ORDER_MAGIC)!=InpMagic) return false;
    datetime intentTime=(datetime)GVRead(SymKey(sym,"INTENT_TIME"),0);
    datetime orderTime=(datetime)HistoryOrderGetInteger(order,ORDER_TIME_SETUP);
@@ -486,7 +486,7 @@ bool PositionOrHistoryMatchesIntent(const string sym,int nonceHash,ulong &ticket
       }
       if(fallbackDeal==0 && IntentGeometryMatchesDeal(sym,d)) fallbackDeal=d;
    }
-   if(fallbackDeal>0 && HistoryDealSelect(fallbackDeal))
+   if(fallbackDeal>0)
    {
       pid=(ulong)HistoryDealGetInteger(fallbackDeal,DEAL_POSITION_ID);
       closed=!PositionIdentifierOpen(pid);

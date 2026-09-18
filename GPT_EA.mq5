@@ -2549,7 +2549,7 @@ void HandleExitDeal(ulong deal)
    {
       g_dashboardClosedSymbol=sym;
       g_dashboardClosedR=R;
-      g_dashboardClosedUntil=TimeTradeServer()+MathMax(3,InpDashboardClosedHoldSeconds);
+      g_dashboardClosedUntil=TimeTradeServer()+(int)MathMax(3,InpDashboardClosedHoldSeconds);
       g_dashboardState=UI_STATE_CLOSED;
       g_dashboardStateSince=TimeTradeServer();
       g_dashboardStateReason="position finalized";
@@ -16687,7 +16687,9 @@ void RenderLiveManagementDashboard(ulong ticket)
 
    int panelW=0,panelH=0; bool compact=false;
    DashboardLayout(true,panelW,panelH,compact);
-   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,DashboardStateColor(uiState),1);
+   color liveAccent=DashboardStateColor(uiState);
+   if(rNow<0 && uiState==UI_STATE_TRADE_ACTIVE) liveAccent=C'244,110,110';
+   SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,clrNONE,liveAccent,1);
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Live Trade Atelier",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
@@ -16695,7 +16697,7 @@ void RenderLiveManagementDashboard(ulong ticket)
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
-      DashboardStateColor(uiState),compact?8:9,"Segoe UI Semibold",6);
+      liveAccent,compact?8:9,"Segoe UI Semibold",6);
    if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
 
    int header=compact?80:86;
@@ -16729,14 +16731,37 @@ void RenderLiveManagementDashboard(ulong ticket)
       C'71,184,132');
    y+=h2+gap;
 
-   string timeline=VisualTradeTimeline(pid,ticket);
-   StringReplace(timeline,"\n","  |  ");
+   string rulesBody="";
+   if(InpShowStopMovementRules)
+   {
+      if(compact)
+         rulesBody=StringFormat(
+            "B.E. %.2fR → cost-protected entry  •  Lock %.2fR→%.2fR  •  Strong %.2fR→%.2fR\n"
+            "Trail %.2fR  •  ATR %.2fx  •  M5 %d bars ± %.2f ATR  •  min ratchet %.2fR\n"
+            "Broker stop/freeze safe  •  SL never regresses  •  Stage %s",
+            InpBETriggerR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,
+            InpTrailStartR,InpTrailATRMultiplier,InpTrailStructureBarsM5,InpTrailStructureBufferATR,InpTrailMinStepR,
+            StopStageName(stage));
+      else
+         rulesBody=VisualStopRulesText(bull);
+   }
+
+   if(InpShowCompactTradeTimeline)
+   {
+      string timeline=VisualTradeTimeline(pid,ticket);
+      if(compact)
+      {
+         StringReplace(timeline,"\n","  |  ");
+         rulesBody+=(rulesBody!=""?"\n":"")+VisualOneLine(timeline,118);
+      }
+      else
+         rulesBody+=(rulesBody!=""?"\n":"")+timeline;
+   }
+   if(rulesBody=="") rulesBody="Stop-rule and compact-timeline display are disabled by inputs.";
+
    SetDashboardSection(DASH_RULES_CARD,DASH_RULES_LABEL,sx,y,sw,h3,
-      "PROFIT PROTECTION / TIMELINE",
-      StringFormat("B.E. @ %.2fR  •  Lock @ %.2fR→%.2fR  •  Strong @ %.2fR→%.2fR  •  Trail @ %.2fR\nSL NEVER LOOSENS  •  Stage %s\n%s",
-         InpBETriggerR,InpProfitLockTriggerR,InpProfitLockR,InpStrongLockTriggerR,InpStrongLockR,InpTrailStartR,
-         StopStageName(stage),VisualOneLine(timeline,compact?86:116)),
-      C'182,137,68');
+      "EXACT STOP-MOVEMENT RULES / COMPACT TRADE TIMELINE",
+      rulesBody,C'182,137,68');
    y+=h3+gap;
 
    SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,

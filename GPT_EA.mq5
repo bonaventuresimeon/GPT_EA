@@ -10481,6 +10481,14 @@ string ValidReasoningEffort(string effort)
    return "high";
 }
 
+bool OpenAIModelSupportsReasoningConfig(string model)
+{
+   model=APITrim(model);
+   StringToLower(model);
+   return (StringFind(model,"gpt-5")==0 || StringFind(model,"o1")==0 ||
+           StringFind(model,"o3")==0 || StringFind(model,"o4")==0);
+}
+
 bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
 {
    answer=""; errorText="";
@@ -10492,10 +10500,11 @@ bool CallOpenAIDeep(const string prompt,string &answer,string &errorText)
    if(model=="") model=ActiveOpenAIModel();
    string effort=ValidReasoningEffort(InpDeepGPTReasoningEffort);
    int maxTokens=(InpDeepGPTMaxOutputTokens<200?200:InpDeepGPTMaxOutputTokens);
-   string body="{\"model\":\""+JsonEscape(model)+"\","
-               "\"reasoning\":{\"effort\":\""+JsonEscape(effort)+"\"},"
-               "\"max_output_tokens\":"+IntegerToString(maxTokens)+","
-               "\"input\":\""+JsonEscape(prompt)+"\"}";
+   string body="{\"model\":\""+JsonEscape(model)+"\",";
+   if(OpenAIModelSupportsReasoningConfig(model))
+      body+="\"reasoning\":{\"effort\":\""+JsonEscape(effort)+"\"},";
+   body+="\"max_output_tokens\":"+IntegerToString(maxTokens)+","
+         "\"input\":\""+JsonEscape(prompt)+"\"}";
    string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
    char data[],result[]; string resultHeaders="";
    int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8); if(n>0) ArrayResize(data,n-1);
@@ -17303,11 +17312,17 @@ void RenderLiveManagementDashboard(ulong ticket)
       rulesBody,C'182,137,68');
    y+=h3+gap;
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
-      "RISK / SAFETY",
-      StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Trust %s  •  API %s  •  Release %s\nAI %s",
+   string liveRiskBody="";
+   if(compact)
+      liveRiskBody=StringFormat("Risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f  •  AI %s  •  API %s  •  Release %s",
          riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
-         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,OpenAIModelHUDState()),
+         brokerHealth,OpenAIModelHUDState(),APITransportVisualState(),releaseState);
+   else
+      liveRiskBody=StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%\nBroker %.0f/100  •  Trust %s  •  API %s  •  Release %s\nAI %s",
+         riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
+         brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,OpenAIModelHUDState());
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / SAFETY",liveRiskBody,
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 
@@ -17439,12 +17454,18 @@ void RenderCandidateOperationalDashboard()
       C'182,137,68');
    y+=h3+gap;
 
-   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
-      "RISK / NEWS / SAFETY",
-      StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nTrust %s  •  API %s  •  Release %s  •  News %s\nAI %s\n%s",
+   string candidateRiskBody="";
+   if(compact)
+      candidateRiskBody=StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f\nAI %s  •  API %s  •  Release %s  •  News %s",
+         CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
+         OpenAIModelHUDState(),APITransportVisualState(),releaseState,g_visualNewsRisk);
+   else
+      candidateRiskBody=StringFormat("Portfolio %.2f%%  •  Daily %.2f%%  •  DD %.2f%%  •  Broker %.0f/100\nTrust %s  •  API %s  •  Release %s  •  News %s\nAI %s\n%s",
          CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
          ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,g_visualNewsRisk,
-         OpenAIModelHUDState(),VisualOneLine(g_visualNewsSummary,compact?76:108)),
+         OpenAIModelHUDState(),VisualOneLine(g_visualNewsSummary,108));
+   SetDashboardSection(DASH_RISK_CARD,DASH_RISK_LABEL,sx,y,sw,h4,
+      "RISK / NEWS / SAFETY",candidateRiskBody,
       g_releaseBlocked?C'214,76,82':C'215,173,82');
    y+=h4+gap;
 

@@ -12,7 +12,7 @@ from typing import Any
 
 ROOT=Path(__file__).resolve().parents[1]
 RELEASE_ID="GPT_EA_FULL_INTELLIGENCE_R6_20260917"
-SCHEMA_VERSION="mt5_validation_evidence_v1"
+SCHEMA_VERSION="mt5_validation_evidence_v2"
 HEX40=re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64=re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -22,6 +22,14 @@ TRUE_FIELDS={
     "broker_runtime":("broker_matrix_passed","symbol_profiles_archived","stops_freeze_geometry_verified","tick_value_size_verified","volume_geometry_verified","filling_order_modes_verified","margin_lot_normalization_verified","restart_reconstruction_passed","reconnect_reconstruction_passed","primary_checkpoint_passed","backup_checkpoint_passed","no_duplicate_after_recovery"),
     "protection":("stop_matrix_passed","broker_stop_policy_passed","partial_protection_passed","stop_observability_passed","buy_lifecycle_passed","sell_lifecycle_passed","zero_unprotected_end_states"),
     "live_api_news":("webrequest_allow_list_verified","deep_review_path_passed","web_search_path_passed","failure_injection_passed","recovery_after_failure_passed","request_trace_observed","required_failure_fail_closed"),
+    "resilience_runtime":(
+        "direct_breakout_separation_passed","atomic_intent_ordering_passed","exactly_once_restart_passed",
+        "ambiguous_submit_reconciliation_passed","broker_reconciliation_passed","manual_intervention_detection_passed",
+        "storage_failure_fail_closed","config_drift_fail_closed","clock_drift_passed","chaos_real_account_refusal_passed",
+        "chaos_fault_matrix_passed","macro_scenario_stress_passed","gap_risk_passed","margin_stress_passed",
+        "decision_half_life_passed","model_degradation_fallback_passed","news_provenance_timestamp_passed",
+        "learning_quarantine_passed","promotion_rollback_passed"
+    ),
 }
 
 def canonical_digest(value:dict[str,Any])->str:
@@ -62,7 +70,7 @@ def validate_matrix_bundle(path:Path)->list[str]:
     errors:list[str]=[]
     text=path.read_text(encoding="utf-8",errors="replace")
     lines=text.splitlines()
-    for n in range(1,35):
+    for n in range(1,54):
         mid=f"M5-{n:03d}"
         matches=[line for line in lines if f"| {mid} |" in line]
         if len(matches)!=1:
@@ -134,6 +142,11 @@ def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str=""
         ("journal_log_path","journal_log_sha256","Journal log"),
         ("broker_history_path","broker_history_sha256","broker history"),
         ("matrix_bundle_path","matrix_bundle_sha256","MT5 matrix bundle"),
+        ("intent_ledger_path","intent_ledger_sha256","atomic intent ledger"),
+        ("reconciliation_path","reconciliation_sha256","broker/EA reconciliation journal"),
+        ("web_provenance_path","web_provenance_sha256","web intelligence provenance journal"),
+        ("model_health_path","model_health_sha256","model health journal"),
+        ("resilience_runtime_report_path","resilience_runtime_report_sha256","MT5 resilience runtime report"),
     ):
         check_hashed_file(errors,artifacts,pk,hk,label)
 
@@ -142,6 +155,24 @@ def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str=""
         matrix_path=resolve(matrix_raw)
         if matrix_path.exists():
             errors.extend(validate_matrix_bundle(matrix_path))
+
+    runtime_raw=str(artifacts.get("resilience_runtime_report_path","")).strip()
+    if runtime_raw:
+        runtime_path=resolve(runtime_raw)
+        if runtime_path.exists():
+            runtime_text=runtime_path.read_text(encoding="utf-8",errors="replace")
+            for marker in (
+                "MT5 RESILIENCE RUNTIME: PASS",
+                "DUPLICATE_ORDER_COUNT=0",
+                "UNRESOLVED_INTENT_COUNT=0",
+                "UNRECONCILED_POSITION_COUNT=0",
+                "CHAOS_REAL_ACCOUNT_REFUSAL=PASS",
+                "MACRO_STRESS_MATRIX=PASS",
+                "PROVENANCE_FRESHNESS=PASS",
+                "STORAGE_FAILURE_FAIL_CLOSED=PASS",
+                "CONFIG_DRIFT_FAIL_CLOSED=PASS",
+            ):
+                require(errors,marker in runtime_text,f"resilience runtime report missing marker: {marker}")
 
     operator=data.get("operator_review",{})
     require(errors,operator.get("decision")=="ACCEPT","operator_review.decision must be ACCEPT")
@@ -156,7 +187,7 @@ def validate_mt5(data:dict[str,Any],require_digest:bool=True,expected_sha:str=""
     return errors,digest
 
 def main()->int:
-    ap=argparse.ArgumentParser(description="Validate/finalize GPT_EA R6 MT5 validation evidence")
+    ap=argparse.ArgumentParser(description="Validate/finalize GPT_EA R6 MT5 validation evidence v2")
     ap.add_argument("evidence",nargs="?",default="artifacts/mt5-validation-evidence.json")
     ap.add_argument("--expected-sha",default="")
     ap.add_argument("--expected-ex5",default="")

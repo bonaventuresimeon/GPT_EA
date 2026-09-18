@@ -1,0 +1,9 @@
+{
+  "schema_version":"mt5_minimum_proof_summary_v1",
+  "release_validation_id":"GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+  "source_mt5_evidence_path":"artifacts/mt5-validation-evidence.json",
+  "source_mt5_evidence_digest":"0000000000000000000000000000000000000000000000000000000000000000",
+  "candidate_git_sha":"0000000000000000000000000000000000000000",
+  "bundles":{"MP-01":"HOLD","MP-02":"HOLD","MP-03":"HOLD","MP-04":"HOLD","MP-05":"HOLD","MP-06":"HOLD","MP-07":"HOLD","MP-08":"HOLD"},
+  "overall":"HOLD"
+}

@@ -33,7 +33,9 @@ The reviewer must have:
 - completed `release_evidence.json` for the exact candidate;
 - validated runner-recovery evidence and validation output;
 - completed runner-recovery acceptance matrix/JSON and validation output;
-- completed MT5 validation evidence JSON, matrix and validator PASS;
+- completed MT5 validation v2 evidence JSON, M5-001 through M5-053 matrix and validator PASS;
+- finalized `resilience_hardening_evidence_v1`, RH-001 through RH-048 matrix and validator PASS;
+- validated rollback-readiness evidence/package or explicit first-certified-release record;
 - final executed CI evidence artifact;
 - `ci-job-metadata.json` proving job/runner/steps execution;
 - `ci-evidence-validation.txt` PASS;
@@ -74,7 +76,7 @@ The reviewer must confirm PASS for:
 - compile/artifact identity;
 - runner recovery from the known pre-runner failure;
 - runner-recovery production acceptance RA-001 through RA-022;
-- MT5/MetaEditor validation evidence M5-001 through M5-034;
+- MT5/MetaEditor validation evidence M5-001 through M5-053;
 - executed CI static checks;
 - CI provenance attestation and final bundle validation;
 - Strategy Tester;
@@ -83,6 +85,14 @@ The reviewer must confirm PASS for:
 - execution learning;
 - champion/challenger;
 - lifecycle/integrity/replay;
+- atomic intent ledger and exactly-once submission semantics;
+- broker-versus-EA position/order/deal reconciliation;
+- manual intervention detection and learning quarantine;
+- clock/model degradation and deterministic-only emergency policy;
+- source provenance plus strict `as_of_utc` freshness;
+- macro stress, gap risk, stressed margin and decision half-life/latency;
+- chaos/fault-injection matrix with REAL-account refusal;
+- statistical challenger significance and probation rollback;
 - broker/account/symbol matrix;
 - deployment drift;
 - recovery/restart;
@@ -130,7 +140,15 @@ Confirm:
 
 ## 7. MT5 validation review
 
-Confirm `mt5_validation_evidence_v1` validates for the exact Git/EX5/SET candidate and matches the intended MetaEditor/MT5 builds plus deployment broker/server/account identity. Review the hashed compile log, Strategy Tester report, Experts/Journal, broker history and completed M5 matrix. All required compile, tester, recovery, protection and live-demo API/news checks must be PASS.
+Confirm `mt5_validation_evidence_v2` validates for the exact Git/EX5/SET candidate and matches the intended MetaEditor/MT5 builds plus deployment broker/server/account identity. Review the hashed compile log, Strategy Tester report, Experts/Journal, broker history and completed M5 matrix. All required compile, tester, recovery, protection and live-demo API/news checks must be PASS.
+
+## 7A. Resilience and rollback review
+
+Confirm the exact candidate's `resilience_hardening_evidence_v1` validates, every RH-001 through RH-048 row is PASS, and its certified configuration fingerprint is the fingerprint supplied to Part28B. Review the MT5 v2 retained intent ledger, broker/EA reconciliation journal, web-intelligence provenance journal, model-health journal and resilience runtime report.
+
+The runtime report must show zero duplicate orders, zero unresolved intents and zero unreconciled positions, plus PASS for REAL-account chaos refusal, macro stress, provenance freshness, storage failure fail-closed behavior and configuration-drift fail-closed behavior.
+
+Rollback readiness must be machine validated. For an existing certified lineage, verify the previous certified EX5/SET/evidence/final-review package and all SHA-256 values. If this is the first certified production release, verify the explicit `FIRST_CERTIFIED_RELEASE` justification rather than pretending a prior rollback artifact exists.
 
 ## 8. Five-day/operator review
 
@@ -211,6 +229,8 @@ Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`. Every review boolean must be tr
 - `runner_recovery_acceptance_pass`;
 - `ci_bundle_pass`;
 - `mt5_validation_pass`;
+- `resilience_hardening_pass`;
+- `rollback_package_ready`;
 - `ci_attestation_verified`;
 - `api_transport_pass`;
 - `five_day_acceptance_pass`;
@@ -218,7 +238,7 @@ Start from `FINAL_RELEASE_REVIEW_TEMPLATE.json`. Every review boolean must be tr
 - `soak_schema_pass`;
 - all remaining identity, gate, zero-tolerance and deployment checks.
 
-The stable release-evidence basis digest binds `build`, `runner_recovery`, `runner_recovery_acceptance`, `ci_static`, `mt5_validation`, `deployment`, `api_transport`, `demo_soak` and all gates except the final operator-review transition.
+The stable release-evidence basis digest binds `build`, `runner_recovery`, `runner_recovery_acceptance`, `ci_static`, `mt5_validation`, `resilience_hardening`, `rollback_package`, `deployment`, `api_transport`, `demo_soak` and all gates except the final operator-review transition.
 
 Run:
 

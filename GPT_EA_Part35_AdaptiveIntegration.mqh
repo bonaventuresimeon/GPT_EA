@@ -68,8 +68,14 @@ bool AdaptivePreAuthorizationRiskAllowsR5(const TradeSetup &s,string &why)
    string cd="";
    if(CooldownActive(s.symbol,cd)){ why=cd; return false; }
 
+   StrategyClass c=CandidateStrategyForSymbol(s.symbol);
+   string emergencyAI="";
+   bool deterministicOnly=DeterministicEmergencyExecutionActive(s.symbol,c,emergencyAI);
    string ai="";
-   if(!StoredAIIntegrityAllows(s.symbol,ai)){ why="GPT integrity/disagreement: "+ai; return false; }
+   if(deterministicOnly)
+      ai="DETERMINISTIC_ONLY: stored GPT review requirement bypassed; "+emergencyAI;
+   else if(!StoredAIIntegrityAllows(s.symbol,ai))
+   { why="GPT integrity/disagreement: "+ai; return false; }
 
    string learn="";
    if(!AdaptiveExecutionLearningAllows(s,learn)){ why="Execution learning: "+learn; return false; }
@@ -96,9 +102,22 @@ int AdaptiveExecutionSlippagePointsR5(const string sym)
 
 bool AIReviewAllowsExecutionR5(const string aiText,bool aiAvailable,string &why)
 {
+   g_r5AIAnswer=aiText;
+   if(g_r5ContextReady)
+   {
+      string emergency="";
+      if(DeterministicEmergencyExecutionActive(g_r5Primary.symbol,g_r5Decision.strategy,emergency))
+      {
+         string det="";
+         bool detOK=DeterministicSetupIntegrity(g_r5Primary,det);
+         PersistAIIntegrityDecision(g_r5Primary.symbol,detOK,true,false,false,"");
+         why="DETERMINISTIC_ONLY: GPT review ignored by emergency policy | "+emergency+" | "+det;
+         return detOK;
+      }
+   }
+
    string legacy="";
    bool legacyOK=AIReviewAllowsExecution(aiText,aiAvailable,legacy);
-   g_r5AIAnswer=aiText;
    if(!g_r5ContextReady)
    {
       why=legacy+" | adaptive scan context unavailable.";

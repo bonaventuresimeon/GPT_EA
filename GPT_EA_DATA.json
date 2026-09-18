@@ -2,7 +2,7 @@
   "_meta": {
     "format": "gpt_ea_consolidated_json_v1",
     "description": "Single source of truth for committed GPT_EA JSON registries, schemas, and templates.",
-    "document_count": 30
+    "document_count": 36
   },
   "documents": {
     "ADR_REGISTRY.json": {
@@ -534,7 +534,9 @@
         "privacy_signoff_pass": false,
         "fail_closed_recovery_drill_pass": false,
         "release_candidate_smoke_pass": false,
-        "demo_validation_harness_pass": false
+        "demo_validation_harness_pass": false,
+        "security_review_pass": false,
+        "evidence_retention_policy_reviewed": false
       },
       "unresolved_critical_count": 0,
       "zero_tolerance_failure_count": 0,
@@ -2307,7 +2309,8 @@
         "privacy_signoff": false,
         "fail_closed_recovery_drill": false,
         "release_candidate_smoke": false,
-        "demo_validation_harness": false
+        "demo_validation_harness": false,
+        "security_review": false
       },
       "final_review": {
         "schema_version": "final_release_review_v1",
@@ -2353,6 +2356,12 @@
         "evidence_path": "artifacts/demo-validation-run.json",
         "validated": false,
         "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "security_review": {
+        "threat_model_reviewed": false,
+        "secret_scan_passed": false,
+        "prompt_injection_review_passed": false,
+        "evidence_path": "artifacts/security-review.txt"
       }
     },
     "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": {
@@ -4059,6 +4068,309 @@
       },
       "decision": "HOLD",
       "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "SIGNED_LICENSE_ENTITLEMENT_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "GPT_EA Signed License Entitlement",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "license_id",
+        "product",
+        "entitlement_version",
+        "issued_at_utc",
+        "expires_at_utc",
+        "offline_grace_until_utc",
+        "release_scope",
+        "account_scope",
+        "server_scope",
+        "key_id",
+        "signature_algorithm",
+        "signature_base64"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "gpt_ea_signed_entitlement_v1"
+        },
+        "license_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "product": {
+          "const": "GPT_EA"
+        },
+        "entitlement_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "offline_grace_until_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "release_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "account_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 8
+          },
+          "minItems": 1
+        },
+        "server_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 4
+        },
+        "signature_algorithm": {
+          "const": "Ed25519"
+        },
+        "signature_base64": {
+          "type": "string",
+          "minLength": 40
+        }
+      }
+    },
+    "SIGNED_LICENSE_ENTITLEMENT_TEMPLATE.json": {
+      "schema_version": "gpt_ea_signed_entitlement_v1",
+      "license_id": "",
+      "product": "GPT_EA",
+      "entitlement_version": 1,
+      "issued_at_utc": "",
+      "expires_at_utc": "",
+      "offline_grace_until_utc": "",
+      "release_scope": [
+        ""
+      ],
+      "account_scope": [
+        ""
+      ],
+      "server_scope": [
+        ""
+      ],
+      "key_id": "",
+      "signature_algorithm": "Ed25519",
+      "signature_base64": ""
+    },
+    "PRODUCTION_INCIDENT_TEMPLATE.json": {
+      "schema_version": "gpt_ea_incident_v1",
+      "incident_id": "",
+      "opened_at_utc": "",
+      "severity": "P3",
+      "status": "OPEN",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "release_id": "",
+        "broker_company": "",
+        "trade_server": ""
+      },
+      "category": "",
+      "summary": "",
+      "capital_protection_status": "",
+      "new_entries_blocked": false,
+      "secrets_exposed": 0,
+      "timeline": [],
+      "evidence_refs": [],
+      "containment": [],
+      "root_cause": "",
+      "corrective_actions": [],
+      "regression_tests": [],
+      "closed_at_utc": ""
+    },
+    "DRIFT_BASELINE_TEMPLATE.json": {
+      "schema_version": "gpt_ea_drift_baseline_v1",
+      "baseline_id": "",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "created_at_utc": "",
+      "sample_scope": {
+        "symbols": [],
+        "strategies": [],
+        "regimes": [],
+        "sessions": [],
+        "minimum_sample": 0
+      },
+      "metrics": {
+        "spread": {},
+        "slippage": {},
+        "latency_ms": {},
+        "fill_quality": {},
+        "win_rate": {},
+        "average_r": {},
+        "profit_factor": {},
+        "mae_r": {},
+        "mfe_r": {},
+        "drawdown_r": {},
+        "stop_failure_rate": {}
+      },
+      "thresholds": {
+        "watch": {},
+        "hold": {}
+      },
+      "notes": "",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "EVIDENCE_RETENTION_REGISTER_TEMPLATE.json": {
+      "schema_version": "gpt_ea_evidence_retention_register_v1",
+      "jurisdiction": "",
+      "approved_by": "",
+      "approved_at_utc": "",
+      "entries": [
+        {
+          "class": "R1",
+          "name": "Release identity",
+          "purpose": "Certification/audit",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R2",
+          "name": "Validation",
+          "purpose": "Release safety evidence",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R3",
+          "name": "Soak/operations",
+          "purpose": "Operational evidence",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R4",
+          "name": "Contractual",
+          "purpose": "License/acceptance evidence",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R5",
+          "name": "Support",
+          "purpose": "Customer support",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R6",
+          "name": "Incident/security",
+          "purpose": "Incident response",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        },
+        {
+          "class": "R7",
+          "name": "Temporary debug",
+          "purpose": "Short-lived troubleshooting",
+          "owner": "",
+          "storage": "",
+          "retention_trigger": "",
+          "disposal_method": "",
+          "legal_hold_handling": ""
+        }
+      ],
+      "prohibited_retention": [
+        "OpenAI API keys",
+        "MT5 passwords",
+        "payment authentication data",
+        "private signing keys"
+      ]
+    },
+    "OPERATOR_STATUS_TEMPLATE.json": {
+      "schema_version": "gpt_ea_operator_status_v1",
+      "generated_at_utc": "",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "tiles": {
+        "market": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "strategy": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "gpt": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "news": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "risk": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "stops": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "recovery": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "license": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "privacy": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "release": {
+          "state": "HOLD",
+          "reason": "UNSET"
+        },
+        "broker": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        },
+        "approval": {
+          "state": "BLOCK",
+          "reason": "UNSET"
+        }
+      }
     }
   }
 }

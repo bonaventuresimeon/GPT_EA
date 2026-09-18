@@ -1,0 +1,3501 @@
+{
+  "_meta": {
+    "format": "gpt_ea_consolidated_json_v1",
+    "description": "Single source of truth for committed GPT_EA JSON registries, schemas, and templates.",
+    "document_count": 27
+  },
+  "documents": {
+    "ADR_REGISTRY.json": {
+      "schema_version": "gpt_ea_adr_registry_v1",
+      "policy": "docs/ADR_SUPERSESSION_POLICY.md",
+      "records": [
+        {
+          "id": "ADR-001",
+          "file": "docs/ADR_001_FAIL_CLOSED_NEW_ENTRY_GOVERNANCE.md",
+          "title": "Fail-Closed New-Entry Governance",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-002",
+          "file": "docs/ADR_002_CUSTOMER_OWNED_OPENAI_API_KEYS.md",
+          "title": "Customer-Owned OpenAI API Keys",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-003",
+          "file": "docs/ADR_003_HUMAN_APPROVAL_BEFORE_EXECUTION.md",
+          "title": "Human Approval Before Execution",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-004",
+          "file": "docs/ADR_004_EXISTING_POSITION_SAFETY_DURING_BLOCKS.md",
+          "title": "Preserve Existing-Position Safety During New-Entry Blocks",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-005",
+          "file": "docs/ADR_005_EVIDENCE_BOUND_RELEASES.md",
+          "title": "Evidence-Bound Production Releases",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-006",
+          "file": "docs/ADR_006_VERSIONED_LEGAL_RISK_PRIVACY_ACK.md",
+          "title": "Versioned Legal, Risk and Privacy Approvals",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-007",
+          "file": "docs/ADR_007_PRIVACY_MINIMIZED_LICENSING_TELEMETRY.md",
+          "title": "Privacy-Minimized Licensing and Telemetry",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        },
+        {
+          "id": "ADR-008",
+          "file": "docs/ADR_008_SHADOW_FIRST_ADAPTIVE_LEARNING.md",
+          "title": "Shadow-First Adaptive Learning",
+          "status": "Accepted",
+          "supersedes": [],
+          "superseded_by": []
+        }
+      ]
+    },
+    "CI_EVIDENCE_BUNDLE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/CI_EVIDENCE_BUNDLE_SCHEMA.json",
+      "title": "GPT_EA CI Evidence Bundle Manifest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "candidate_sha",
+        "artifact_name",
+        "run_id",
+        "run_attempt",
+        "job_id",
+        "runner_id",
+        "steps_executed",
+        "attestation_verified",
+        "files",
+        "bundle_digest"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "ci_evidence_bundle_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "candidate_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "artifact_name": {
+          "type": "string",
+          "minLength": 8
+        },
+        "run_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "job_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runner_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "steps_executed": {
+          "type": "integer",
+          "minimum": 7
+        },
+        "attestation_verified": {
+          "const": true
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "static-check.txt",
+            "static-check-ci.txt",
+            "ci-job-metadata.json",
+            "ci-evidence.json",
+            "ci-evidence-validation.txt",
+            "ci-evidence-manifest.txt",
+            "ci-attestation-verify.txt"
+          ],
+          "properties": {
+            "static-check.txt": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "static-check-ci.txt": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "ci-job-metadata.json": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "ci-evidence.json": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "ci-evidence-validation.txt": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "ci-evidence-manifest.txt": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "ci-attestation-verify.txt": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        },
+        "bundle_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        }
+      }
+    },
+    "CI_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/CI_EVIDENCE_SCHEMA.json",
+      "title": "GPT_EA GitHub Actions Static Evidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "generated_utc",
+        "repository",
+        "workflow",
+        "job",
+        "event",
+        "ref",
+        "run_id",
+        "run_attempt",
+        "run_url",
+        "job_id",
+        "job_url",
+        "runner_id",
+        "runner_name",
+        "runner_group_id",
+        "runner_group_name",
+        "steps_executed",
+        "static_job_conclusion",
+        "head_sha",
+        "tree_sha",
+        "runner_os",
+        "runner_arch",
+        "static_outcome",
+        "result",
+        "static_check_sha256",
+        "ci_log_sha256",
+        "job_metadata_sha256",
+        "source_manifest_sha256",
+        "errors",
+        "evidence_digest"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "github_actions_static_evidence_v1"
+        },
+        "generated_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "repository": {
+          "const": "bonaventuresimeon/GPT_EA"
+        },
+        "workflow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "job": {
+          "const": "static-release-gate"
+        },
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_url": {
+          "type": "string",
+          "minLength": 20
+        },
+        "job_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "job_url": {
+          "type": "string",
+          "minLength": 20
+        },
+        "runner_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runner_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner_group_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runner_group_name": {
+          "type": "string"
+        },
+        "steps_executed": {
+          "type": "integer",
+          "minimum": 7
+        },
+        "static_job_conclusion": {
+          "const": "success"
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "tree_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "runner_os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner_arch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "static_outcome": {
+          "const": "success"
+        },
+        "result": {
+          "const": "PASS"
+        },
+        "static_check_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "ci_log_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "job_metadata_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "source_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "errors": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        }
+      }
+    },
+    "COMPILE_EVIDENCE_TEMPLATE.json": {
+      "schema_version": "gpt_ea_compile_evidence_v1",
+      "release_id": "",
+      "evidence_id": "",
+      "git_sha": "0000000000000000000000000000000000000000",
+      "branch": "",
+      "compiled_at_utc": "",
+      "windows_version": "",
+      "windows_arch": "",
+      "metaeditor_build": "",
+      "mt5_build": "",
+      "source_path": "GPT_EA.mq5",
+      "compile_log_path": "artifacts/metaeditor-compile.log",
+      "compile_log_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "compile_errors": 0,
+      "compile_warnings": 0,
+      "ex5_path": "artifacts/GPT_EA.ex5",
+      "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "set_path": "",
+      "set_sha256": "NONE",
+      "smoke_load_passed": false,
+      "init_critical_errors": 0,
+      "secrets_exposed": 0,
+      "source_unchanged_after_compile": false,
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "CUSTOMER_RISK_ACKNOWLEDGEMENT_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "GPT_EA Customer Risk Acknowledgement Record",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "terms_version",
+        "acknowledgement_id",
+        "accepted_at_utc",
+        "jurisdiction",
+        "license_reference_masked",
+        "acknowledgements",
+        "decision"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "GPT_EA_RISK_ACK_V1"
+        },
+        "terms_version": {
+          "const": "GPT_EA_TERMS_20260917_V1"
+        },
+        "acknowledgement_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        },
+        "accepted_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jurisdiction": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "license_reference_masked": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 64
+        },
+        "broker_company": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "trade_server": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "acknowledgements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "commercial_terms",
+            "trading_risk",
+            "no_profit_guarantee",
+            "possible_total_loss",
+            "ai_limitations",
+            "broker_third_party_risk",
+            "personal_responsibility",
+            "demo_first"
+          ],
+          "properties": {
+            "commercial_terms": {
+              "const": true
+            },
+            "trading_risk": {
+              "const": true
+            },
+            "no_profit_guarantee": {
+              "const": true
+            },
+            "possible_total_loss": {
+              "const": true
+            },
+            "ai_limitations": {
+              "const": true
+            },
+            "broker_third_party_risk": {
+              "const": true
+            },
+            "personal_responsibility": {
+              "const": true
+            },
+            "demo_first": {
+              "const": true
+            }
+          }
+        },
+        "decision": {
+          "const": "ACCEPTED"
+        },
+        "record_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "CUSTOMER_RISK_ACKNOWLEDGEMENT_TEMPLATE.json": {
+      "schema_version": "GPT_EA_RISK_ACK_V1",
+      "terms_version": "GPT_EA_TERMS_20260917_V1",
+      "acknowledgement_id": "",
+      "accepted_at_utc": "",
+      "jurisdiction": "",
+      "license_reference_masked": "****",
+      "broker_company": "",
+      "trade_server": "",
+      "acknowledgements": {
+        "commercial_terms": false,
+        "trading_risk": false,
+        "no_profit_guarantee": false,
+        "possible_total_loss": false,
+        "ai_limitations": false,
+        "broker_third_party_risk": false,
+        "personal_responsibility": false,
+        "demo_first": false
+      },
+      "decision": "HOLD",
+      "record_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "FINAL_RELEASE_REVIEW_TEMPLATE.json": {
+      "schema_version": "final_release_review_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "review_evidence_id": "",
+      "review_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "review_timestamp": "",
+      "reviewer": "",
+      "decision": "HOLD",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "set_sha256": "NONE",
+        "release_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "compile_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "privacy_signoff_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "deployment": {
+        "broker_company": "",
+        "trade_server": "",
+        "account_currency": "",
+        "margin_mode": "",
+        "account_leverage": "",
+        "deployment_profile_match": false
+      },
+      "review": {
+        "compile_contract_pass": false,
+        "runner_recovery_pass": false,
+        "runner_recovery_acceptance_pass": false,
+        "ci_bundle_pass": false,
+        "ci_attestation_verified": false,
+        "mt5_validation_pass": false,
+        "api_transport_pass": false,
+        "five_day_acceptance_pass": false,
+        "soak_day_reconciliation_pass": false,
+        "five_day_operator_record_complete": false,
+        "soak_schema_pass": false,
+        "release_evidence_validator_pass": false,
+        "all_release_gates_pass": false,
+        "zero_unresolved_critical_states": false,
+        "zero_zero_tolerance_failures": false,
+        "artifact_identity_match": false,
+        "deployment_identity_match": false,
+        "no_source_change_after_validation": false,
+        "no_unreviewed_known_issue": false,
+        "initial_live_risk_conservative": false,
+        "approval_required_initially": true,
+        "resilience_hardening_pass": false,
+        "rollback_package_ready": false,
+        "compile_evidence_pass": false,
+        "privacy_signoff_pass": false
+      },
+      "unresolved_critical_count": 0,
+      "zero_tolerance_failure_count": 0,
+      "known_limitations": [],
+      "open_noncritical_issues": [],
+      "notes": ""
+    },
+    "FIVE_DAY_SOAK_ACCEPTANCE_RECORD_TEMPLATE.json": {
+      "schema_version": "five_day_soak_acceptance_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "record_id": "",
+      "evidence_id": "",
+      "record_digest": "",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "set_sha256": "NONE",
+        "broker_company": "",
+        "trade_server": "",
+        "account_mode": "DEMO",
+        "account_currency": "",
+        "account_leverage": "",
+        "margin_mode": "",
+        "mt5_build": "",
+        "metaeditor_build": ""
+      },
+      "days": [
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "positions_opened": 0,
+          "positions_closed": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "experts_log_ref": "",
+          "journal_log_ref": "",
+          "notes": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "positions_opened": 0,
+          "positions_closed": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "experts_log_ref": "",
+          "journal_log_ref": "",
+          "notes": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "positions_opened": 0,
+          "positions_closed": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "experts_log_ref": "",
+          "journal_log_ref": "",
+          "notes": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "positions_opened": 0,
+          "positions_closed": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "experts_log_ref": "",
+          "journal_log_ref": "",
+          "notes": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "positions_opened": 0,
+          "positions_closed": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "experts_log_ref": "",
+          "journal_log_ref": "",
+          "notes": ""
+        }
+      ],
+      "reconciliation": {
+        "duplicate_orders": 0,
+        "duplicate_partials": 0,
+        "sl_regressions": 0,
+        "unprotected_new_authorizations": 0,
+        "release_gate_bypasses": 0,
+        "analytics_duplicate_finalizations": 0,
+        "stop_failure_join_failures": 0,
+        "dashboard_gate_mismatches": 0,
+        "runtime_critical_errors": 0,
+        "secrets_exposed": 0
+      },
+      "lifecycle_checks": {
+        "stale_human_wait_closed": false,
+        "market_confirmation_wait_preserved": false,
+        "denial_timeout_terminal": false,
+        "restart_reconstruction_passed": false,
+        "no_illegal_transition_accepted": false
+      },
+      "report_path": "artifacts/demo-soak-report.md",
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      }
+    },
+    "FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/FIVE_DAY_SOAK_ACCEPTANCE_SCHEMA.json",
+      "title": "GPT_EA R6 Five-Day Soak Acceptance Record v2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "record_id",
+        "evidence_id",
+        "record_digest",
+        "candidate",
+        "days",
+        "reconciliation",
+        "lifecycle_checks",
+        "operator_record_path",
+        "report_path",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "five_day_soak_acceptance_v2"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "record_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "record_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "git_sha",
+            "ex5_sha256",
+            "set_sha256",
+            "broker_company",
+            "trade_server",
+            "account_mode",
+            "account_currency",
+            "margin_mode",
+            "mt5_build",
+            "metaeditor_build"
+          ],
+          "properties": {
+            "git_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{40}$"
+            },
+            "ex5_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "set_sha256": {
+              "type": "string",
+              "pattern": "^(NONE|[0-9a-fA-F]{64})$"
+            },
+            "broker_company": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trade_server": {
+              "type": "string",
+              "minLength": 1
+            },
+            "account_mode": {
+              "enum": [
+                "DEMO",
+                "CONTEST"
+              ]
+            },
+            "account_currency": {
+              "type": "string",
+              "minLength": 1
+            },
+            "margin_mode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mt5_build": {
+              "type": "string",
+              "minLength": 1
+            },
+            "metaeditor_build": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "days": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "date",
+              "gap_justification",
+              "fresh_quotes",
+              "london_observed",
+              "ny_observed",
+              "overlap_observed",
+              "high_impact_news_observed",
+              "rollover_spread_expansion_observed",
+              "scheduled_scans",
+              "continuous_scans",
+              "manual_scans",
+              "checkpoint_updates",
+              "backup_checkpoint_updates",
+              "restarts",
+              "reconnects",
+              "high_confidence_decisions",
+              "wait_reanalyze_decisions",
+              "no_trade_decisions",
+              "zero_tolerance_failures",
+              "unresolved_critical_states_end",
+              "execution_log_present",
+              "stop_log_present",
+              "release_log_present",
+              "reconciliation_checklist_path",
+              "day_reconciled",
+              "reconciled_by",
+              "reconciled_at"
+            ],
+            "properties": {
+              "date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "gap_justification": {
+                "type": "string"
+              },
+              "fresh_quotes": {
+                "const": true
+              },
+              "london_observed": {
+                "type": "boolean"
+              },
+              "ny_observed": {
+                "type": "boolean"
+              },
+              "overlap_observed": {
+                "type": "boolean"
+              },
+              "high_impact_news_observed": {
+                "type": "boolean"
+              },
+              "rollover_spread_expansion_observed": {
+                "type": "boolean"
+              },
+              "scheduled_scans": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "continuous_scans": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "manual_scans": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "checkpoint_updates": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "backup_checkpoint_updates": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "restarts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reconnects": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "high_confidence_decisions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "wait_reanalyze_decisions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "no_trade_decisions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "zero_tolerance_failures": {
+                "const": 0
+              },
+              "unresolved_critical_states_end": {
+                "const": 0
+              },
+              "execution_log_present": {
+                "const": true
+              },
+              "stop_log_present": {
+                "const": true
+              },
+              "release_log_present": {
+                "const": true
+              },
+              "reconciliation_checklist_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "day_reconciled": {
+                "const": true
+              },
+              "reconciled_by": {
+                "type": "string",
+                "minLength": 2
+              },
+              "reconciled_at": {
+                "type": "string",
+                "minLength": 8
+              }
+            }
+          }
+        },
+        "reconciliation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "duplicate_orders",
+            "duplicate_partials",
+            "sl_regressions",
+            "unprotected_new_authorizations",
+            "release_gate_bypasses",
+            "analytics_duplicate_finalizations",
+            "stop_failure_join_failures",
+            "dashboard_gate_mismatches",
+            "runtime_critical_errors",
+            "secrets_exposed"
+          ],
+          "properties": {
+            "duplicate_orders": {
+              "const": 0
+            },
+            "duplicate_partials": {
+              "const": 0
+            },
+            "sl_regressions": {
+              "const": 0
+            },
+            "unprotected_new_authorizations": {
+              "const": 0
+            },
+            "release_gate_bypasses": {
+              "const": 0
+            },
+            "analytics_duplicate_finalizations": {
+              "const": 0
+            },
+            "stop_failure_join_failures": {
+              "const": 0
+            },
+            "dashboard_gate_mismatches": {
+              "const": 0
+            },
+            "runtime_critical_errors": {
+              "const": 0
+            },
+            "secrets_exposed": {
+              "const": 0
+            }
+          }
+        },
+        "lifecycle_checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stale_human_wait_closed",
+            "market_confirmation_wait_preserved",
+            "denial_timeout_terminal",
+            "restart_reconstruction_passed",
+            "no_illegal_transition_accepted"
+          ],
+          "properties": {
+            "stale_human_wait_closed": {
+              "const": true
+            },
+            "market_confirmation_wait_preserved": {
+              "const": true
+            },
+            "denial_timeout_terminal": {
+              "const": true
+            },
+            "restart_reconstruction_passed": {
+              "const": true
+            },
+            "no_illegal_transition_accepted": {
+              "const": true
+            }
+          }
+        },
+        "operator_record_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "report_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ACCEPT"
+            },
+            "reviewer": {
+              "type": "string",
+              "minLength": 2
+            },
+            "timestamp": {
+              "type": "string",
+              "minLength": 8
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "FIVE_DAY_SOAK_ACCEPTANCE_TEMPLATE.json": {
+      "schema_version": "five_day_soak_acceptance_v2",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "record_id": "",
+      "evidence_id": "",
+      "record_digest": "",
+      "candidate": {
+        "git_sha": "",
+        "ex5_sha256": "",
+        "set_sha256": "NONE",
+        "broker_company": "",
+        "trade_server": "",
+        "account_mode": "DEMO",
+        "account_currency": "",
+        "margin_mode": "",
+        "mt5_build": "",
+        "metaeditor_build": ""
+      },
+      "days": [
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "reconciliation_checklist_path": "artifacts/soak-day-1.md",
+          "day_reconciled": false,
+          "reconciled_by": "",
+          "reconciled_at": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "reconciliation_checklist_path": "artifacts/soak-day-2.md",
+          "day_reconciled": false,
+          "reconciled_by": "",
+          "reconciled_at": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "reconciliation_checklist_path": "artifacts/soak-day-3.md",
+          "day_reconciled": false,
+          "reconciled_by": "",
+          "reconciled_at": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "reconciliation_checklist_path": "artifacts/soak-day-4.md",
+          "day_reconciled": false,
+          "reconciled_by": "",
+          "reconciled_at": ""
+        },
+        {
+          "date": "",
+          "gap_justification": "",
+          "fresh_quotes": false,
+          "london_observed": false,
+          "ny_observed": false,
+          "overlap_observed": false,
+          "high_impact_news_observed": false,
+          "rollover_spread_expansion_observed": false,
+          "scheduled_scans": 0,
+          "continuous_scans": 0,
+          "manual_scans": 0,
+          "checkpoint_updates": 0,
+          "backup_checkpoint_updates": 0,
+          "restarts": 0,
+          "reconnects": 0,
+          "high_confidence_decisions": 0,
+          "wait_reanalyze_decisions": 0,
+          "no_trade_decisions": 0,
+          "zero_tolerance_failures": 0,
+          "unresolved_critical_states_end": 0,
+          "execution_log_present": false,
+          "stop_log_present": false,
+          "release_log_present": false,
+          "reconciliation_checklist_path": "artifacts/soak-day-5.md",
+          "day_reconciled": false,
+          "reconciled_by": "",
+          "reconciled_at": ""
+        }
+      ],
+      "reconciliation": {
+        "duplicate_orders": 0,
+        "duplicate_partials": 0,
+        "sl_regressions": 0,
+        "unprotected_new_authorizations": 0,
+        "release_gate_bypasses": 0,
+        "analytics_duplicate_finalizations": 0,
+        "stop_failure_join_failures": 0,
+        "dashboard_gate_mismatches": 0,
+        "runtime_critical_errors": 0,
+        "secrets_exposed": 0
+      },
+      "lifecycle_checks": {
+        "stale_human_wait_closed": false,
+        "market_confirmation_wait_preserved": false,
+        "denial_timeout_terminal": false,
+        "restart_reconstruction_passed": false,
+        "no_illegal_transition_accepted": false
+      },
+      "operator_record_path": "artifacts/five-day-soak-operator-record.md",
+      "report_path": "artifacts/demo-soak-report.md",
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      }
+    },
+    "MT5_VALIDATION_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/MT5_VALIDATION_EVIDENCE_SCHEMA.json",
+      "title": "GPT_EA R6 MT5 Validation Evidence v2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "evidence_id",
+        "evidence_digest",
+        "candidate",
+        "environment",
+        "compile",
+        "strategy_tester",
+        "broker_runtime",
+        "protection",
+        "live_api_news",
+        "resilience_runtime",
+        "artifacts",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "mt5_validation_evidence_v2"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "git_sha",
+            "ex5_sha256",
+            "set_sha256"
+          ],
+          "properties": {
+            "git_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{40}$"
+            },
+            "ex5_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "set_sha256": {
+              "type": "string",
+              "pattern": "^(NONE|[0-9a-fA-F]{64})$"
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "metaeditor_build",
+            "mt5_build",
+            "broker_company",
+            "trade_server",
+            "account_mode",
+            "account_currency",
+            "margin_mode"
+          ],
+          "properties": {
+            "metaeditor_build": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mt5_build": {
+              "type": "string",
+              "minLength": 1
+            },
+            "broker_company": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trade_server": {
+              "type": "string",
+              "minLength": 1
+            },
+            "account_mode": {
+              "enum": [
+                "DEMO",
+                "CONTEST"
+              ]
+            },
+            "account_currency": {
+              "type": "string",
+              "minLength": 1
+            },
+            "margin_mode": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "compile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "errors",
+            "warnings",
+            "compile_log_path",
+            "compile_log_sha256",
+            "load_smoke_passed",
+            "init_error_count",
+            "symbols_resolved_or_safely_rejected",
+            "timer_started",
+            "dashboard_initialized",
+            "release_blocked_before_attestation",
+            "no_order_on_attach"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            },
+            "errors": {
+              "const": 0
+            },
+            "warnings": {
+              "const": 0
+            },
+            "compile_log_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "compile_log_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "load_smoke_passed": {
+              "const": true
+            },
+            "init_error_count": {
+              "const": 0
+            },
+            "symbols_resolved_or_safely_rejected": {
+              "const": true
+            },
+            "timer_started": {
+              "const": true
+            },
+            "dashboard_initialized": {
+              "const": true
+            },
+            "release_blocked_before_attestation": {
+              "const": true
+            },
+            "no_order_on_attach": {
+              "const": true
+            }
+          }
+        },
+        "strategy_tester": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "report_path",
+            "report_sha256",
+            "model",
+            "date_from",
+            "date_to",
+            "symbols",
+            "completed_runs",
+            "no_runtime_critical_errors",
+            "no_duplicate_orders",
+            "no_duplicate_partials",
+            "no_sl_regressions",
+            "no_unprotected_authorizations"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            },
+            "report_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "report_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "date_from": {
+              "type": "string",
+              "minLength": 8
+            },
+            "date_to": {
+              "type": "string",
+              "minLength": 8
+            },
+            "symbols": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "completed_runs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "no_runtime_critical_errors": {
+              "const": true
+            },
+            "no_duplicate_orders": {
+              "const": true
+            },
+            "no_duplicate_partials": {
+              "const": true
+            },
+            "no_sl_regressions": {
+              "const": true
+            },
+            "no_unprotected_authorizations": {
+              "const": true
+            }
+          }
+        },
+        "broker_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "broker_matrix_passed",
+            "symbol_profiles_archived",
+            "stops_freeze_geometry_verified",
+            "tick_value_size_verified",
+            "volume_geometry_verified",
+            "filling_order_modes_verified",
+            "margin_lot_normalization_verified",
+            "restart_reconstruction_passed",
+            "reconnect_reconstruction_passed",
+            "primary_checkpoint_passed",
+            "backup_checkpoint_passed",
+            "no_duplicate_after_recovery"
+          ],
+          "properties": {
+            "broker_matrix_passed": {
+              "const": true
+            },
+            "symbol_profiles_archived": {
+              "const": true
+            },
+            "stops_freeze_geometry_verified": {
+              "const": true
+            },
+            "tick_value_size_verified": {
+              "const": true
+            },
+            "volume_geometry_verified": {
+              "const": true
+            },
+            "filling_order_modes_verified": {
+              "const": true
+            },
+            "margin_lot_normalization_verified": {
+              "const": true
+            },
+            "restart_reconstruction_passed": {
+              "const": true
+            },
+            "reconnect_reconstruction_passed": {
+              "const": true
+            },
+            "primary_checkpoint_passed": {
+              "const": true
+            },
+            "backup_checkpoint_passed": {
+              "const": true
+            },
+            "no_duplicate_after_recovery": {
+              "const": true
+            }
+          }
+        },
+        "protection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stop_matrix_passed",
+            "broker_stop_policy_passed",
+            "partial_protection_passed",
+            "stop_observability_passed",
+            "buy_lifecycle_passed",
+            "sell_lifecycle_passed",
+            "zero_unprotected_end_states"
+          ],
+          "properties": {
+            "stop_matrix_passed": {
+              "const": true
+            },
+            "broker_stop_policy_passed": {
+              "const": true
+            },
+            "partial_protection_passed": {
+              "const": true
+            },
+            "stop_observability_passed": {
+              "const": true
+            },
+            "buy_lifecycle_passed": {
+              "const": true
+            },
+            "sell_lifecycle_passed": {
+              "const": true
+            },
+            "zero_unprotected_end_states": {
+              "const": true
+            }
+          }
+        },
+        "live_api_news": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "webrequest_allow_list_verified",
+            "deep_review_path_passed",
+            "web_search_path_passed",
+            "failure_injection_passed",
+            "recovery_after_failure_passed",
+            "request_trace_observed",
+            "required_failure_fail_closed",
+            "secret_leak_count"
+          ],
+          "properties": {
+            "webrequest_allow_list_verified": {
+              "const": true
+            },
+            "deep_review_path_passed": {
+              "const": true
+            },
+            "web_search_path_passed": {
+              "const": true
+            },
+            "failure_injection_passed": {
+              "const": true
+            },
+            "recovery_after_failure_passed": {
+              "const": true
+            },
+            "request_trace_observed": {
+              "const": true
+            },
+            "required_failure_fail_closed": {
+              "const": true
+            },
+            "secret_leak_count": {
+              "const": 0
+            }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "experts_log_path",
+            "experts_log_sha256",
+            "journal_log_path",
+            "journal_log_sha256",
+            "broker_history_path",
+            "broker_history_sha256",
+            "matrix_bundle_path",
+            "matrix_bundle_sha256",
+            "intent_ledger_path",
+            "intent_ledger_sha256",
+            "reconciliation_path",
+            "reconciliation_sha256",
+            "web_provenance_path",
+            "web_provenance_sha256",
+            "model_health_path",
+            "model_health_sha256",
+            "resilience_runtime_report_path",
+            "resilience_runtime_report_sha256"
+          ],
+          "properties": {
+            "experts_log_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "experts_log_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "journal_log_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "journal_log_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "broker_history_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "broker_history_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "matrix_bundle_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "matrix_bundle_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "intent_ledger_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "intent_ledger_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "reconciliation_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reconciliation_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "web_provenance_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "web_provenance_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "model_health_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model_health_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "resilience_runtime_report_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "resilience_runtime_report_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ACCEPT"
+            },
+            "reviewer": {
+              "type": "string",
+              "minLength": 2
+            },
+            "timestamp": {
+              "type": "string",
+              "minLength": 8
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "resilience_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "direct_breakout_separation_passed",
+            "atomic_intent_ordering_passed",
+            "exactly_once_restart_passed",
+            "ambiguous_submit_reconciliation_passed",
+            "broker_reconciliation_passed",
+            "manual_intervention_detection_passed",
+            "storage_failure_fail_closed",
+            "config_drift_fail_closed",
+            "clock_drift_passed",
+            "chaos_real_account_refusal_passed",
+            "chaos_fault_matrix_passed",
+            "macro_scenario_stress_passed",
+            "gap_risk_passed",
+            "margin_stress_passed",
+            "decision_half_life_passed",
+            "model_degradation_fallback_passed",
+            "news_provenance_timestamp_passed",
+            "learning_quarantine_passed",
+            "promotion_rollback_passed"
+          ],
+          "properties": {
+            "direct_breakout_separation_passed": {
+              "const": true
+            },
+            "atomic_intent_ordering_passed": {
+              "const": true
+            },
+            "exactly_once_restart_passed": {
+              "const": true
+            },
+            "ambiguous_submit_reconciliation_passed": {
+              "const": true
+            },
+            "broker_reconciliation_passed": {
+              "const": true
+            },
+            "manual_intervention_detection_passed": {
+              "const": true
+            },
+            "storage_failure_fail_closed": {
+              "const": true
+            },
+            "config_drift_fail_closed": {
+              "const": true
+            },
+            "clock_drift_passed": {
+              "const": true
+            },
+            "chaos_real_account_refusal_passed": {
+              "const": true
+            },
+            "chaos_fault_matrix_passed": {
+              "const": true
+            },
+            "macro_scenario_stress_passed": {
+              "const": true
+            },
+            "gap_risk_passed": {
+              "const": true
+            },
+            "margin_stress_passed": {
+              "const": true
+            },
+            "decision_half_life_passed": {
+              "const": true
+            },
+            "model_degradation_fallback_passed": {
+              "const": true
+            },
+            "news_provenance_timestamp_passed": {
+              "const": true
+            },
+            "learning_quarantine_passed": {
+              "const": true
+            },
+            "promotion_rollback_passed": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "MT5_VALIDATION_EVIDENCE_TEMPLATE.json": {
+      "schema_version": "mt5_validation_evidence_v2",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "evidence_id": "",
+      "evidence_digest": "",
+      "candidate": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "set_sha256": "NONE"
+      },
+      "environment": {
+        "metaeditor_build": "",
+        "mt5_build": "",
+        "broker_company": "",
+        "trade_server": "",
+        "account_mode": "DEMO",
+        "account_currency": "",
+        "margin_mode": ""
+      },
+      "compile": {
+        "passed": false,
+        "errors": 0,
+        "warnings": 0,
+        "compile_log_path": "artifacts/metaeditor-compile.log",
+        "compile_log_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "load_smoke_passed": false,
+        "init_error_count": 0,
+        "symbols_resolved_or_safely_rejected": false,
+        "timer_started": false,
+        "dashboard_initialized": false,
+        "release_blocked_before_attestation": false,
+        "no_order_on_attach": false
+      },
+      "strategy_tester": {
+        "passed": false,
+        "report_path": "artifacts/strategy-tester-report.html",
+        "report_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model": "",
+        "date_from": "",
+        "date_to": "",
+        "symbols": [],
+        "completed_runs": 0,
+        "no_runtime_critical_errors": false,
+        "no_duplicate_orders": false,
+        "no_duplicate_partials": false,
+        "no_sl_regressions": false,
+        "no_unprotected_authorizations": false
+      },
+      "broker_runtime": {
+        "broker_matrix_passed": false,
+        "symbol_profiles_archived": false,
+        "stops_freeze_geometry_verified": false,
+        "tick_value_size_verified": false,
+        "volume_geometry_verified": false,
+        "filling_order_modes_verified": false,
+        "margin_lot_normalization_verified": false,
+        "restart_reconstruction_passed": false,
+        "reconnect_reconstruction_passed": false,
+        "primary_checkpoint_passed": false,
+        "backup_checkpoint_passed": false,
+        "no_duplicate_after_recovery": false
+      },
+      "protection": {
+        "stop_matrix_passed": false,
+        "broker_stop_policy_passed": false,
+        "partial_protection_passed": false,
+        "stop_observability_passed": false,
+        "buy_lifecycle_passed": false,
+        "sell_lifecycle_passed": false,
+        "zero_unprotected_end_states": false
+      },
+      "live_api_news": {
+        "webrequest_allow_list_verified": false,
+        "deep_review_path_passed": false,
+        "web_search_path_passed": false,
+        "failure_injection_passed": false,
+        "recovery_after_failure_passed": false,
+        "request_trace_observed": false,
+        "required_failure_fail_closed": false,
+        "secret_leak_count": 0
+      },
+      "artifacts": {
+        "experts_log_path": "artifacts/mt5-experts.log",
+        "experts_log_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "journal_log_path": "artifacts/mt5-journal.log",
+        "journal_log_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "broker_history_path": "artifacts/broker-history.csv",
+        "broker_history_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "matrix_bundle_path": "artifacts/mt5-validation-matrix.md",
+        "matrix_bundle_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "intent_ledger_path": "artifacts/GPT_EA_TradeIntentLedger.csv",
+        "intent_ledger_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "reconciliation_path": "artifacts/GPT_EA_BrokerReconciliation.csv",
+        "reconciliation_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "web_provenance_path": "artifacts/GPT_EA_WebIntelProvenance.csv",
+        "web_provenance_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "model_health_path": "artifacts/GPT_EA_ModelHealth.csv",
+        "model_health_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "resilience_runtime_report_path": "artifacts/mt5-resilience-runtime-report.md",
+        "resilience_runtime_report_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      },
+      "resilience_runtime": {
+        "direct_breakout_separation_passed": false,
+        "atomic_intent_ordering_passed": false,
+        "exactly_once_restart_passed": false,
+        "ambiguous_submit_reconciliation_passed": false,
+        "broker_reconciliation_passed": false,
+        "manual_intervention_detection_passed": false,
+        "storage_failure_fail_closed": false,
+        "config_drift_fail_closed": false,
+        "clock_drift_passed": false,
+        "chaos_real_account_refusal_passed": false,
+        "chaos_fault_matrix_passed": false,
+        "macro_scenario_stress_passed": false,
+        "gap_risk_passed": false,
+        "margin_stress_passed": false,
+        "decision_half_life_passed": false,
+        "model_degradation_fallback_passed": false,
+        "news_provenance_timestamp_passed": false,
+        "learning_quarantine_passed": false,
+        "promotion_rollback_passed": false
+      }
+    },
+    "PRIVACY_SIGN_OFF_TEMPLATE.json": {
+      "schema_version": "gpt_ea_privacy_signoff_v1",
+      "release_id": "",
+      "git_sha": "0000000000000000000000000000000000000000",
+      "signoff_id": "",
+      "signed_at_utc": "",
+      "reviewer": "",
+      "reviewer_role": "",
+      "jurisdiction": "",
+      "decision": "HOLD",
+      "controls": {
+        "data_inventory_approved": false,
+        "retention_schedule_approved": false,
+        "customer_notice_approved": false,
+        "secret_handling_approved": false,
+        "cross_border_review_approved": false,
+        "deletion_workflow_approved": false,
+        "incident_response_approved": false,
+        "telemetry_state": "UNSET",
+        "unresolved_critical_findings": 0
+      },
+      "evidence_refs": {
+        "privacy_review": "PRIVACY_DATA_RETENTION_REVIEW.md",
+        "jurisdiction_review": "JURISDICTION_LEGAL_REVIEW_CHECKLIST.md"
+      },
+      "notes": "",
+      "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "RELEASE_EVIDENCE_PACK_TEMPLATE.json": {
+      "pack_schema": "gpt_ea_release_evidence_pack_v1",
+      "release_id": "",
+      "git_sha": "",
+      "source_root": ".",
+      "output_directory": "GPT_EA_RELEASE_PACK",
+      "artifacts": [
+        {
+          "path": "artifacts/compile-evidence.json",
+          "evidence_type": "compile_evidence",
+          "required": true
+        },
+        {
+          "path": "artifacts/compile-evidence-validation.txt",
+          "evidence_type": "compile_evidence_validation",
+          "required": true
+        },
+        {
+          "path": "artifacts/metaeditor-compile.log",
+          "evidence_type": "metaeditor_compile_log",
+          "required": true
+        },
+        {
+          "path": "artifacts/privacy-signoff.json",
+          "evidence_type": "privacy_signoff",
+          "required": true
+        },
+        {
+          "path": "artifacts/privacy-signoff-validation.txt",
+          "evidence_type": "privacy_signoff_validation",
+          "required": true
+        },
+        {
+          "path": "static-check.txt",
+          "evidence_type": "static_ci",
+          "required": true
+        },
+        {
+          "path": "RELEASE_EVIDENCE_TEMPLATE.json",
+          "evidence_type": "release_evidence",
+          "required": true
+        },
+        {
+          "path": "release-evidence-validation.txt",
+          "evidence_type": "release_evidence_validation",
+          "required": true
+        },
+        {
+          "path": "soak-evidence-validation.txt",
+          "evidence_type": "demo_soak_validation",
+          "required": true
+        },
+        {
+          "path": "final-release-review.json",
+          "evidence_type": "final_review",
+          "required": true
+        },
+        {
+          "path": "final-review-validation.txt",
+          "evidence_type": "final_review_validation",
+          "required": true
+        },
+        {
+          "path": "docs/RELEASE_TRUTH_DASHBOARD.md",
+          "evidence_type": "release_truth_dashboard",
+          "required": true
+        },
+        {
+          "path": "release-truth-drift-validation.txt",
+          "evidence_type": "release_truth_drift_validation",
+          "required": true
+        },
+        {
+          "path": "ADR_REGISTRY.json",
+          "evidence_type": "architecture_decision_registry",
+          "required": true
+        },
+        {
+          "path": "docs/ADR_INDEX.md",
+          "evidence_type": "architecture_decision_index",
+          "required": true
+        },
+        {
+          "path": "docs/ADR_SUPERSESSION_POLICY.md",
+          "evidence_type": "architecture_decision_policy",
+          "required": true
+        }
+      ]
+    },
+    "RELEASE_EVIDENCE_TEMPLATE.json": {
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "build": {
+        "git_sha": "0000000000000000000000000000000000000000",
+        "ex5_path": "artifacts/GPT_EA.ex5",
+        "ex5_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "set_path": "",
+        "set_sha256": "NONE",
+        "compile_errors": 0,
+        "compile_warnings": 0,
+        "metaeditor_build": "",
+        "mt5_build": "",
+        "compile_evidence_id": "",
+        "compile_log_path": "artifacts/metaeditor-compile.log"
+      },
+      "runner_recovery": {
+        "schema_version": "runner_recovery_evidence_v1",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/runner-recovery-evidence.json",
+        "validated": false,
+        "validation_path": "artifacts/runner-recovery-evidence-validation.txt"
+      },
+      "runner_recovery_acceptance": {
+        "schema_version": "runner_recovery_acceptance_v1",
+        "acceptance_id": "",
+        "acceptance_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "acceptance_path": "artifacts/runner-recovery-acceptance.json",
+        "validated": false,
+        "validation_path": "artifacts/runner-recovery-acceptance-validation.txt"
+      },
+      "ci_static": {
+        "schema_version": "github_actions_static_evidence_v1",
+        "run_id": 0,
+        "run_attempt": 0,
+        "run_url": "",
+        "job_id": 0,
+        "job_url": "",
+        "runner_id": 0,
+        "runner_name": "",
+        "runner_group_id": 0,
+        "steps_executed": 0,
+        "head_sha": "",
+        "conclusion": "",
+        "artifact_name": "",
+        "artifact_archived": false,
+        "job_metadata_path": "artifacts/ci-job-metadata.json",
+        "evidence_path": "artifacts/ci-evidence.json",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "attestation_verified": false,
+        "attestation_verification_path": "artifacts/ci-attestation-verify.txt",
+        "bundle_schema_version": "ci_evidence_bundle_v1",
+        "bundle_manifest_path": "artifacts/ci-bundle-manifest.json",
+        "bundle_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bundle_validated": false,
+        "bundle_validation_path": "artifacts/ci-bundle-validation.txt"
+      },
+      "mt5_validation": {
+        "schema_version": "mt5_validation_evidence_v2",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/mt5-validation-evidence.json",
+        "validated": false,
+        "validation_path": "artifacts/mt5-validation-evidence-validation.txt"
+      },
+      "resilience_hardening": {
+        "schema_version": "resilience_hardening_evidence_v1",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/r6-resilience-hardening.json",
+        "config_fingerprint": "00000000",
+        "validated": false,
+        "validation_path": "artifacts/resilience-hardening-evidence-validation.txt"
+      },
+      "rollback_package": {
+        "mode": "UNSET",
+        "previous_release_validation_id": "",
+        "previous_git_sha": "",
+        "package_path": "",
+        "package_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "validated": false,
+        "validation_path": "artifacts/rollback-package-validation.txt",
+        "first_release_justification": ""
+      },
+      "deployment": {
+        "broker_company": "",
+        "trade_server": "",
+        "account_currency": "",
+        "margin_mode": "",
+        "account_leverage": "",
+        "symbols": []
+      },
+      "api_transport": {
+        "schema_version": "api_transport_evidence_v1",
+        "mode": "DIRECT_OPENAI",
+        "endpoint_host": "api.openai.com",
+        "https_required": true,
+        "webrequest_allow_list_verified": false,
+        "high_priority_matrix_passed": false,
+        "deep_review_path_passed": false,
+        "web_search_path_passed": false,
+        "failure_recovery_tested": false,
+        "request_id_trace_tested": false,
+        "secret_leak_count": 0,
+        "evidence_path": "artifacts/api-transport-evidence.md"
+      },
+      "demo_soak": {
+        "schema_version": "demo_soak_evidence_v1",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "acceptance_record_schema_version": "five_day_soak_acceptance_v2",
+        "acceptance_record_id": "",
+        "acceptance_record_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "acceptance_record_path": "artifacts/five-day-soak-acceptance.json",
+        "start": "",
+        "end": "",
+        "trading_days": 5,
+        "london_sessions": 3,
+        "ny_sessions": 3,
+        "overlap_observed": true,
+        "news_day_observed": true,
+        "rollover_observed": true,
+        "restart_observed": true,
+        "reconnect_observed": true,
+        "scheduled_scans": 1,
+        "continuous_scans": 1,
+        "checkpoint_updates": 1,
+        "backup_checkpoint_updates": 1,
+        "zero_tolerance_failures": 0,
+        "unresolved_critical_states": 0,
+        "duplicate_orders": 0,
+        "duplicate_partials": 0,
+        "sl_regressions": 0,
+        "unprotected_new_authorizations": 0,
+        "release_gate_bypasses": 0,
+        "analytics_duplicate_finalizations": 0,
+        "stop_failure_join_failures": 0,
+        "dashboard_gate_mismatches": 0,
+        "runtime_critical_errors": 0,
+        "secrets_exposed": 0,
+        "execution_log_present": true,
+        "stop_log_present": true,
+        "release_evidence_log_present": true,
+        "report_path": "artifacts/demo-soak-report.md"
+      },
+      "gates": {
+        "metaeditor_compile": false,
+        "artifact_identity": false,
+        "runner_recovery": false,
+        "runner_recovery_acceptance": false,
+        "ci_static": false,
+        "mt5_validation": false,
+        "strategy_tester": false,
+        "intelligence_matrix": false,
+        "adaptive_portfolio": false,
+        "execution_learning": false,
+        "champion_challenger": false,
+        "lifecycle_integrity": false,
+        "broker_matrix": false,
+        "deployment_profile": false,
+        "recovery": false,
+        "stop_matrix": false,
+        "broker_stop_policy": false,
+        "partial_protection": false,
+        "stop_observability": false,
+        "live_news_intermarket": false,
+        "web_failure_injection": false,
+        "api_transport": false,
+        "demo_soak": false,
+        "operator_review": false,
+        "resilience_hardening": false,
+        "rollback_package": false,
+        "compile_evidence": false,
+        "privacy_signoff": false
+      },
+      "final_review": {
+        "schema_version": "final_release_review_v1",
+        "review_evidence_id": "",
+        "review_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "decision": "HOLD",
+        "reviewer": "",
+        "review_timestamp": ""
+      },
+      "compile_evidence": {
+        "schema_version": "gpt_ea_compile_evidence_v1",
+        "evidence_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/compile-evidence.json",
+        "validated": false,
+        "validation_path": "artifacts/compile-evidence-validation.txt"
+      },
+      "privacy_signoff": {
+        "schema_version": "gpt_ea_privacy_signoff_v1",
+        "signoff_id": "",
+        "evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "evidence_path": "artifacts/privacy-signoff.json",
+        "validated": false,
+        "validation_path": "artifacts/privacy-signoff-validation.txt",
+        "jurisdiction": "",
+        "telemetry_state": "UNSET",
+        "unresolved_critical_findings": 0
+      }
+    },
+    "RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/RESILIENCE_HARDENING_EVIDENCE_SCHEMA.json",
+      "title": "GPT_EA R6 Resilience Hardening Evidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "evidence_id",
+        "evidence_digest",
+        "candidate_git_sha",
+        "config_fingerprint",
+        "matrix_path",
+        "matrix_sha256",
+        "checks",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "resilience_hardening_evidence_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate_git_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "config_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9A-Fa-f]{8}$"
+        },
+        "matrix_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "matrix_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "direct_breakout",
+            "broker_reconciliation",
+            "atomic_intent_exactly_once",
+            "news_provenance_timestamp",
+            "clock_model_degradation",
+            "data_versioning_quarantine",
+            "promotion_significance_rollback",
+            "strategy_registry",
+            "portfolio_gap_margin_latency",
+            "chaos_fault_injection",
+            "storage_config_manual_integrity",
+            "causal_attribution",
+            "rollback_package"
+          ],
+          "properties": {
+            "direct_breakout": {
+              "const": true
+            },
+            "broker_reconciliation": {
+              "const": true
+            },
+            "atomic_intent_exactly_once": {
+              "const": true
+            },
+            "news_provenance_timestamp": {
+              "const": true
+            },
+            "clock_model_degradation": {
+              "const": true
+            },
+            "data_versioning_quarantine": {
+              "const": true
+            },
+            "promotion_significance_rollback": {
+              "const": true
+            },
+            "strategy_registry": {
+              "const": true
+            },
+            "portfolio_gap_margin_latency": {
+              "const": true
+            },
+            "chaos_fault_injection": {
+              "const": true
+            },
+            "storage_config_manual_integrity": {
+              "const": true
+            },
+            "causal_attribution": {
+              "const": true
+            },
+            "rollback_package": {
+              "const": true
+            }
+          }
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ACCEPT"
+            },
+            "reviewer": {
+              "type": "string",
+              "minLength": 2
+            },
+            "timestamp": {
+              "type": "string",
+              "minLength": 8
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "RESILIENCE_HARDENING_EVIDENCE_TEMPLATE.json": {
+      "schema_version": "resilience_hardening_evidence_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "evidence_id": "",
+      "evidence_digest": "",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "config_fingerprint": "00000000",
+      "matrix_path": "artifacts/r6-resilience-matrix.md",
+      "matrix_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "checks": {
+        "direct_breakout": false,
+        "broker_reconciliation": false,
+        "atomic_intent_exactly_once": false,
+        "news_provenance_timestamp": false,
+        "clock_model_degradation": false,
+        "data_versioning_quarantine": false,
+        "promotion_significance_rollback": false,
+        "strategy_registry": false,
+        "portfolio_gap_margin_latency": false,
+        "chaos_fault_injection": false,
+        "storage_config_manual_integrity": false,
+        "causal_attribution": false,
+        "rollback_package": false
+      },
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      }
+    },
+    "ROLLBACK_PACKAGE_MANIFEST_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/ROLLBACK_PACKAGE_MANIFEST_SCHEMA.json",
+      "title": "GPT_EA Certified Rollback Package Manifest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "source_git_sha",
+        "created_utc",
+        "migration_note",
+        "files"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "rollback_package_manifest_v1"
+        },
+        "release_validation_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "source_git_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "created_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "migration_note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "files": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "archive_path",
+              "source_path",
+              "sha256",
+              "size"
+            ],
+            "properties": {
+              "archive_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/RUNNER_RECOVERY_ACCEPTANCE_SCHEMA.json",
+      "title": "GPT_EA R6 Runner-Recovery Acceptance",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "acceptance_id",
+        "acceptance_digest",
+        "runner_recovery_evidence_path",
+        "runner_recovery_evidence_id",
+        "runner_recovery_evidence_digest",
+        "candidate_git_sha",
+        "ci_bundle_digest",
+        "matrix_path",
+        "matrix_sha256",
+        "checks",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "runner_recovery_acceptance_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "acceptance_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "acceptance_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "runner_recovery_evidence_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner_recovery_evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "runner_recovery_evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate_git_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "ci_bundle_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "incident_preserved",
+            "incident_classified_pre_runner",
+            "github_status_checked",
+            "actions_eligibility_checked",
+            "budget_checked",
+            "payment_state_checked",
+            "recovery_probe_allocated",
+            "recovery_probe_success",
+            "recovery_attempt_pinned",
+            "candidate_static_runner_allocated",
+            "candidate_static_steps_executed",
+            "candidate_static_success",
+            "candidate_sha_match",
+            "repository_static_result_pass",
+            "ci_evidence_validated",
+            "attestation_verified",
+            "ci_bundle_validated",
+            "recovery_ci_identity_match",
+            "recovery_bundle_digest_match",
+            "no_unreviewed_runner_regression",
+            "evidence_digests_valid"
+          ],
+          "properties": {
+            "incident_preserved": {
+              "const": true
+            },
+            "incident_classified_pre_runner": {
+              "const": true
+            },
+            "github_status_checked": {
+              "const": true
+            },
+            "actions_eligibility_checked": {
+              "const": true
+            },
+            "budget_checked": {
+              "const": true
+            },
+            "payment_state_checked": {
+              "const": true
+            },
+            "recovery_probe_allocated": {
+              "const": true
+            },
+            "recovery_probe_success": {
+              "const": true
+            },
+            "recovery_attempt_pinned": {
+              "const": true
+            },
+            "candidate_static_runner_allocated": {
+              "const": true
+            },
+            "candidate_static_steps_executed": {
+              "const": true
+            },
+            "candidate_static_success": {
+              "const": true
+            },
+            "candidate_sha_match": {
+              "const": true
+            },
+            "repository_static_result_pass": {
+              "const": true
+            },
+            "ci_evidence_validated": {
+              "const": true
+            },
+            "attestation_verified": {
+              "const": true
+            },
+            "ci_bundle_validated": {
+              "const": true
+            },
+            "recovery_ci_identity_match": {
+              "const": true
+            },
+            "recovery_bundle_digest_match": {
+              "const": true
+            },
+            "no_unreviewed_runner_regression": {
+              "const": true
+            },
+            "evidence_digests_valid": {
+              "const": true
+            }
+          }
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ACCEPT"
+            },
+            "reviewer": {
+              "type": "string",
+              "minLength": 2
+            },
+            "timestamp": {
+              "type": "string",
+              "minLength": 8
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "matrix_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "matrix_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        }
+      }
+    },
+    "RUNNER_RECOVERY_ACCEPTANCE_TEMPLATE.json": {
+      "schema_version": "runner_recovery_acceptance_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "acceptance_id": "",
+      "acceptance_digest": "",
+      "runner_recovery_evidence_path": "artifacts/runner-recovery-evidence.json",
+      "runner_recovery_evidence_id": "",
+      "runner_recovery_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "ci_bundle_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "checks": {
+        "incident_preserved": false,
+        "incident_classified_pre_runner": false,
+        "github_status_checked": false,
+        "actions_eligibility_checked": false,
+        "budget_checked": false,
+        "payment_state_checked": false,
+        "recovery_probe_allocated": false,
+        "recovery_probe_success": false,
+        "recovery_attempt_pinned": false,
+        "candidate_static_runner_allocated": false,
+        "candidate_static_steps_executed": false,
+        "candidate_static_success": false,
+        "candidate_sha_match": false,
+        "repository_static_result_pass": false,
+        "ci_evidence_validated": false,
+        "attestation_verified": false,
+        "ci_bundle_validated": false,
+        "recovery_ci_identity_match": false,
+        "recovery_bundle_digest_match": false,
+        "no_unreviewed_runner_regression": false,
+        "evidence_digests_valid": false
+      },
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      },
+      "matrix_path": "artifacts/runner-recovery-acceptance.md",
+      "matrix_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "RUNNER_RECOVERY_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/RUNNER_RECOVERY_EVIDENCE_SCHEMA.json",
+      "title": "GPT_EA R6 Runner Recovery Evidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "evidence_id",
+        "evidence_digest",
+        "incident",
+        "recovery_probe",
+        "release_static",
+        "remediation",
+        "operator_review"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "runner_recovery_evidence_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "incident": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workflow",
+            "run_id",
+            "run_attempt",
+            "job_id",
+            "conclusion",
+            "runner_id",
+            "runner_name",
+            "steps_executed",
+            "observed_signature",
+            "evidence_reference"
+          ],
+          "properties": {
+            "workflow": {
+              "type": "string",
+              "minLength": 1
+            },
+            "run_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "run_attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "job_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "conclusion": {
+              "const": "failure"
+            },
+            "runner_id": {
+              "const": 0
+            },
+            "runner_name": {
+              "const": ""
+            },
+            "steps_executed": {
+              "const": 0
+            },
+            "observed_signature": {
+              "const": "PRE_RUNNER_NO_STEPS"
+            },
+            "evidence_reference": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "recovery_probe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workflow",
+            "run_id",
+            "run_attempt",
+            "job_id",
+            "conclusion",
+            "runner_id",
+            "runner_name",
+            "steps_executed",
+            "run_url",
+            "observed_at_utc"
+          ],
+          "properties": {
+            "workflow": {
+              "const": "GPT_EA Runner Provisioning Probe"
+            },
+            "run_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "run_attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "job_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "conclusion": {
+              "const": "success"
+            },
+            "runner_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "runner_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "steps_executed": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "run_url": {
+              "type": "string",
+              "minLength": 8
+            },
+            "observed_at_utc": {
+              "type": "string",
+              "minLength": 8
+            }
+          }
+        },
+        "release_static": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workflow",
+            "run_id",
+            "run_attempt",
+            "job_id",
+            "conclusion",
+            "runner_id",
+            "runner_name",
+            "steps_executed",
+            "head_sha",
+            "ci_bundle_schema_version",
+            "ci_bundle_digest",
+            "run_url"
+          ],
+          "properties": {
+            "workflow": {
+              "const": "GPT_EA Static Release Gate"
+            },
+            "run_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "run_attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "job_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "conclusion": {
+              "const": "success"
+            },
+            "runner_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "runner_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "steps_executed": {
+              "type": "integer",
+              "minimum": 7
+            },
+            "head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{40}$"
+            },
+            "ci_bundle_schema_version": {
+              "const": "ci_evidence_bundle_v1"
+            },
+            "ci_bundle_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "run_url": {
+              "type": "string",
+              "minLength": 8
+            }
+          }
+        },
+        "remediation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "github_status_checked",
+            "billing_usage_checked",
+            "budgets_checked",
+            "payment_state_checked",
+            "support_case_id",
+            "notes"
+          ],
+          "properties": {
+            "github_status_checked": {
+              "const": true
+            },
+            "billing_usage_checked": {
+              "const": true
+            },
+            "budgets_checked": {
+              "const": true
+            },
+            "payment_state_checked": {
+              "const": true
+            },
+            "support_case_id": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        },
+        "operator_review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "reviewer",
+            "timestamp",
+            "notes"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ACCEPT"
+            },
+            "reviewer": {
+              "type": "string",
+              "minLength": 2
+            },
+            "timestamp": {
+              "type": "string",
+              "minLength": 8
+            },
+            "notes": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json": {
+      "schema_version": "runner_recovery_evidence_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "evidence_id": "",
+      "evidence_digest": "",
+      "incident": {
+        "workflow": "GPT_EA Runner Provisioning Probe",
+        "run_id": 35275383852,
+        "run_attempt": 1,
+        "job_id": 105384628531,
+        "conclusion": "failure",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps_executed": 0,
+        "observed_signature": "PRE_RUNNER_NO_STEPS",
+        "evidence_reference": "ACTIONS_RUNNER_DIAGNOSTICS.md"
+      },
+      "recovery_probe": {
+        "workflow": "GPT_EA Runner Provisioning Probe",
+        "run_id": 0,
+        "run_attempt": 0,
+        "job_id": 0,
+        "conclusion": "",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps_executed": 0,
+        "run_url": "",
+        "observed_at_utc": ""
+      },
+      "release_static": {
+        "workflow": "GPT_EA Static Release Gate",
+        "run_id": 0,
+        "run_attempt": 0,
+        "job_id": 0,
+        "conclusion": "",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps_executed": 0,
+        "head_sha": "",
+        "ci_bundle_schema_version": "ci_evidence_bundle_v1",
+        "ci_bundle_digest": "",
+        "run_url": ""
+      },
+      "remediation": {
+        "github_status_checked": false,
+        "billing_usage_checked": false,
+        "budgets_checked": false,
+        "payment_state_checked": false,
+        "support_case_id": "",
+        "notes": ""
+      },
+      "operator_review": {
+        "decision": "HOLD",
+        "reviewer": "",
+        "timestamp": "",
+        "notes": ""
+      }
+    },
+    "SOAK_EVIDENCE_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/SOAK_EVIDENCE_SCHEMA.json",
+      "title": "GPT_EA Demo Soak Evidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "evidence_id",
+        "evidence_digest",
+        "acceptance_record_schema_version",
+        "acceptance_record_id",
+        "acceptance_record_digest",
+        "acceptance_record_path",
+        "start",
+        "end",
+        "trading_days",
+        "london_sessions",
+        "ny_sessions",
+        "overlap_observed",
+        "news_day_observed",
+        "rollover_observed",
+        "restart_observed",
+        "reconnect_observed",
+        "scheduled_scans",
+        "continuous_scans",
+        "checkpoint_updates",
+        "backup_checkpoint_updates",
+        "zero_tolerance_failures",
+        "unresolved_critical_states",
+        "duplicate_orders",
+        "duplicate_partials",
+        "sl_regressions",
+        "unprotected_new_authorizations",
+        "release_gate_bypasses",
+        "analytics_duplicate_finalizations",
+        "stop_failure_join_failures",
+        "dashboard_gate_mismatches",
+        "runtime_critical_errors",
+        "secrets_exposed",
+        "execution_log_present",
+        "stop_log_present",
+        "release_evidence_log_present",
+        "report_path"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "demo_soak_evidence_v1"
+        },
+        "evidence_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "acceptance_record_schema_version": {
+          "const": "five_day_soak_acceptance_v2"
+        },
+        "acceptance_record_id": {
+          "type": "string",
+          "minLength": 8
+        },
+        "acceptance_record_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "acceptance_record_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "string",
+          "minLength": 10
+        },
+        "end": {
+          "type": "string",
+          "minLength": 10
+        },
+        "trading_days": {
+          "type": "integer",
+          "minimum": 5
+        },
+        "london_sessions": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "ny_sessions": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "overlap_observed": {
+          "const": true
+        },
+        "news_day_observed": {
+          "const": true
+        },
+        "rollover_observed": {
+          "const": true
+        },
+        "restart_observed": {
+          "const": true
+        },
+        "reconnect_observed": {
+          "const": true
+        },
+        "scheduled_scans": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "continuous_scans": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "checkpoint_updates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backup_checkpoint_updates": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "zero_tolerance_failures": {
+          "const": 0
+        },
+        "unresolved_critical_states": {
+          "const": 0
+        },
+        "duplicate_orders": {
+          "const": 0
+        },
+        "duplicate_partials": {
+          "const": 0
+        },
+        "sl_regressions": {
+          "const": 0
+        },
+        "unprotected_new_authorizations": {
+          "const": 0
+        },
+        "release_gate_bypasses": {
+          "const": 0
+        },
+        "analytics_duplicate_finalizations": {
+          "const": 0
+        },
+        "stop_failure_join_failures": {
+          "const": 0
+        },
+        "dashboard_gate_mismatches": {
+          "const": 0
+        },
+        "runtime_critical_errors": {
+          "const": 0
+        },
+        "secrets_exposed": {
+          "const": 0
+        },
+        "execution_log_present": {
+          "const": true
+        },
+        "stop_log_present": {
+          "const": true
+        },
+        "release_evidence_log_present": {
+          "const": true
+        },
+        "report_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "MT5_MINIMUM_PROOF_SUMMARY_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/MT5_MINIMUM_PROOF_SUMMARY_SCHEMA.json",
+      "title": "GPT_EA MT5 Minimum Proof Summary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "source_mt5_evidence_path",
+        "source_mt5_evidence_digest",
+        "candidate_git_sha",
+        "bundles",
+        "overall"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "mt5_minimum_proof_summary_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "source_mt5_evidence_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_mt5_evidence_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "candidate_git_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "bundles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "MP-01",
+            "MP-02",
+            "MP-03",
+            "MP-04",
+            "MP-05",
+            "MP-06",
+            "MP-07",
+            "MP-08"
+          ],
+          "properties": {
+            "MP-01": {
+              "const": "PASS"
+            },
+            "MP-02": {
+              "const": "PASS"
+            },
+            "MP-03": {
+              "const": "PASS"
+            },
+            "MP-04": {
+              "const": "PASS"
+            },
+            "MP-05": {
+              "const": "PASS"
+            },
+            "MP-06": {
+              "const": "PASS"
+            },
+            "MP-07": {
+              "const": "PASS"
+            },
+            "MP-08": {
+              "const": "PASS"
+            }
+          }
+        },
+        "overall": {
+          "const": "PASS"
+        }
+      }
+    },
+    "MT5_MINIMUM_PROOF_SUMMARY_TEMPLATE.json": {
+      "schema_version": "mt5_minimum_proof_summary_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "source_mt5_evidence_path": "artifacts/mt5-validation-evidence.json",
+      "source_mt5_evidence_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "bundles": {
+        "MP-01": "HOLD",
+        "MP-02": "HOLD",
+        "MP-03": "HOLD",
+        "MP-04": "HOLD",
+        "MP-05": "HOLD",
+        "MP-06": "HOLD",
+        "MP-07": "HOLD",
+        "MP-08": "HOLD"
+      },
+      "overall": "HOLD"
+    },
+    "RELEASE_READINESS_STATUS_SCHEMA.json": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://github.com/bonaventuresimeon/GPT_EA/RELEASE_READINESS_STATUS_SCHEMA.json",
+      "title": "GPT_EA Release Readiness Status",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "release_validation_id",
+        "candidate_git_sha",
+        "generated_utc",
+        "code_readiness",
+        "evidence_readiness",
+        "overall_state"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "release_readiness_status_v1"
+        },
+        "release_validation_id": {
+          "const": "GPT_EA_FULL_INTELLIGENCE_R6_20260917"
+        },
+        "candidate_git_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "generated_utc": {
+          "type": "string",
+          "minLength": 10
+        },
+        "code_readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "basis",
+            "static_result",
+            "source_git_sha",
+            "reason"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "CODE_STATIC_HOLD",
+                "CODE_STATIC_READY"
+              ]
+            },
+            "basis": {
+              "enum": [
+                "NONE",
+                "LOCAL_STATIC",
+                "CI_BUNDLE"
+              ]
+            },
+            "static_result": {
+              "enum": [
+                "UNKNOWN",
+                "FAILED",
+                "PASS"
+              ]
+            },
+            "source_git_sha": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "evidence_readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "missing_gates",
+            "final_review_decision",
+            "authoritative_validation_passed",
+            "reason"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "EVIDENCE_HOLD",
+                "EVIDENCE_READY_FOR_FINAL_REVIEW",
+                "PRODUCTION_GO"
+              ]
+            },
+            "missing_gates": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "final_review_decision": {
+              "enum": [
+                "HOLD",
+                "GO",
+                "UNKNOWN"
+              ]
+            },
+            "authoritative_validation_passed": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "overall_state": {
+          "enum": [
+            "HOLD",
+            "GO"
+          ]
+        }
+      }
+    },
+    "RELEASE_READINESS_STATUS_TEMPLATE.json": {
+      "schema_version": "release_readiness_status_v1",
+      "release_validation_id": "GPT_EA_FULL_INTELLIGENCE_R6_20260917",
+      "candidate_git_sha": "0000000000000000000000000000000000000000",
+      "generated_utc": "",
+      "code_readiness": {
+        "state": "CODE_STATIC_HOLD",
+        "basis": "NONE",
+        "static_result": "UNKNOWN",
+        "source_git_sha": "",
+        "reason": "Not evaluated."
+      },
+      "evidence_readiness": {
+        "state": "EVIDENCE_HOLD",
+        "missing_gates": [],
+        "final_review_decision": "UNKNOWN",
+        "authoritative_validation_passed": false,
+        "reason": "Not evaluated."
+      },
+      "overall_state": "HOLD"
+    }
+  }
+}

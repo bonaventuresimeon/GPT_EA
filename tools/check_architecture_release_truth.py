@@ -6,6 +6,9 @@ import json
 import re
 import sys
 from pathlib import Path
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT = Path(__file__).resolve().parents[1]
 errors: list[str] = []
@@ -27,10 +30,8 @@ def refs(value: str) -> list[str]:
     return [x.strip() for x in value.split(",") if x.strip()]
 
 
-adr_paths = sorted(
-    p for p in ROOT.glob("ADR_[0-9][0-9][0-9]_*.md")
-    if p.name != "docs/ADR_TEMPLATE.md"
-)
+ADR_DIR = ROOT / "docs"
+adr_paths = sorted(ADR_DIR.glob("ADR_[0-9][0-9][0-9]_*.md"))
 
 records: dict[str, dict[str, object]] = {}
 for p in adr_paths:
@@ -86,7 +87,7 @@ for p in adr_paths:
 
     records[expected_id] = {
         "id": expected_id,
-        "file": p.name,
+        "file": p.relative_to(ROOT).as_posix(),
         "title": hm.group(2).strip(),
         "status": status,
         "supersedes": supersedes,
@@ -184,7 +185,8 @@ if not index.exists():
 else:
     text = index.read_text(encoding="utf-8")
     for rid, record in records.items():
-        if str(record["file"]) not in text:
+        index_name = Path(str(record["file"])).name
+        if index_name not in text:
             errors.append(f"ADR index missing {rid}: {record['file']}")
     for token in ("docs/ADR_SUPERSESSION_POLICY.md", "docs/ADR_TEMPLATE.md", "ADR_REGISTRY.json"):
         if token not in text:

@@ -7,6 +7,9 @@ import os
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from json_bundle import materialize_legacy_json_documents
+
+materialize_legacy_json_documents()
 
 ROOT=Path(__file__).resolve().parents[1]
 TEMPLATE=ROOT/"RUNNER_RECOVERY_EVIDENCE_TEMPLATE.json"

@@ -251,7 +251,15 @@ void ScanSymbol(const string sym,const string scanReason)
    IntermarketReport intermarket=AssessIntermarket(sym,primary.bullish);
    string webText="",webError=""; bool webBlock=false,webWatch=false;
    bool webAvailable=GetLiveWebIntel(sym,primary,decision,false,webText,webBlock,webWatch,webError);
-   if(!webAvailable && InpBlockIfWebIntelUnavailable) webBlock=true;
+   string emergencyWebWhy="";
+   bool emergencyWebBypass=(!webAvailable && g_lastWebIntelFailureClass=="UNAVAILABLE" &&
+                            DeterministicEmergencyExecutionActive(sym,decision.strategy,emergencyWebWhy));
+   if(!webAvailable && InpBlockIfWebIntelUnavailable && !emergencyWebBypass) webBlock=true;
+   if(emergencyWebBypass)
+   {
+      webBlock=false; webWatch=true;
+      webText="DETERMINISTIC_ONLY external-intelligence transport outage bypass | "+emergencyWebWhy+" | "+webText;
+   }
 
    bool readyNow=(primary.valid && decision.action==STRATEGY_ACTION_HIGH_CONFIDENCE && StrategyExecutionTrigger(primary,decision.strategy));
    string upcoming=UpcomingEventSummary(sym);

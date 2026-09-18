@@ -13,7 +13,7 @@
 
 ### 🧠 Multi-Timeframe Intelligence · 📰 News & Intermarket · 🛡️ Risk · ⚡ Execution · 💾 Recovery · 🔐 Release Governance
 
-[🏗 Architecture](ARCHITECTURE.md) · [🏛 ADRs](ADR_INDEX.md) · [🚦 Release Truth](RELEASE_TRUTH_DASHBOARD.md) · [🗺 Roadmap](ROADMAP.md) · [🚀 Installation](INSTALLATION.md) · [🔐 Privacy](PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](RELEASE_EVIDENCE_PACK.md) · [⚖️ Terms](TERMS_AND_CONDITIONS.md)
+[🏗 Architecture](docs/ARCHITECTURE.md) · [🏛 ADRs](docs/ADR_INDEX.md) · [🚦 Release Truth](docs/RELEASE_TRUTH_DASHBOARD.md) · [🗺 Roadmap](docs/ROADMAP.md) · [🚀 Installation](docs/INSTALLATION.md) · [🔐 Privacy](docs/PRIVACY_DATA_RETENTION_REVIEW.md) · [📦 Release Evidence](docs/RELEASE_EVIDENCE_PACK.md) · [⚖️ Terms](docs/TERMS_AND_CONDITIONS.md)
 
 </div>
 
@@ -62,7 +62,7 @@ flowchart TD
     O --> P[💾 Recovery + Analytics + Observability]
 ```
 
-Full architecture: **[ARCHITECTURE.md](ARCHITECTURE.md)**
+Full architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 
 ## 🔐 Trust & governance stack
 
@@ -84,9 +84,9 @@ flowchart LR
 
 ## 🚦 Release truth
 
-**[Open the release-truth dashboard →](RELEASE_TRUTH_DASHBOARD.md)** · Current checked-in baseline: **⏸️ HOLD** until exact-candidate external evidence is validated.
+**[Open the release-truth dashboard →](docs/RELEASE_TRUTH_DASHBOARD.md)** · Current checked-in baseline: **⏸️ HOLD** until exact-candidate external evidence is validated.
 
-Dashboard integrity: **[drift-detection contract](DASHBOARD_DRIFT_DETECTION.md)** · architecture governance: **[ADR supersession policy](ADR_SUPERSESSION_POLICY.md)**.
+Dashboard integrity: **[drift-detection contract](docs/DASHBOARD_DRIFT_DETECTION.md)** · architecture governance: **[ADR supersession policy](docs/ADR_SUPERSESSION_POLICY.md)**.
 
 | Item | Current contract |
 |---|---|
@@ -117,7 +117,7 @@ Allow https://api.openai.com in MT5 WebRequest
    ↓
 Attach GPT_EA to DEMO
    ↓
-Run FIRST_RUN_CHECKLIST.md
+Run docs/FIRST_RUN_CHECKLIST.md
    ↓
 Complete release / broker / soak / legal / privacy evidence
    ↓
@@ -126,7 +126,7 @@ Final GO/NO-GO
 Controlled REAL deployment with human approval
 ```
 
-New users: **[INSTALLATION.md](INSTALLATION.md)** · **[USER_INSTALLATION_GUIDE.md](USER_INSTALLATION_GUIDE.md)** · **[FIRST_RUN_CHECKLIST.md](FIRST_RUN_CHECKLIST.md)** · **[API_KEY_TROUBLESHOOTING.md](API_KEY_TROUBLESHOOTING.md)**
+New users: **[docs/INSTALLATION.md](docs/INSTALLATION.md)** · **[docs/USER_INSTALLATION_GUIDE.md](docs/USER_INSTALLATION_GUIDE.md)** · **[docs/FIRST_RUN_CHECKLIST.md](docs/FIRST_RUN_CHECKLIST.md)** · **[docs/API_KEY_TROUBLESHOOTING.md](docs/API_KEY_TROUBLESHOOTING.md)**
 
 ## 🗺️ Roadmap snapshot
 
@@ -142,7 +142,7 @@ flowchart LR
     O --> X[🧪 Shadow Research]
 ```
 
-Full roadmap: **[ROADMAP.md](ROADMAP.md)**
+Full roadmap: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 
 ## 📦 Release evidence architecture
 
@@ -160,17 +160,17 @@ flowchart LR
 
 Key release documents:
 
-- 🛠️ [COMPILE_EVIDENCE_CHECKLIST.md](COMPILE_EVIDENCE_CHECKLIST.md)
-- 🔐 [PRIVACY_SIGN_OFF.md](PRIVACY_SIGN_OFF.md)
-- 📦 [RELEASE_EVIDENCE_PACK.md](RELEASE_EVIDENCE_PACK.md)
-- ✅ [FINAL_GO_NO_GO_REVIEW.md](FINAL_GO_NO_GO_REVIEW.md)
-- 🧪 [METAEDITOR_COMPILE_GATE.md](METAEDITOR_COMPILE_GATE.md)
+- 🛠️ [docs/COMPILE_EVIDENCE_CHECKLIST.md](docs/COMPILE_EVIDENCE_CHECKLIST.md)
+- 🔐 [docs/PRIVACY_SIGN_OFF.md](docs/PRIVACY_SIGN_OFF.md)
+- 📦 [docs/RELEASE_EVIDENCE_PACK.md](docs/RELEASE_EVIDENCE_PACK.md)
+- ✅ [docs/FINAL_GO_NO_GO_REVIEW.md](docs/FINAL_GO_NO_GO_REVIEW.md)
+- 🧪 [docs/METAEDITOR_COMPILE_GATE.md](docs/METAEDITOR_COMPILE_GATE.md)
 
 ## ⚖️ Risk & legal notice
 
 GPT_EA does **not** guarantee profit, wealth, income, winning trades or capital preservation. Trading can produce substantial losses, including loss of all capital allocated to trading. AI, brokers, APIs, market data and software can fail or be wrong.
 
-Read: [TRADING_RISK_DISCLOSURE.md](TRADING_RISK_DISCLOSURE.md) · [TERMS_AND_CONDITIONS.md](TERMS_AND_CONDITIONS.md) · [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) · [DISCLAIMER.md](DISCLAIMER.md)
+Read: [docs/TRADING_RISK_DISCLOSURE.md](docs/TRADING_RISK_DISCLOSURE.md) · [docs/TERMS_AND_CONDITIONS.md](docs/TERMS_AND_CONDITIONS.md) · [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) · [docs/DISCLAIMER.md](docs/DISCLAIMER.md)
 
 ---
 
@@ -523,47 +523,47 @@ Only a fully aligned candidate reaches **HIGH-CONFIDENCE TRADE SETUP**. Otherwis
 
 ## Release/test documents
 
-- `COMPILE_TEST_CHECKLIST.md`
-- `BROKER_MATRIX_TESTS.md`
-- `RECOVERY_INVARIANTS.md`
-- `RELEASE_SAFETY_GATES.md`
-- `STOP_MANAGEMENT_TEST_MATRIX.md`
-- `STOP_UPDATE_FAILURE_POLICY.md`
-- `BROKER_STOP_FAILURE_POLICY.md`
-- `PARTIAL_PROTECTION_RELEASE_TEST.md`
-- `STOP_FAILURE_OBSERVABILITY.md`
-- `ANALYTICS_SCHEMA.md`
-- `ADVANCED_INTELLIGENCE_CONTRACT.md`
-- `INTELLIGENCE_TEST_MATRIX.md`
+- `docs/COMPILE_TEST_CHECKLIST.md`
+- `docs/BROKER_MATRIX_TESTS.md`
+- `docs/RECOVERY_INVARIANTS.md`
+- `docs/RELEASE_SAFETY_GATES.md`
+- `docs/STOP_MANAGEMENT_TEST_MATRIX.md`
+- `docs/STOP_UPDATE_FAILURE_POLICY.md`
+- `docs/BROKER_STOP_FAILURE_POLICY.md`
+- `docs/PARTIAL_PROTECTION_RELEASE_TEST.md`
+- `docs/STOP_FAILURE_OBSERVABILITY.md`
+- `docs/ANALYTICS_SCHEMA.md`
+- `docs/ADVANCED_INTELLIGENCE_CONTRACT.md`
+- `docs/INTELLIGENCE_TEST_MATRIX.md`
 
 ## Customer rollout, licensing and legal package
 
 Customer distribution is supported by:
 
-- `CUSTOMER_SUPPORT_RUNBOOK.md`
-- `CUSTOMER_RELEASE_READINESS_CHECKLIST.md`
+- `docs/CUSTOMER_SUPPORT_RUNBOOK.md`
+- `docs/CUSTOMER_RELEASE_READINESS_CHECKLIST.md`
 - `COMMERCIAL_LICENSE.md`
-- `TERMS_AND_CONDITIONS.md`
-- `TRADING_RISK_DISCLOSURE.md`
-- `DISCLAIMER.md`
-- `ANTI_PIRACY_LICENSE_ENFORCEMENT.md`
-- `JURISDICTION_LEGAL_REVIEW_CHECKLIST.md`
-- `CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md`
+- `docs/TERMS_AND_CONDITIONS.md`
+- `docs/TRADING_RISK_DISCLOSURE.md`
+- `docs/DISCLAIMER.md`
+- `docs/ANTI_PIRACY_LICENSE_ENFORCEMENT.md`
+- `docs/JURISDICTION_LEGAL_REVIEW_CHECKLIST.md`
+- `docs/CUSTOMER_RISK_ACKNOWLEDGEMENT_FLOW.md`
 
 The R10 privacy sign-off gate sits on top of R9 customer-risk acknowledgement, R8 legal/license acknowledgement and the R7 API/release guard. REAL-account new entries remain blocked until the customer legal/risk acknowledgements are valid **and** the release has a jurisdiction-matched privacy sign-off with zero unresolved critical privacy findings. Demo/Strategy Tester remain available for evaluation. Governance failure must never weaken management of already-open positions.
 
 ## Documentation architecture
 
-- 🏛️ `ADR_INDEX.md` — accepted architecture decisions and rationale.
-- 🚦 `RELEASE_TRUTH_DASHBOARD.md` — evidence-derived PASS/HOLD/NO-GO summary.
-- 🔄 `ADR_SUPERSESSION_POLICY.md` — ADR replacement, history-preservation and cycle rules.
-- 🧭 `ADR_TEMPLATE.md` / `ADR_REGISTRY.json` — new-decision template and machine-readable ADR graph.
-- 🧪 `DASHBOARD_DRIFT_DETECTION.md` — evidence/dashboard fingerprint integrity contract.
+- 🏛️ `docs/ADR_INDEX.md` — accepted architecture decisions and rationale.
+- 🚦 `docs/RELEASE_TRUTH_DASHBOARD.md` — evidence-derived PASS/HOLD/NO-GO summary.
+- 🔄 `docs/ADR_SUPERSESSION_POLICY.md` — ADR replacement, history-preservation and cycle rules.
+- 🧭 `docs/ADR_TEMPLATE.md` / `ADR_REGISTRY.json` — new-decision template and machine-readable ADR graph.
+- 🧪 `docs/DASHBOARD_DRIFT_DETECTION.md` — evidence/dashboard fingerprint integrity contract.
 
-- 🏗️ `ARCHITECTURE.md` — end-to-end system and trust-boundary diagrams.
-- 🗺️ `ROADMAP.md` — capability roadmap and promotion guardrails.
-- 🔐 `PRIVACY_DATA_RETENTION_REVIEW.md` — privacy inventory, retention and incident review.
-- 📦 `RELEASE_EVIDENCE_PACK.md` — canonical release archive structure and pack generator.
+- 🏗️ `docs/ARCHITECTURE.md` — end-to-end system and trust-boundary diagrams.
+- 🗺️ `docs/ROADMAP.md` — capability roadmap and promotion guardrails.
+- 🔐 `docs/PRIVACY_DATA_RETENTION_REVIEW.md` — privacy inventory, retention and incident review.
+- 📦 `docs/RELEASE_EVIDENCE_PACK.md` — canonical release archive structure and pack generator.
 
 Every repository Markdown file uses the shared **🧠⚡ GPT_EA** documentation lockup and navigation header. `tools/check_documentation_branding.py` prevents unbranded Markdown from silently entering the release documentation set.
 
@@ -571,11 +571,11 @@ Every repository Markdown file uses the shared **🧠⚡ GPT_EA** documentation 
 
 New users should start with:
 
-- `INSTALLATION.md` — quick installation path.
-- `USER_INSTALLATION_GUIDE.md` — complete new-user setup guide.
-- `FIRST_RUN_CHECKLIST.md` — first-run PASS/FAIL checklist.
-- `API_KEY_TROUBLESHOOTING.md` — safe OpenAI API/WebRequest troubleshooting.
-- `OPENAI_ACCOUNT_RECOMMENDATION.md` — ChatGPT Pro 20X companion recommendation and API model guidance.
+- `docs/INSTALLATION.md` — quick installation path.
+- `docs/USER_INSTALLATION_GUIDE.md` — complete new-user setup guide.
+- `docs/FIRST_RUN_CHECKLIST.md` — first-run PASS/FAIL checklist.
+- `docs/API_KEY_TROUBLESHOOTING.md` — safe OpenAI API/WebRequest troubleshooting.
+- `docs/OPENAI_ACCOUNT_RECOMMENDATION.md` — ChatGPT Pro 20X companion recommendation and API model guidance.
 
 Current API model ladder includes `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-5.6-sol`, and `gpt-6-astra`. OpenAI currently positions GPT-6 Astra as its flagship maximum-intelligence API model for the hardest end-to-end work. Users should choose it only when the additional API cost/latency is acceptable.
 

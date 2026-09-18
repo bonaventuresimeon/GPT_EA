@@ -557,17 +557,60 @@ void AddCurrency(string &csv,const string c)
    if(StringFind(","+csv+",",","+c+",")<0){ if(csv!="") csv+=","; csv+=c; }
 }
 
+void AddCalendarCurrencyIfKnown(string &csv,const string raw)
+{
+   string c=Trim(raw); StringToUpper(c);
+   if(c=="CNH") c="CNY"; // MT5 economic-calendar country data normally uses mainland CNY.
+   string known[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR","RUB","KRW"};
+   for(int i=0;i<ArraySize(known);i++)
+      if(c==known[i]) { AddCurrency(csv,c); return; }
+}
+
 string RelatedCurrencies(const string sym)
 {
-   string u=sym; StringToUpper(u);
+   string desc=SymbolInfoString(sym,SYMBOL_DESCRIPTION);
+   string path=SymbolInfoString(sym,SYMBOL_PATH);
+   string u=sym+" "+desc+" "+path; StringToUpper(u);
    string out="";
-   if(StringFind(u,"XAU")>=0 || StringFind(u,"XAG")>=0 || StringFind(u,"US100")>=0 || StringFind(u,"USTEC")>=0 ||
-      StringFind(u,"NAS")>=0 || StringFind(u,"US30")>=0 || StringFind(u,"SPX")>=0 || StringFind(u,"BTC")>=0) AddCurrency(out,"USD");
-   if(StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX")>=0) AddCurrency(out,"EUR");
 
-   // Common FX symbols: pick first two recognized 3-letter currencies present in name.
-   string known[8]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD"};
-   for(int i=0;i<8;i++) if(StringFind(u,known[i])>=0) AddCurrency(out,known[i]);
+   // Prefer broker-provided contract currencies; they survive suffixes, prefixes and proprietary tickers.
+   AddCalendarCurrencyIfKnown(out,SymbolInfoString(sym,SYMBOL_CURRENCY_BASE));
+   AddCalendarCurrencyIfKnown(out,SymbolInfoString(sym,SYMBOL_CURRENCY_PROFIT));
+   AddCalendarCurrencyIfKnown(out,SymbolInfoString(sym,SYMBOL_CURRENCY_MARGIN));
+
+   // Explicit currency codes in the broker name/description/path.
+   string known[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR","RUB","KRW"};
+   for(int i=0;i<ArraySize(known);i++)
+      if(StringFind(u,known[i])>=0) AddCalendarCurrencyIfKnown(out,known[i]);
+
+   // Regional index/rate aliases whose broker metadata can omit the macro currency.
+   if(StringFind(u,"US100")>=0 || StringFind(u,"USTEC")>=0 || StringFind(u,"NAS100")>=0 ||
+      StringFind(u,"NASDAQ")>=0 || StringFind(u,"US30")>=0 || StringFind(u,"DOW")>=0 ||
+      StringFind(u,"US500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P 500")>=0 ||
+      StringFind(u,"US2000")>=0 || StringFind(u,"RUSSELL")>=0 || StringFind(u,"VIX")>=0 ||
+      StringFind(u,"TREASURY")>=0 || StringFind(u,"US10Y")>=0 || StringFind(u,"US02Y")>=0 ||
+      StringFind(u,"US2Y")>=0 || StringFind(u,"US05Y")>=0 || StringFind(u,"US5Y")>=0 ||
+      StringFind(u,"US30Y")>=0) AddCurrency(out,"USD");
+   if(StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX")>=0 ||
+      StringFind(u,"FRA40")>=0 || StringFind(u,"CAC40")>=0 || StringFind(u,"EU50")>=0 ||
+      StringFind(u,"STOXX")>=0 || StringFind(u,"BUND")>=0 || StringFind(u,"BOBL")>=0 ||
+      StringFind(u,"SCHATZ")>=0) AddCurrency(out,"EUR");
+   if(StringFind(u,"UK100")>=0 || StringFind(u,"FTSE")>=0 || StringFind(u,"GILT")>=0) AddCurrency(out,"GBP");
+   if(StringFind(u,"JP225")>=0 || StringFind(u,"NIKKEI")>=0 || StringFind(u,"JGB")>=0) AddCurrency(out,"JPY");
+   if(StringFind(u,"HK50")>=0 || StringFind(u,"HANG SENG")>=0) AddCurrency(out,"HKD");
+   if(StringFind(u,"AUS200")>=0 || StringFind(u,"ASX200")>=0) AddCurrency(out,"AUD");
+   if(StringFind(u,"CH20")>=0 || StringFind(u,"SMI")>=0) AddCurrency(out,"CHF");
+   if(StringFind(u,"CA60")>=0 || StringFind(u,"TSX")>=0) AddCurrency(out,"CAD");
+
+   // Global USD-sensitive asset classes remain exposed to U.S. macro even when quoted in another currency.
+   if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0 || StringFind(u,"XAG")>=0 || StringFind(u,"SILVER")>=0 ||
+      StringFind(u,"XPT")>=0 || StringFind(u,"PLATINUM")>=0 || StringFind(u,"XPD")>=0 || StringFind(u,"PALLADIUM")>=0 ||
+      StringFind(u,"WTI")>=0 || StringFind(u,"BRENT")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"NATGAS")>=0 ||
+      StringFind(u,"NATURAL GAS")>=0 || StringFind(u,"CRYPTO")>=0 || StringFind(u,"BTC")>=0 || StringFind(u,"ETH")>=0 ||
+      StringFind(u,"SOL")>=0 || StringFind(u,"XRP")>=0 || StringFind(u,"COPPER")>=0 || StringFind(u,"COCOA")>=0 ||
+      StringFind(u,"COFFEE")>=0 || StringFind(u,"SUGAR")>=0 || StringFind(u,"COTTON")>=0 || StringFind(u,"WHEAT")>=0 ||
+      StringFind(u,"CORN")>=0 || StringFind(u,"SOY")>=0) AddCurrency(out,"USD");
+
    return out;
 }
 
@@ -2400,8 +2443,8 @@ void ChaosInit()
 
 // --------------------------- Compatibility ---------------------------
 input bool   InpAutoResolveBrokerSymbols      = true;
-input bool   InpUseMarketWatchUniverse        = false;
-input int    InpMaxMarketWatchSymbols         = 40;
+input bool   InpUseMarketWatchUniverse        = false;   // optional supplement for AUTO/manual modes; ALL already covers the full broker catalog
+input int    InpMaxMarketWatchSymbols         = 0;       // 0 = unlimited when Market Watch supplementation is enabled
 input bool   InpIncludeCloseOnlySymbols       = false;   // normally exclude symbols that cannot accept new entries
 input int    InpMaxBrokerUniverseSymbols      = 0;       // 0 = unlimited; applies to ALL/full-broker discovery
 input int    InpUniversalScanBatchSize        = 40;      // <=0 = scan the whole resolved universe in one cycle
@@ -2482,21 +2525,37 @@ string CleanSymbolToken(string s)
    return s;
 }
 
-string CanonicalInstrumentKey(const string name,const string description="",const string path="")
+bool IsKnownFiatCurrencyCode(const string raw)
+{
+   string c=raw; StringToUpper(c);
+   if(c=="CNH") c="CNY";
+   string known[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR","RUB","KRW"};
+   for(int i=0;i<ArraySize(known);i++) if(c==known[i]) return true;
+   return false;
+}
+
+string CanonicalInstrumentKey(const string name,const string description="",const string path="",
+                              const long calcMode=-1,const string baseCurrency="",
+                              const string profitCurrency="",const string marginCurrency="")
 {
    string u=UpperCopy(name+" "+description+" "+path);
    string c=CleanSymbolToken(name);
+   string base=UpperCopy(baseCurrency),profit=UpperCopy(profitCurrency),margin=UpperCopy(marginCurrency);
+   if(base=="CNH") base="CNY";
+   if(profit=="CNH") profit="CNY";
+   if(margin=="CNH") margin="CNY";
 
-   // Metals
+   // Precious metals
    if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0) return "METAL:XAU";
    if(StringFind(u,"XAG")>=0 || StringFind(u,"SILVER")>=0) return "METAL:XAG";
    if(StringFind(u,"XPT")>=0 || StringFind(u,"PLATINUM")>=0) return "METAL:XPT";
    if(StringFind(u,"XPD")>=0 || StringFind(u,"PALLADIUM")>=0) return "METAL:XPD";
 
-   // Major global indices and common CFD aliases
+   // Major global indices and common CFD aliases.
    if(StringFind(u,"US100")>=0 || StringFind(u,"NAS100")>=0 || StringFind(u,"NASDAQ100")>=0 || StringFind(u,"USTEC")>=0 || StringFind(u,"NQ100")>=0) return "INDEX:US100";
    if(StringFind(u,"US30")>=0 || StringFind(u,"DJ30")>=0 || StringFind(u,"DOW30")>=0 || StringFind(u,"DOW JONES")>=0) return "INDEX:US30";
    if(StringFind(u,"US500")>=0 || StringFind(u,"SPX500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P 500")>=0) return "INDEX:US500";
+   if(StringFind(u,"US2000")>=0 || StringFind(u,"RUSSELL 2000")>=0 || StringFind(u,"RUSSELL2000")>=0) return "INDEX:US2000";
    if(StringFind(u,"GER40")>=0 || StringFind(u,"DE40")>=0 || StringFind(u,"DAX40")>=0 || StringFind(u,"GERMANY 40")>=0) return "INDEX:GER40";
    if(StringFind(u,"UK100")>=0 || StringFind(u,"FTSE100")>=0) return "INDEX:UK100";
    if(StringFind(u,"JP225")>=0 || StringFind(u,"JPN225")>=0 || StringFind(u,"NIKKEI")>=0) return "INDEX:JP225";
@@ -2504,18 +2563,36 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
    if(StringFind(u,"AUS200")>=0 || StringFind(u,"AU200")>=0 || StringFind(u,"ASX200")>=0) return "INDEX:AUS200";
    if(StringFind(u,"FRA40")>=0 || StringFind(u,"FR40")>=0 || StringFind(u,"CAC40")>=0) return "INDEX:FRA40";
    if(StringFind(u,"EU50")>=0 || StringFind(u,"STOXX50")>=0 || StringFind(u,"EURO STOXX")>=0) return "INDEX:EU50";
+   if(StringFind(u,"ES35")>=0 || StringFind(u,"IBEX35")>=0) return "INDEX:ES35";
+   if(StringFind(u,"CH20")>=0 || StringFind(u,"SWISS20")>=0 || StringFind(u,"SMI")>=0) return "INDEX:CH20";
+   if(StringFind(u,"SA40")>=0 || StringFind(u,"JSE40")>=0) return "INDEX:SA40";
+   if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY INDEX")>=0) return "INDEX:VIX";
 
    // Energy
-   if(StringFind(u,"WTI")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"WTICOIL")>=0 || StringFind(u,"WEST TEXAS")>=0) return "ENERGY:WTI";
-   if(StringFind(u,"BRENT")>=0 || StringFind(u,"UKOIL")>=0) return "ENERGY:BRENT";
+   if(StringFind(u,"WTI")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"WTICOIL")>=0 || StringFind(u,"WEST TEXAS")>=0 || StringFind(u,"XTI")>=0) return "ENERGY:WTI";
+   if(StringFind(u,"BRENT")>=0 || StringFind(u,"UKOIL")>=0 || StringFind(u,"XBR")>=0) return "ENERGY:BRENT";
    if(StringFind(u,"NATGAS")>=0 || StringFind(u,"NATURAL GAS")>=0 || StringFind(u,"NGAS")>=0) return "ENERGY:NATGAS";
+
+   // Non-energy commodities / softs / agriculture / industrial metals.
+   if(StringFind(u,"COPPER")>=0 || StringFind(u,"XCU")>=0) return "COMMODITY:COPPER";
+   if(StringFind(u,"ALUMINUM")>=0 || StringFind(u,"ALUMINIUM")>=0) return "COMMODITY:ALUMINUM";
+   if(StringFind(u,"NICKEL")>=0) return "COMMODITY:NICKEL";
+   if(StringFind(u,"ZINC")>=0) return "COMMODITY:ZINC";
+   if(StringFind(u,"COCOA")>=0) return "COMMODITY:COCOA";
+   if(StringFind(u,"COFFEE")>=0) return "COMMODITY:COFFEE";
+   if(StringFind(u,"SUGAR")>=0) return "COMMODITY:SUGAR";
+   if(StringFind(u,"COTTON")>=0) return "COMMODITY:COTTON";
+   if(StringFind(u,"WHEAT")>=0) return "COMMODITY:WHEAT";
+   if(StringFind(u,"CORN")>=0 || StringFind(u,"MAIZE")>=0) return "COMMODITY:CORN";
+   if(StringFind(u,"SOYBEAN")>=0 || StringFind(u,"SOY")>=0) return "COMMODITY:SOY";
+   if(StringFind(u,"LUMBER")>=0) return "COMMODITY:LUMBER";
 
    // Crypto - explicit liquid aliases first, then broker category metadata catches unfamiliar tokens.
    string crypto[]={"BTC","ETH","SOL","XRP","ADA","DOGE","LTC","BNB","DOT","AVAX","UNI","LINK","TRX","BCH","ETC","XLM","ATOM","NEAR","AAVE","MATIC","POL","TON","SHIB","SUI","APT","FIL","ICP","ARB","OP","PEPE"};
    for(int k=0;k<ArraySize(crypto);k++) if(StringFind(c,crypto[k])>=0) return "CRYPTO:"+crypto[k];
 
-   // FX - match a broad set of developed/emerging-market currency pairs.
-   string cc[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR"};
+   // FX - broad developed/emerging-market recognition.
+   string cc[]={"USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","NOK","SEK","DKK","SGD","CNH","CNY","HKD","ZAR","TRY","MXN","PLN","HUF","CZK","THB","INR","BRL","ILS","AED","SAR","RUB","KRW"};
    string compact=CleanSymbolToken(u);
    for(int i=0;i<ArraySize(cc);i++)
       for(int j=0;j<ArraySize(cc);j++)
@@ -2525,17 +2602,47 @@ string CanonicalInstrumentKey(const string name,const string description="",cons
             if(StringFind(c,pair)>=0 || StringFind(compact,pair)>=0) return "FX:"+pair;
          }
 
-   // Broker folders/descriptions provide a robust fallback for symbols whose ticker is proprietary.
-   if(StringFind(u,"CRYPTO")>=0 || StringFind(u,"DIGITAL ASSET")>=0) return "CRYPTO:"+c;
-   if(StringFind(u,"ENERG")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"GAS")>=0) return "ENERGY:"+c;
-   if(StringFind(u,"INDICES")>=0 || StringFind(u,"EQUITY INDEX")>=0 || StringFind(u,"INDEX CFD")>=0 || StringFind(u,"IDX_")>=0) return "INDEX:"+c;
+   // Broker folder/description metadata. Product labels take precedence when explicit.
    if(StringFind(u,"ETF")>=0 || StringFind(u,"EXCHANGE TRADED FUND")>=0) return "ETF:"+c;
+   if(StringFind(u,"CRYPTO")>=0 || StringFind(u,"DIGITAL ASSET")>=0) return "CRYPTO:"+c;
+   if(StringFind(u,"ENERG")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"NATURAL GAS")>=0) return "ENERGY:"+c;
+   if(StringFind(u,"COMMODIT")>=0 || StringFind(u,"AGRICULT")>=0 || StringFind(u,"SOFTS")>=0) return "COMMODITY:"+c;
+   if(StringFind(u,"INDICES")>=0 || StringFind(u,"EQUITY INDEX")>=0 || StringFind(u,"INDEX CFD")>=0 || StringFind(u,"IDX_")>=0) return "INDEX:"+c;
+   if(StringFind(u,"TREASURY")>=0 || StringFind(u,"BOND")>=0 || StringFind(u,"YIELD")>=0 ||
+      StringFind(u,"INTEREST RATE")>=0 || StringFind(u,"GILT")>=0 || StringFind(u,"BUND")>=0 ||
+      StringFind(u,"BOBL")>=0 || StringFind(u,"SCHATZ")>=0 || StringFind(u,"JGB")>=0) return "BOND_RATE:"+c;
    if(StringFind(u,"FUTURE")>=0) return "FUTURE:"+c;
    if(StringFind(u,"STOCK")>=0 || StringFind(u,"SHARE")>=0 || StringFind(u,"EQUITY")>=0) return "STOCK:"+c;
    if(StringFind(u,"FOREX")>=0 || StringFind(u,"CURRENCY")>=0) return "FX:"+c;
 
+   // MT5 contract-calculation mode is the strongest broker-native fallback when naming is proprietary.
+   if(calcMode==SYMBOL_CALC_MODE_FOREX || calcMode==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE)
+   {
+      if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(profit)) return "FX:"+base+profit;
+      return "FX:"+c;
+   }
+   if(calcMode==SYMBOL_CALC_MODE_CFDINDEX) return "INDEX:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS || calcMode==SYMBOL_CALC_MODE_EXCH_STOCKS_MOEX) return "STOCK:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_FUTURES || calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES || calcMode==SYMBOL_CALC_MODE_EXCH_FUTURES_FORTS) return "FUTURE:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_EXCH_BONDS || calcMode==SYMBOL_CALC_MODE_EXCH_BONDS_MOEX) return "BOND_RATE:"+c;
+   if(calcMode==SYMBOL_CALC_MODE_SERV_COLLATERAL) return "OTHER:COLLATERAL";
+
+   // Currency metadata remains useful even when a broker reports a generic CFD calculation mode.
+   if(IsKnownFiatCurrencyCode(base) && IsKnownFiatCurrencyCode(profit) && base!=profit) return "FX:"+base+profit;
+
    // Unknown but tradeable broker instruments remain eligible and are analyzed generically.
    return "GEN:"+c;
+}
+
+string CanonicalBrokerInstrumentKey(const string sym)
+{
+   string description=SymbolInfoString(sym,SYMBOL_DESCRIPTION);
+   string path=SymbolInfoString(sym,SYMBOL_PATH);
+   string base=SymbolInfoString(sym,SYMBOL_CURRENCY_BASE);
+   string profit=SymbolInfoString(sym,SYMBOL_CURRENCY_PROFIT);
+   string margin=SymbolInfoString(sym,SYMBOL_CURRENCY_MARGIN);
+   long calcMode=(long)SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+   return CanonicalInstrumentKey(sym,description,path,calcMode,base,profit,margin);
 }
 
 string AssetClassFromCanonical(const string key)
@@ -2544,10 +2651,12 @@ string AssetClassFromCanonical(const string key)
    if(StringFind(key,"METAL:")==0) return "METAL";
    if(StringFind(key,"INDEX:")==0) return "INDEX";
    if(StringFind(key,"ENERGY:")==0) return "ENERGY";
+   if(StringFind(key,"COMMODITY:")==0) return "COMMODITY";
    if(StringFind(key,"CRYPTO:")==0) return "CRYPTO";
    if(StringFind(key,"STOCK:")==0) return "STOCK";
    if(StringFind(key,"ETF:")==0) return "ETF";
    if(StringFind(key,"FUTURE:")==0) return "FUTURE";
+   if(StringFind(key,"BOND_RATE:")==0) return "BOND_RATE";
    return "OTHER";
 }
 
@@ -2613,6 +2722,10 @@ bool BrokerSymbolEligibleForUniverse(const string sym)
    ENUM_SYMBOL_TRADE_MODE tm=(ENUM_SYMBOL_TRADE_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
    if(tm==SYMBOL_TRADE_MODE_DISABLED) return false;
    if(tm==SYMBOL_TRADE_MODE_CLOSEONLY && !InpIncludeCloseOnlySymbols) return false;
+
+   // Service-collateral symbols are account assets, not executable market instruments.
+   ENUM_SYMBOL_CALC_MODE cm=(ENUM_SYMBOL_CALC_MODE)SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+   if(cm==SYMBOL_CALC_MODE_SERV_COLLATERAL) return false;
    return true;
 }
 
@@ -2692,15 +2805,17 @@ bool ResolveConfiguredSymbolsUniversal()
    if(InpUseMarketWatchUniverse)
    {
       int total=SymbolsTotal(true);
-      int cap=MathMax(1,InpMaxMarketWatchSymbols);
       int added=0;
-      for(int i=0;i<total && added<cap && UniverseCapacityAvailable(resolved);i++)
+      for(int i=0;i<total && UniverseCapacityAvailable(resolved);i++)
       {
+         if(InpMaxMarketWatchSymbols>0 && added>=InpMaxMarketWatchSymbols) break;
          string s=SymbolName(i,true);
          int before=ArraySize(resolved);
          AddDiscoveredBrokerSymbol(resolved,s);
          if(ArraySize(resolved)>before) added++;
       }
+      PrintFormat("GPT_EA Market Watch supplement: catalog=%d, newly added=%d, cap=%d",
+                  total,added,InpMaxMarketWatchSymbols);
    }
 
    if(ArraySize(resolved)<=0) return false;
@@ -2729,13 +2844,13 @@ bool LoadSymbolProfile(const string sym,GPTSymbolProfile &p)
    p.symbol=sym;
    p.description=SymbolInfoString(sym,SYMBOL_DESCRIPTION);
    p.path=SymbolInfoString(sym,SYMBOL_PATH);
-   p.canonical=CanonicalInstrumentKey(sym,p.description,p.path);
-   p.assetClass=AssetClassFromCanonical(p.canonical);
    p.baseCurrency=SymbolInfoString(sym,SYMBOL_CURRENCY_BASE);
    p.profitCurrency=SymbolInfoString(sym,SYMBOL_CURRENCY_PROFIT);
    p.marginCurrency=SymbolInfoString(sym,SYMBOL_CURRENCY_MARGIN);
    p.tradeMode=SymbolInfoInteger(sym,SYMBOL_TRADE_MODE);
    p.calcMode=SymbolInfoInteger(sym,SYMBOL_TRADE_CALC_MODE);
+   p.canonical=CanonicalInstrumentKey(sym,p.description,p.path,p.calcMode,p.baseCurrency,p.profitCurrency,p.marginCurrency);
+   p.assetClass=AssetClassFromCanonical(p.canonical);
    p.fillingMode=SymbolInfoInteger(sym,SYMBOL_FILLING_MODE);
    p.accountLeverage=AccountInfoInteger(ACCOUNT_LEVERAGE);
    p.spreadFloat=(bool)SymbolInfoInteger(sym,SYMBOL_SPREAD_FLOAT);
@@ -4493,7 +4608,7 @@ void RecordStopObservationEvent(ulong ticket,const string eventName,const string
 
    double pt=PointFor(sym); MqlTick t={}; GetTickSafe(sym,t);
    double spread=(pt>0?(t.ask-t.bid)/pt:0);
-   string canonical=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   string canonical=CanonicalBrokerInstrumentKey(sym);
 
    int h=FileOpen(InpStopFailureObservabilityFile,FILE_READ|FILE_WRITE|FILE_CSV|FILE_COMMON|FILE_ANSI,';');
    if(h==INVALID_HANDLE) return;
@@ -8646,7 +8761,7 @@ void AddIntermarketComponent(IntermarketReport &r,const string label,double move
 IntermarketReport AssessIntermarket(const string target,bool bull)
 {
    IntermarketReport r; r.score=0; r.severeConflict=false; r.detail="";
-   string key=CanonicalInstrumentKey(target,SymbolInfoString(target,SYMBOL_DESCRIPTION),SymbolInfoString(target,SYMBOL_PATH));
+   string key=CanonicalBrokerInstrumentKey(target);
    string dxy=ResolveFirstAlias(InpDXYAliases),vix=ResolveFirstAlias(InpVIXAliases);
    string gold=ResolveFirstAlias(InpGoldAliases),oil=ResolveFirstAlias(InpOilAliases);
    string us100=ResolveFirstAlias(InpUS100Aliases),us500=ResolveFirstAlias(InpUS500Aliases);
@@ -8716,15 +8831,17 @@ IntermarketReport AssessIntermarket(const string target,bool bull)
 
 string WebIntelInstrumentContext(const string sym)
 {
-   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   string key=CanonicalBrokerInstrumentKey(sym);
    if(StringFind(key,"INDEX:")==0) return "equity-index macro, rates, earnings/sector, volatility and geopolitical sensitivity";
    if(StringFind(key,"METAL:")==0) return "USD, real/nominal yields, central-bank expectations, inflation, safe-haven and commodity-specific flows";
    if(StringFind(key,"ENERGY:")==0) return "oil/gas inventories, OPEC+, geopolitical supply, demand growth, USD and risk sentiment";
+   if(StringFind(key,"COMMODITY:")==0) return "weather, crop/production reports, inventories, supply-demand, freight, USD, geopolitics and commodity-specific events";
    if(StringFind(key,"FX:")==0) return "central banks, inflation, labor, GDP/PMI, rates/yields, political and currency-specific headlines";
    if(StringFind(key,"CRYPTO:")==0) return "liquidity, regulation, ETF/flow, risk sentiment, rates, USD and crypto-specific headlines";
    if(StringFind(key,"STOCK:")==0) return "company earnings/guidance, sector flows, valuation, rates, corporate actions and material company-specific news";
    if(StringFind(key,"ETF:")==0) return "underlying holdings/index drivers, fund flows, rates, volatility, sector/macro and issuer-specific developments";
-   if(StringFind(key,"FUTURE:")==0) return "underlying spot/forward market, term structure, inventory/supply-demand, rates, session liquidity and contract-specific events";
+   if(StringFind(key,"FUTURE:")==0) return "underlying spot/forward market, term structure, inventory/supply-demand, rates, session liquidity, expiry/roll and contract-specific events";
+   if(StringFind(key,"BOND_RATE:")==0) return "central-bank policy, inflation, labor, GDP/PMI, sovereign issuance, yield-curve moves, auctions and rate-specific events";
    return "macro, sector/company where relevant, rates, volatility and instrument-specific breaking news";
 }
 
@@ -9256,7 +9373,7 @@ void AddFreshIntermarketComponent(IntermarketReport &r,int &used,const string la
 IntermarketReport AssessIntermarketHardened(const string target,bool bull)
 {
    IntermarketReport r; r.score=0; r.severeConflict=false; r.detail="";
-   string key=CanonicalInstrumentKey(target,SymbolInfoString(target,SYMBOL_DESCRIPTION),SymbolInfoString(target,SYMBOL_PATH));
+   string key=CanonicalBrokerInstrumentKey(target);
    string dxy=ResolveFirstAlias(InpDXYAliases),vix=ResolveFirstAlias(InpVIXAliases);
    string gold=ResolveFirstAlias(InpGoldAliases),oil=ResolveFirstAlias(InpOilAliases);
    string us100=ResolveFirstAlias(InpUS100Aliases),us500=ResolveFirstAlias(InpUS500Aliases);
@@ -9852,7 +9969,7 @@ string PortfolioStressScenarioName(int scenario)
 
 double FXUSDScenarioShockPct(const string sym,double usdStrengthPct)
 {
-   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   string key=CanonicalBrokerInstrumentKey(sym);
    if(StringFind(key,"FX:")!=0 || StringLen(key)<9) return 0.0;
    string pair=StringSubstr(key,3,6);
    if(StringLen(pair)!=6) return 0.0;
@@ -9865,7 +9982,7 @@ double FXUSDScenarioShockPct(const string sym,double usdStrengthPct)
 double MacroScenarioShockPct(const string sym,int scenario)
 {
    string cls=StressAssetClass(sym);
-   string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
+   string key=CanonicalBrokerInstrumentKey(sym);
    double gap=MathMax(1.0,InpStressCorrelatedGapMultiplier);
 
    if(scenario==PORT_STRESS_USD_UP)
@@ -9873,13 +9990,15 @@ double MacroScenarioShockPct(const string sym,int scenario)
       if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct);
       if(cls=="METAL") return -0.75*InpStressUSDStrengthPct;
       if(cls=="CRYPTO") return -1.50*InpStressUSDStrengthPct;
+      if(cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return -0.50*InpStressUSDStrengthPct;
+      if(cls=="COMMODITY") return -0.75*InpStressUSDStrengthPct;
       return 0.0;
    }
 
    if(scenario==PORT_STRESS_YIELDS_UP)
    {
       double scale=MathMax(0.10,InpStressYieldShockBps/20.0);
-      if(cls=="INDEX") return -InpStressYieldIndexEffectPct*scale;
+      if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return -InpStressYieldIndexEffectPct*scale;
       if(cls=="METAL") return -InpStressYieldGoldEffectPct*scale;
       if(cls=="CRYPTO") return -InpStressYieldCryptoEffectPct*scale;
       if(cls=="FX") return FXUSDScenarioShockPct(sym,0.40*scale);
@@ -9889,9 +10008,10 @@ double MacroScenarioShockPct(const string sym,int scenario)
 
    if(scenario==PORT_STRESS_EQUITY_RISK_OFF)
    {
-      if(cls=="INDEX") return -InpStressEquityRiskOffPct;
+      if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return -InpStressEquityRiskOffPct;
       if(cls=="CRYPTO") return -MathMax(InpStressCryptoShockPct,InpStressEquityRiskOffPct*1.75);
       if(cls=="ENERGY") return -MathMax(2.0,InpStressEquityRiskOffPct);
+      if(cls=="COMMODITY") return -MathMax(1.5,InpStressEquityRiskOffPct*0.75);
       if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.00:0.50);
       if(cls=="FX") return FXUSDScenarioShockPct(sym,0.50);
       return 0.0;
@@ -9910,7 +10030,7 @@ double MacroScenarioShockPct(const string sym,int scenario)
    {
       string u=sym; StringToUpper(u);
       if(StringFind(u,"VIX")>=0 || StringFind(u,"VOLATILITY")>=0) return 40.0;
-      if(cls=="INDEX") return -MathAbs(InpStressVolatilityIndexDropPct);
+      if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return -MathAbs(InpStressVolatilityIndexDropPct);
       if(cls=="CRYPTO") return -MathMax(5.0,InpStressCryptoShockPct);
       if(cls=="ENERGY") return -MathMax(3.0,InpStressEnergyShockPct*0.75);
       if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?1.50:0.75);
@@ -9920,9 +10040,9 @@ double MacroScenarioShockPct(const string sym,int scenario)
 
    if(scenario==PORT_STRESS_CORRELATED_GAP_DOWN)
    {
-      if(cls=="INDEX") return -InpStressIndexShockPct*gap;
+      if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return -InpStressIndexShockPct*gap;
       if(cls=="CRYPTO") return -InpStressCryptoShockPct*gap;
-      if(cls=="ENERGY") return -InpStressEnergyShockPct*gap;
+      if(cls=="ENERGY" || cls=="COMMODITY") return -InpStressEnergyShockPct*gap;
       if(cls=="METAL") return (StringFind(key,"METAL:XAU")==0?InpStressMetalShockPct:0.5*InpStressMetalShockPct);
       if(cls=="FX") return FXUSDScenarioShockPct(sym,InpStressUSDStrengthPct*gap);
       return -InpStressOtherShockPct*gap;
@@ -9930,9 +10050,9 @@ double MacroScenarioShockPct(const string sym,int scenario)
 
    if(scenario==PORT_STRESS_CORRELATED_GAP_UP)
    {
-      if(cls=="INDEX") return InpStressIndexShockPct*gap;
+      if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return InpStressIndexShockPct*gap;
       if(cls=="CRYPTO") return InpStressCryptoShockPct*gap;
-      if(cls=="ENERGY") return InpStressEnergyShockPct*gap;
+      if(cls=="ENERGY" || cls=="COMMODITY") return InpStressEnergyShockPct*gap;
       if(cls=="METAL") return -InpStressMetalShockPct;
       if(cls=="FX") return FXUSDScenarioShockPct(sym,-InpStressUSDStrengthPct*gap);
       return InpStressOtherShockPct*gap;
@@ -10006,29 +10126,18 @@ double WorstMacroScenarioProposedLoss(const TradeSetup &s,double lots,string &wo
 
 string StressAssetClass(const string sym)
 {
-   string u=sym+" "+SymbolInfoString(sym,SYMBOL_DESCRIPTION)+" "+SymbolInfoString(sym,SYMBOL_PATH);
-   StringToUpper(u);
-   if(StringFind(u,"XAU")>=0 || StringFind(u,"GOLD")>=0 || StringFind(u,"XAG")>=0 || StringFind(u,"SILVER")>=0) return "METAL";
-   if(StringFind(u,"WTI")>=0 || StringFind(u,"BRENT")>=0 || StringFind(u,"OIL")>=0 || StringFind(u,"USOIL")>=0 || StringFind(u,"UKOIL")>=0) return "ENERGY";
-   if(StringFind(u,"BTC")>=0 || StringFind(u,"ETH")>=0 || StringFind(u,"CRYPTO")>=0) return "CRYPTO";
-   if(StringFind(u,"US100")>=0 || StringFind(u,"NASDAQ")>=0 || StringFind(u,"NAS100")>=0 ||
-      StringFind(u,"US500")>=0 || StringFind(u,"SP500")>=0 || StringFind(u,"S&P")>=0 ||
-      StringFind(u,"US30")>=0 || StringFind(u,"DOW")>=0 || StringFind(u,"GER40")>=0 ||
-      StringFind(u,"DAX")>=0 || StringFind(u,"UK100")>=0 || StringFind(u,"FTSE")>=0 ||
-      StringFind(u,"JP225")>=0 || StringFind(u,"NIKKEI")>=0) return "INDEX";
-   string ccys=RelatedCurrencies(sym);
-   if(ccys!="") return "FX";
-   return "OTHER";
+   return AssetClassFromCanonical(CanonicalBrokerInstrumentKey(sym));
 }
 
 double StressShockPct(const string sym)
 {
    string cls=StressAssetClass(sym);
-   if(cls=="INDEX") return InpStressIndexShockPct;
+   if(cls=="INDEX" || cls=="STOCK" || cls=="ETF" || cls=="FUTURE") return InpStressIndexShockPct;
    if(cls=="FX") return InpStressFXShockPct;
    if(cls=="METAL") return InpStressMetalShockPct;
-   if(cls=="ENERGY") return InpStressEnergyShockPct;
+   if(cls=="ENERGY" || cls=="COMMODITY") return InpStressEnergyShockPct;
    if(cls=="CRYPTO") return InpStressCryptoShockPct;
+   if(cls=="BOND_RATE") return MathMax(InpStressFXShockPct,InpStressOtherShockPct);
    return InpStressOtherShockPct;
 }
 
@@ -16219,8 +16328,7 @@ void ScanAll(const string reason)
    int total=ArraySize(g_symbols);
    if(total<=0) return;
 
-   int batch=total;
-   if(InpUniversalScanBatchSize>0 && InpUniversalScanBatchSize<batch) batch=InpUniversalScanBatchSize;
+   int batch=(InpUniversalScanBatchSize<=0?total:MathMin(total,InpUniversalScanBatchSize));
    int scanned=0;
    int visited=0;
    int start=g_universalScanCursor;

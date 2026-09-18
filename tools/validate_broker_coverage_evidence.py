@@ -10,11 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from json_bundle import load_json_document
+from release_contract import load_release_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 HEX40 = re.compile(r"^[0-9a-fA-F]{40}$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
-SCHEMA_VERSION = "broker_agnostic_coverage_v1"
+SCHEMA_VERSION = str(load_release_contract()["broker_coverage_schema"])
 
 RISK = {
     "FX": ("MODERATE", "MODERATE"),

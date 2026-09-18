@@ -14672,6 +14672,13 @@ void RenderApprovalPrompt()
 
    if(ObjectFind(0,BTN_DENY)<0) ObjectCreate(0,BTN_DENY,OBJ_BUTTON,0,0,0);
    ObjectSetInteger(0,BTN_DENY,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,BTN_DENY,OBJPROP_XDISTANCE,155);
+   ObjectSetInteger(0,BTN_DENY,OBJPROP_YDISTANCE,78);
+   ObjectSetInteger(0,BTN_DENY,OBJPROP_XSIZE,125);
+   ObjectSetInteger(0,BTN_DENY,OBJPROP_YSIZE,30);
+   ObjectSetString(0,BTN_DENY,OBJPROP_TEXT,"DENY TRADE");
+   ChartRedraw();
+}
 // ===== END INLINED GPT_EA_Part06.mqh =====
 // ===== BEGIN INLINED GPT_EA_Part13_AdvancedPositionManager.mqh =====
 // ============================================================================

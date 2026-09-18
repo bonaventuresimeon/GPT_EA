@@ -121,7 +121,10 @@ input int    InpUSOpenMinuteNY          = 30;
 
 // -------------------------- OpenAI API ---------------------------
 input bool   InpUseOpenAI               = true;
-input string InpOpenAIAPIKey            = "";         // ENTER LOCALLY. Never commit a real key to GitHub.
+input string InpOpenAIAPIKey            = "";         // Optional direct-mode fallback. Never commit a real key to GitHub.
+input bool   InpOpenAIKeyPreferFile      = true;       // Prefer a local key file over the EA input field.
+input bool   InpOpenAIKeyUseCommonFile   = true;       // true => Terminal\\Common\\Files, false => MQL5\\Files.
+input string InpOpenAIKeyFile            = "GPT_EA_OpenAI.key"; // One-line local secret file; never add it to Git.
 input string InpOpenAIModel             = "gpt-5.6-luna";
 input string InpOpenAIEndpoint          = "https://api.openai.com/v1/responses";
 input int    InpOpenAITimeoutMs         = 15000;
@@ -198,6 +201,67 @@ string JsonUnescape(string s)
    return s;
 }
 
+string g_openAIKeyCache="";
+bool   g_openAIKeyCacheLoaded=false;
+string g_openAIKeySource="MISSING";
+
+string OpenAISecretTrim(string value)
+{
+   StringTrimLeft(value);
+   StringTrimRight(value);
+   return value;
+}
+
+string ReadOpenAIKeyFile()
+{
+   if(Trim(InpOpenAIKeyFile)=="") return "";
+   int flags=FILE_READ|FILE_TXT|FILE_ANSI;
+   if(InpOpenAIKeyUseCommonFile) flags|=FILE_COMMON;
+   ResetLastError();
+   int h=FileOpen(InpOpenAIKeyFile,flags,0,CP_UTF8);
+   if(h==INVALID_HANDLE) return "";
+   string key=OpenAISecretTrim(FileReadString(h));
+   FileClose(h);
+   return key;
+}
+
+string OpenAILocalCredential()
+{
+   if(!g_openAIKeyCacheLoaded)
+   {
+      g_openAIKeyCacheLoaded=true;
+      string fileKey=ReadOpenAIKeyFile();
+      string inlineKey=OpenAISecretTrim(InpOpenAIAPIKey);
+      if(InpOpenAIKeyPreferFile && StringLen(fileKey)>=20)
+      {
+         g_openAIKeyCache=fileKey;
+         g_openAIKeySource=InpOpenAIKeyUseCommonFile?"COMMON FILE":"MQL5 FILE";
+      }
+      else if(StringLen(inlineKey)>=20)
+      {
+         g_openAIKeyCache=inlineKey;
+         g_openAIKeySource="EA INPUT";
+      }
+      else if(StringLen(fileKey)>=20)
+      {
+         g_openAIKeyCache=fileKey;
+         g_openAIKeySource=InpOpenAIKeyUseCommonFile?"COMMON FILE":"MQL5 FILE";
+      }
+      else
+      {
+         g_openAIKeyCache="";
+         g_openAIKeySource="MISSING";
+      }
+   }
+   return g_openAIKeyCache;
+}
+
+string OpenAIKeySourceText()
+{
+   OpenAILocalCredential();
+   return g_openAIKeySource;
+}
+
 string ExtractOpenAIText(const string json)
 {
    // Responses API text commonly appears as: "type":"output_text", ... "text":"..."
@@ -232,10 +296,11 @@ bool CallOpenAI(const string prompt,string &answer,string &errorText)
    answer=""; errorText="";
    if(!InpUseOpenAI){ errorText="OpenAI disabled."; return false; }
    if((bool)MQLInfoInteger(MQL_TESTER)){ errorText="WebRequest unavailable in Strategy Tester."; return false; }
-   if(StringLen(Trim(InpOpenAIAPIKey))<20){ errorText="OpenAI API key not configured in EA inputs."; return false; }
+   string apiKey=OpenAILocalCredential();
+   if(StringLen(apiKey)<20){ errorText="OpenAI API key not configured. Add it to the local key file or EA input."; return false; }
 
    string body="{\"model\":\""+JsonEscape(InpOpenAIModel)+"\",\"input\":\""+JsonEscape(prompt)+"\"}";
-   string headers="Content-Type: application/json\r\nAuthorization: Bearer "+InpOpenAIAPIKey+"\r\n";
+   string headers="Content-Type: application/json\r\nAuthorization: Bearer "+apiKey+"\r\n";
    char data[],result[];
    string resultHeaders="";
    int n=StringToCharArray(body,data,0,WHOLE_ARRAY,CP_UTF8);
@@ -807,7 +872,7 @@ input int    InpApprovalHeroWidth            = 510;
 input int    InpApprovalHeroHeight           = 246;
 input int    InpApprovalAnimationMs          = 250;
 input int    InpApprovalDangerSeconds        = 15;
-input int    InpApprovalFeedbackSeconds      = 2;
+input int    InpApprovalFeedbackSeconds      = 5;
 input bool   InpEnableApprovalHover          = true;
 
 
@@ -1302,8 +1367,8 @@ string VisualOpenAIState()
 {
    if(!InpUseOpenAI) return "OFF";
    if((bool)MQLInfoInteger(MQL_TESTER)) return "TESTER OFFLINE";
-   if(StringLen(Trim(InpOpenAIAPIKey))<20) return "KEY MISSING";
-   return "CONFIGURED";
+   if(StringLen(OpenAILocalCredential())<20) return "KEY MISSING";
+   return "CONFIGURED • "+OpenAIKeySourceText();
 }
 
 void SetDashboardSection(const string card,const string label,const int x,const int y,const int w,const int h,
@@ -5851,7 +5916,7 @@ string APITransportLegacyCredential()
 {
    if(InpAPITransportMode==GPT_API_SECURE_PROXY)
       return StringLen(Trim(InpAPIProxyToken))>=12 ? "PROXY_TRANSPORT_ACTIVE" : "";
-   return InpOpenAIAPIKey;
+   return OpenAILocalCredential();
 }
 
 bool APITransportConfigurationAllows(string &why)
@@ -5893,12 +5958,12 @@ bool APITransportConfigurationAllows(string &why)
          why="Direct mode refuses to send the OpenAI bearer key to a non-api.openai.com endpoint.";
          return false;
       }
-      if(StringLen(Trim(InpOpenAIAPIKey))<20)
+      if(StringLen(OpenAILocalCredential())<20)
       {
-         why="Direct mode requires a locally configured OpenAI API key.";
+         why="Direct mode requires an OpenAI API key in the local key file or EA input.";
          return false;
       }
-      why="DIRECT_OPENAI configured. MT5 allow-list must contain https://api.openai.com.";
+      why="DIRECT_OPENAI configured using "+OpenAIKeySourceText()+". MT5 allow-list must contain https://api.openai.com.";
       return true;
    }
 
@@ -5918,13 +5983,36 @@ bool APITransportConfigurationAllows(string &why)
       why="Proxy mode requires a scoped proxy token of at least 12 characters.";
       return false;
    }
-   if(Trim(InpOpenAIAPIKey)!="" && Trim(InpAPIProxyToken)==Trim(InpOpenAIAPIKey))
+   string localOpenAIKey=OpenAILocalCredential();
+   if(localOpenAIKey!="" && Trim(InpAPIProxyToken)==localOpenAIKey)
    {
       why="Proxy token must not reuse the OpenAI API key.";
       return false;
    }
    why="SECURE_PROXY configured. Add the proxy HTTPS origin/endpoint to the MT5 WebRequest allow-list.";
    return true;
+}
+
+string APITransportVisualState()
+{
+   if(!InpUseOpenAI) return "OFF";
+   if((bool)MQLInfoInteger(MQL_TESTER)) return "TESTER OFFLINE";
+
+   string mode=APITransportModeText();
+   string why="";
+   if(!APITransportConfigurationAllows(why)) return mode+" • BLOCKED";
+
+   datetime now=TimeLocal();
+   if(g_apiTransportNextRetry>now)
+      return mode+" • BACKOFF";
+   if(g_apiTransportFailures>0)
+      return mode+" • DEGRADED";
+
+   datetime lastOK=(datetime)GVRead(SysKey("MODEL_LAST_TRANSPORT_OK"),0);
+   string source=(InpAPITransportMode==GPT_API_SECURE_PROXY?"SCOPED PROXY TOKEN":OpenAIKeySourceText());
+   if(lastOK>0)
+      return mode+" • ONLINE • "+source;
+   return mode+" • READY • "+source;
 }
 
 string APIHeaderValueCI(const string headers,const string key)
@@ -15010,7 +15098,7 @@ void RenderApprovalPrompt()
          "TP1  %.*f   │   TP2  %.*f   │   TP3  %.*f   │   TRAIL %.2fR",
          d,s.preferred,d,s.sl,d,be,d,s.tp1,d,s.tp2,d,s.tp3,InpTrailStartR);
       timerText=StringFormat("◉  %02d s LEFT   •   NO RESPONSE = AUTO-DENY / EXPIRED",remain);
-      hint="Fresh validation still runs after APPROVE  •  OpenAI "+VisualOpenAIState()+"  •  release/risk/broker gates remain fail-closed";
+      hint="Fresh validation still runs after APPROVE  •  OpenAI "+APITransportVisualState()+"  •  release/risk/broker gates remain fail-closed";
    }
    else
    {
@@ -15896,7 +15984,7 @@ void RenderLiveManagementDashboard(ulong ticket)
       StringFormat("Initial risk %.2f  •  Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%\n"
                    "Broker %.0f/100  •  Model %s  •  OpenAI %s  •  Release %s\nBroker: %s",
                    riskMoney,CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
-                   brokerHealth,ModelTrustModeName(modelMode),VisualOpenAIState(),releaseState,brokerBrief),
+                   brokerHealth,ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,brokerBrief),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
 
    SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+406,sw,64,
@@ -16001,7 +16089,7 @@ void RenderCandidateOperationalDashboard()
       StringFormat("Portfolio %.2f%%  •  Daily loss %.2f%%  •  Drawdown %.2f%%  •  Broker %.0f/100\n"
                    "Model %s  •  OpenAI %s  •  Release %s\nFilters: %s",
                    CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),brokerHealth,
-                   ModelTrustModeName(modelMode),VisualOpenAIState(),releaseState,VisualShortText(g_visualLastFilter,104)),
+                   ModelTrustModeName(modelMode),APITransportVisualState(),releaseState,VisualShortText(g_visualLastFilter,104)),
       g_releaseBlocked?C'214,76,82':C'215,173,82');
 
    SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,InpDashboardY+418,sw,54,
@@ -16271,12 +16359,14 @@ int OnInit()
          ", Live web intel=",InpUseLiveWebIntelligence?"ON":"OFF",
          ", ReleaseGate=",ReleaseGateSummary());
 
-   if(InpUseOpenAI && StringLen(Trim(InpOpenAIAPIKey))<20)
-      Print("OpenAI enabled but API key is blank. Enter it locally in EA Inputs. Never commit the key.");
+   if(InpUseOpenAI && InpAPITransportMode==GPT_API_DIRECT_OPENAI && StringLen(OpenAILocalCredential())<20)
+      Print("OpenAI enabled but no direct-mode key was found. Create the local key file or enter the key locally in EA Inputs; never commit it.");
    if(InpUseOpenAI || InpUseLiveWebIntelligence)
-      Print("MT5 WebRequest allow-list must include: https://api.openai.com");
+      Print("MT5 WebRequest allow-list target: ",APITransportAllowListURL());
+   Print("OpenAI credential source=",InpAPITransportMode==GPT_API_SECURE_PROXY?"SCOPED PROXY TOKEN":OpenAIKeySourceText(),
+         ". Secret value is never printed.");
    Print("Premium dashboard=",InpPremiumDashboard?"ON":"OFF",
-         ", OpenAI visual status=",VisualOpenAIState(),
+         ", OpenAI visual status=",APITransportVisualState(),
          ", Approval hero timeout=",InpApprovalTimeoutSeconds,"s");
 
    ScanAll("EA startup / restart recovery full-intelligence scan");

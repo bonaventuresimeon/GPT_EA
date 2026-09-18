@@ -59,7 +59,7 @@
 // #include "GPT_EA_Part13_AdvancedPositionManager.mqh"
 // #include "GPT_EA_Part07.mqh"
 #property strict
-#property version   "1.23"
+#property version   "1.24"
 #property description "Standalone GPT EA: multi-symbol scanner, OpenAI review, timed approve/deny prompts and approval-only execution."
 
 #include <Trade/Trade.mqh>
@@ -947,25 +947,25 @@ input bool   InpBlockIfAIUnavailable        = false;
 input bool   InpDrawDashboard               = true;
 input bool   InpDrawTradeLevels             = true;
 input bool   InpPolishChart                 = true;
-input int    InpDashboardX                  = 12;
-input int    InpDashboardY                  = 12;
+input int    InpDashboardX                  = 18;
+input int    InpDashboardY                  = 18;
 input bool   InpElegantChartDashboard       = true;
 input bool   InpDrawLiveManagementLevels    = true;
 input bool   InpDrawTrailingMovement        = true;
 input bool   InpShowStopMovementRules        = true;
 input bool   InpShowCompactTradeTimeline     = true;
 input int    InpTrailMovementSegments       = 12;
-input int    InpDashboardWidth              = 540;
-input int    InpDashboardHeight             = 560;
+input int    InpDashboardWidth              = 1120;
+input int    InpDashboardHeight             = 276;
 input int    InpDashboardRefreshMs           = 500;
 input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
 input bool   InpPremiumDashboard             = true;
 input bool   InpPremiumUIAnimations          = true;
-input bool   InpDashboardTransparent          = true;   // glass inner cards only; outer HUD frame always remains boxed/opaque
-input bool   InpDashboardReserveChartSpace    = true;   // shift candles left so the HUD never covers price action
-input int    InpDashboardMinWidth             = 400;
-input int    InpDashboardMaxWidth             = 600;
+input bool   InpDashboardTransparent          = false;  // compatibility input; R12 paints a dark lightweight floating surface
+input bool   InpDashboardReserveChartSpace    = false;  // floating HUD overlays chart; never reserves/replaces chart space
+input int    InpDashboardMinWidth             = 760;
+input int    InpDashboardMaxWidth             = 1280;
 input int    InpDashboardChartGap             = 16;
 input int    InpDashboardClosedHoldSeconds    = 12;
 input int    InpApprovalHeroX                = 20;
@@ -1039,6 +1039,26 @@ string DASH_HEADER_BG="GPT_EA_DASH_HEADER_BG";
 string DASH_FOOTER_BG="GPT_EA_DASH_FOOTER_BG";
 string DASH_TOP_RAIL="GPT_EA_DASH_TOP_RAIL";
 string DASH_INNER_FRAME="GPT_EA_DASH_INNER_FRAME";
+
+string HUD_SHADOW="GPT_EA_HUD_SHADOW";
+string HUD_DRAG_HANDLE="GPT_EA_HUD_DRAG_HANDLE";
+string HUD_DRAG_TEXT="GPT_EA_HUD_DRAG_TEXT";
+string HUD_INVALIDATION_CARD="GPT_EA_HUD_INVALIDATION_CARD";
+string HUD_INVALIDATION_TITLE="GPT_EA_HUD_INVALIDATION_TITLE";
+string HUD_INVALIDATION="GPT_EA_HUD_INVALIDATION";
+string HUD_FOOTER_STATUS="GPT_EA_HUD_FOOTER_STATUS";
+string HUD_TF_PREFIX="GPT_EA_HUD_TF_";
+string HUD_MS_LABEL_PREFIX="GPT_EA_HUD_MS_L_";
+string HUD_MS_VALUE_PREFIX="GPT_EA_HUD_MS_V_";
+string HUD_CF_PREFIX="GPT_EA_HUD_CF_";
+string HUD_TRADE_LABEL_PREFIX="GPT_EA_HUD_TRADE_L_";
+string HUD_TRADE_VALUE_PREFIX="GPT_EA_HUD_TRADE_V_";
+string HUD_CONF_BAR_PREFIX="GPT_EA_HUD_CONF_BAR_";
+int  g_fhudX=-1;
+int  g_fhudY=-1;
+bool g_fhudLoaded=false;
+bool g_fhudHoverApprove=false;
+bool g_fhudHoverDeny=false;
 
 string APP_PANEL="GPT_EA_APPROVAL_PANEL";
 string APP_ACCENT="GPT_EA_APPROVAL_ACCENT";
@@ -1466,7 +1486,7 @@ void ApplyChartPolish()
    ChartSetInteger(0,CHART_MODE,CHART_CANDLES);
    ChartSetInteger(0,CHART_SHOW_GRID,false);
    ChartSetInteger(0,CHART_SHIFT,true);
-   ChartSetDouble(0,CHART_SHIFT_SIZE,InpDashboardReserveChartSpace?32.0:18.0);
+   ChartSetDouble(0,CHART_SHIFT_SIZE,18.0);
    ChartSetInteger(0,CHART_SHOW_OBJECT_DESCR,false);
    ChartSetInteger(0,CHART_COLOR_BACKGROUND,C'11,15,22');
    ChartSetInteger(0,CHART_COLOR_FOREGROUND,clrSilver);
@@ -1489,11 +1509,16 @@ void SetPremiumRect(const string name,const ENUM_BASE_CORNER corner,const int x,
                     const color bg,const color border,const long z=0)
 {
    if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE_LABEL,0,0,0);
-   // The premium HUD enclosure always remains opaque and chart-matched.
-   // Optional transparency is limited to inner information cards ("glass" mode).
-   bool glassCard=(name==DASH_MARKET_CARD || name==DASH_TRADE_CARD || name==DASH_RISK_CARD ||
-                   name==DASH_RULES_CARD || name==DASH_TIMELINE_CARD || name==DASH_ACTION_CARD);
-   color effectiveBG=(InpDashboardTransparent && glassCard ? clrNONE : bg);
+
+   // R11 visibility contract: the live dashboard must remain visibly painted on-chart.
+   // InpDashboardTransparent is retained for SET-file compatibility, but HUD surfaces
+   // are deliberately solid so the intelligence panel cannot disappear into candles.
+   bool hudSurface=(name==DASH_PANEL || name==DASH_INNER_FRAME || name==DASH_HEADER_BG ||
+                    name==DASH_FOOTER_BG || name==DASH_MARKET_CARD || name==DASH_TRADE_CARD ||
+                    name==DASH_RISK_CARD || name==DASH_RULES_CARD || name==DASH_TIMELINE_CARD ||
+                    name==DASH_ACTION_CARD);
+   color effectiveBG=bg;
+
    ObjectSetInteger(0,name,OBJPROP_CORNER,corner);
    ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
    ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
@@ -1528,7 +1553,7 @@ void SetPremiumLabel(const string name,const ENUM_BASE_CORNER corner,const int x
 
 void RenderPremiumHUDFrame(const int panelW,const int panelH,const color accent)
 {
-   // Match the live chart palette: ApplyChartPolish() uses C'11,15,22'.
+   // Visible premium HUD shell: dark surfaces, bordered cards and a bright state rail.
    SetPremiumRect(DASH_PANEL,CORNER_RIGHT_UPPER,InpDashboardX,InpDashboardY,panelW,panelH,
                   C'11,15,22',C'49,69,91',1);
    SetPremiumRect(DASH_INNER_FRAME,CORNER_RIGHT_UPPER,InpDashboardX+5,InpDashboardY+5,panelW-10,panelH-10,
@@ -1537,7 +1562,7 @@ void RenderPremiumHUDFrame(const int panelW,const int panelH,const color accent)
                   C'13,19,28',C'30,44,61',2);
    SetPremiumRect(DASH_TOP_RAIL,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+6,panelW-12,3,
                   accent,accent,4);
-   SetPremiumRect(DASH_FOOTER_BG,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+panelH-38,panelW-12,32,
+   SetPremiumRect(DASH_FOOTER_BG,CORNER_RIGHT_UPPER,InpDashboardX+6,InpDashboardY+panelH-66,panelW-12,60,
                   C'9,14,21',C'30,44,61',2);
 }
 
@@ -1641,12 +1666,19 @@ void DashboardLayout(const bool live,int &panelW,int &panelH,bool &compact)
    if(chartW<=0) chartW=1200;
    if(chartH<=0) chartH=650;
 
-   int minW=(int)MathMax(360,InpDashboardMinWidth);
-   int maxW=(int)MathMax(minW,InpDashboardMaxWidth);
-   int preferred=(int)MathMax(minW,MathMin(maxW,InpDashboardWidth));
-   int byChart=(int)MathMax((double)minW,MathFloor((double)chartW*0.44)-(double)(InpDashboardX*2+InpDashboardChartGap));
-   panelW=(int)MathMin(preferred,byChart);
-   if(panelW<minW) panelW=minW;
+   int configuredMinW=(int)MathMax(360,InpDashboardMinWidth);
+   int maxW=(int)MathMax(configuredMinW,InpDashboardMaxWidth);
+   int preferred=(int)MathMax(configuredMinW,MathMin(maxW,InpDashboardWidth));
+
+   // CHART_SHIFT_SIZE is capped at 50%. Keep panel + right margin inside 48%
+   // so the extra 2% breathing room in ApplyDashboardChartReserve() does not
+   // force candles underneath the HUD on ordinary desktop chart widths.
+   int marginPx=InpDashboardX+InpDashboardChartGap;
+   int safeByChart=(int)MathFloor((double)chartW*0.48)-(int)marginPx;
+   int hardCompactMinW=220;
+   if(safeByChart<hardCompactMinW) safeByChart=hardCompactMinW;
+   panelW=(int)MathMin(preferred,safeByChart);
+   if(panelW<hardCompactMinW) panelW=hardCompactMinW;
 
    compact=(chartW<1120 || chartH<640 || panelW<470);
    int minH=(compact?420:500);
@@ -1785,6 +1817,21 @@ void DeleteAdvancedDashboard()
    ObjectDelete(0,DASH_TITLE); ObjectDelete(0,DASH_SUBTITLE);
    ObjectDelete(0,DASH_TEXT); ObjectDelete(0,DASH_STATUS); ObjectDelete(0,DASH_RULES);
    ObjectDelete(0,DASH_TIMELINE); ObjectDelete(0,BTN_SCAN_NOW);
+   ObjectDelete(0,HUD_SHADOW);
+   ObjectDelete(0,HUD_DRAG_HANDLE); ObjectDelete(0,HUD_DRAG_TEXT);
+   ObjectDelete(0,HUD_INVALIDATION_CARD); ObjectDelete(0,HUD_INVALIDATION_TITLE);
+   ObjectDelete(0,HUD_INVALIDATION); ObjectDelete(0,HUD_FOOTER_STATUS);
+   for(int i=0;i<12;i++)
+   {
+      ObjectDelete(0,HUD_MS_LABEL_PREFIX+IntegerToString(i));
+      ObjectDelete(0,HUD_MS_VALUE_PREFIX+IntegerToString(i));
+      ObjectDelete(0,HUD_CF_PREFIX+IntegerToString(i));
+      ObjectDelete(0,HUD_TRADE_LABEL_PREFIX+IntegerToString(i));
+      ObjectDelete(0,HUD_TRADE_VALUE_PREFIX+IntegerToString(i));
+      ObjectDelete(0,HUD_CONF_BAR_PREFIX+IntegerToString(i));
+   }
+   string hudTFs[]={"D1","H4","H1","M30","M15","M5"};
+   for(int t=0;t<ArraySize(hudTFs);t++) ObjectDelete(0,HUD_TF_PREFIX+hudTFs[t]);
    ClearDashboardSections();
    ObjectDelete(0,LEVEL_BE); ObjectDelete(0,LEVEL_LIVE_SL); ObjectDelete(0,LEVEL_TRAIL_START);
    ObjectDelete(0,TAG_ENTRY); ObjectDelete(0,TAG_SL); ObjectDelete(0,TAG_BE);
@@ -16214,8 +16261,9 @@ void RenderApprovalPrompt()
       ObjectDelete(0,APP_HINT); ObjectDelete(0,LBL_PROMPT);
       if(idx<0)
       {
-         ObjectDelete(0,BTN_APPROVE);
-         ObjectDelete(0,BTN_DENY);
+         // The premium dashboard owns persistent APPROVE / DENY controls.
+         // Do not delete them here; RenderDashboardControls() paints them disabled
+         // until a validated pending approval exists.
          if(g_approvalFeedbackText!="" && TimeTradeServer()>g_approvalFeedbackUntil)
          {
             g_approvalFeedbackText="";
@@ -17123,29 +17171,32 @@ void SetDashboardButton(const string name,const int x,const int y,const int w,co
 
 void RenderDashboardControls(const int panelW,const int panelH,const int pendingIndex)
 {
-   int y=InpDashboardY+panelH-30;
+   int yDecision=InpDashboardY+panelH-58;
+   int yUtility=InpDashboardY+panelH-30;
    int bw=(panelW<430?98:118);
    int bh=24;
    int gap=6;
    int x0=InpDashboardX+14;
 
+   // APPROVE / DENY are persistent dashboard controls. When no approval is pending,
+   // they stay visibly disabled instead of disappearing; the click path remains fail-closed.
    if(pendingIndex>=0)
    {
       g_displayPending=pendingIndex;
-      ObjectDelete(0,BTN_SCAN_NOW);
-      ObjectDelete(0,BTN_PAUSE);
-      SetDashboardButton(BTN_DENY,x0,y,bw,bh,"×  DENY",C'151,48,61',C'225,93,106');
-      SetDashboardButton(BTN_APPROVE,x0+bw+gap,y,bw,bh,"✓  APPROVE",C'17,130,91',C'75,211,153');
+      SetDashboardButton(BTN_APPROVE,x0,yDecision,bw,bh,"APPROVE TRADE",C'17,130,91',C'75,211,153');
+      SetDashboardButton(BTN_DENY,x0+bw+gap,yDecision,bw,bh,"DENY TRADE",C'151,48,61',C'225,93,106');
    }
    else
    {
-      ObjectDelete(0,BTN_APPROVE);
-      ObjectDelete(0,BTN_DENY);
-      SetDashboardButton(BTN_SCAN_NOW,x0,y,bw,bh,"↻  SCAN NOW",C'34,87,139',C'107,173,221');
-      SetDashboardButton(BTN_PAUSE,x0+bw+gap,y,bw,bh,g_manualPaused?"▶  RESUME":"Ⅱ  PAUSE",
-                         g_manualPaused?C'35,120,70':C'112,58,67',
-                         g_manualPaused?C'78,190,128':C'205,100,111');
+      g_displayPending=-1;
+      SetDashboardButton(BTN_APPROVE,x0,yDecision,bw,bh,"APPROVE - WAIT",C'45,66,61',C'83,116,103');
+      SetDashboardButton(BTN_DENY,x0+bw+gap,yDecision,bw,bh,"DENY - WAIT",C'70,54,58',C'116,82,88');
    }
+
+   SetDashboardButton(BTN_SCAN_NOW,x0,yUtility,bw,bh,"SCAN NOW",C'34,87,139',C'107,173,221');
+   SetDashboardButton(BTN_PAUSE,x0+bw+gap,yUtility,bw,bh,g_manualPaused?"RESUME":"PAUSE",
+                      g_manualPaused?C'35,120,70':C'112,58,67',
+                      g_manualPaused?C'78,190,128':C'205,100,111');
 }
 
 string VisualTradeTimeline(const ulong pid,const ulong ticket)
@@ -17246,9 +17297,9 @@ void RenderLiveManagementDashboard(ulong ticket)
    if(rNow<0 && uiState==UI_STATE_TRADE_ACTIVE) liveAccent=C'244,110,110';
    RenderPremiumHUDFrame(panelW,panelH,liveAccent);
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Live Trade HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  LIVE MARKET INTELLIGENCE",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
+      StringFormat("v1.23 • R11 HUD  |  %s  •  %s  •  %s  •  %s",sym,bull?"LONG":"SHORT",StrategyClassName(strategy),LifecycleStateName(life)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● %s  •  %.2fR  •  floating %.2f  •  locked %.2fR",DashboardStateName(uiState),rNow,floating,lockedR),
@@ -17256,7 +17307,7 @@ void RenderLiveManagementDashboard(ulong ticket)
    if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
 
    int header=compact?80:86;
-   int controls=36;
+   int controls=64;
    int gap=compact?4:6;
    int sx=InpDashboardX+12, sw=panelW-24;
    int top=InpDashboardY+header;
@@ -17403,9 +17454,9 @@ void RenderCandidateOperationalDashboard()
    DashboardLayout(false,panelW,panelH,compact);
    RenderPremiumHUDFrame(panelW,panelH,DashboardStateColor(uiState));
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Intelligence HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  MARKET INTELLIGENCE",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      StringFormat("v1.23 • R10 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
+      StringFormat("v1.23 • R11 HUD  |  %s  •  %s  •  %s  •  %s",s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",
                    g_visualSession!=""?g_visualSession:"SESSION",StrategyClassName(strategy)),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
 
@@ -17416,7 +17467,7 @@ void RenderCandidateOperationalDashboard()
    if(ObjectFind(0,DASH_TEXT)>=0) ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,"");
 
    int header=compact?80:86;
-   int controls=36;
+   int controls=64;
    int gap=compact?4:6;
    int sx=InpDashboardX+12, sw=panelW-24;
    int top=InpDashboardY+header;
@@ -17503,6 +17554,50 @@ void RenderCandidateOperationalDashboard()
    ChartRedraw();
 }
 
+void RenderBootstrapDashboard()
+{
+   if(!InpDrawDashboard || !InpElegantChartDashboard || !InpPremiumDashboard) return;
+
+   int panelW=0,panelH=0; bool compact=false;
+   DashboardLayout(false,panelW,panelH,compact);
+   SetVisualDashboardState(UI_STATE_SCANNING,"initializing market intelligence");
+   ClearDashboardSections();
+   DeleteTradeMap();
+
+   RenderPremiumHUDFrame(panelW,panelH,C'64,137,204');
+   SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
+      "GPT EA  •  MARKET INTELLIGENCE",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+   SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
+      "v1.23 • R11 HUD  |  "+_Symbol+"  •  INITIALIZING",C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
+   SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
+      "● BOOTING  •  loading recovery, broker universe, AI/news and strategy intelligence",
+      C'102,184,229',compact?8:9,"Segoe UI Semibold",6);
+
+   int sx=InpDashboardX+12,sw=panelW-24;
+   int y=InpDashboardY+(compact?88:96);
+   int footerTop=InpDashboardY+panelH-66;
+   int available=MathMax(120,footerTop-y-12);
+   int cardH=(int)MathMax(72.0,MathFloor((double)(available-6)/2.0));
+
+   SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
+      "SYSTEM STARTUP",
+      "Dashboard is online and visible.\nLoading broker symbols, recovery state and market-intelligence engines.\nNormal SCANNING / SETUP / LIVE TRADE panels will replace this automatically.",
+      C'64,137,204');
+   y+=cardH+6;
+   SetDashboardSection(DASH_ACTION_CARD,DASH_ACTION_LABEL,sx,y,sw,cardH,
+      "EA STATUS",
+      "INITIALIZING • execution remains fail-closed during startup.\nAPPROVE / DENY stay visible but disabled until a validated pending setup exists.\nSCAN NOW / PAUSE controls remain available after initialization.",
+      C'116,101,181');
+
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL); ObjectDelete(0,DASH_RISK_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
+
+   RenderDashboardControls(panelW,panelH,-1);
+   ChartRedraw();
+}
+
 void RenderScanningDashboard()
 {
    int panelW=0,panelH=0; bool compact=false;
@@ -17513,16 +17608,16 @@ void RenderScanningDashboard()
 
    RenderPremiumHUDFrame(panelW,panelH,DashboardStateColor(UI_STATE_SCANNING));
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
-      "GPT EA  •  Market Scan HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
+      "GPT EA  •  MARKET INTELLIGENCE",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.23 • R10 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
+      "v1.23 • R11 HUD  |  "+_Symbol+"  •  D1 H4 H1 M30 M15 M5  •  "+(g_manualPaused?"TRADING PAUSED":"ONLINE"),
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       "● SCANNING  •  waiting for a qualified market state / setup",DashboardStateColor(UI_STATE_SCANNING),compact?8:9,"Segoe UI Semibold",6);
 
    int sx=InpDashboardX+12, sw=panelW-24;
    int y=InpDashboardY+(compact?84:92);
-   int footerTop=InpDashboardY+panelH-38;
+   int footerTop=InpDashboardY+panelH-66;
    int availableCards=footerTop-y-12;
    int cardH=(int)MathMax(compact?72.0:84.0,MathFloor((double)availableCards/3.0));
    SetDashboardSection(DASH_MARKET_CARD,DASH_MARKET_LABEL,sx,y,sw,cardH,
@@ -17568,7 +17663,7 @@ void RenderClosedDashboard()
    SetPremiumLabel(DASH_TITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+11,
       "GPT EA  •  Lifecycle HUD",C'232,201,115',compact?12:14,InpDashboardTitleFont,5);
    SetPremiumLabel(DASH_SUBTITLE,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+38,
-      "v1.23 • R10 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
+      "v1.23 • R11 HUD  |  "+(g_dashboardClosedSymbol!=""?g_dashboardClosedSymbol:_Symbol)+"  •  lifecycle finalized",
       C'162,187,214',compact?7:8,InpDashboardBodyFont,5);
    SetPremiumLabel(DASH_STATUS,CORNER_RIGHT_UPPER,InpDashboardX+16,InpDashboardY+59,
       StringFormat("● CLOSED  •  realized %.2fR  •  returning to scanner",g_dashboardClosedR),
@@ -17592,6 +17687,583 @@ void RenderClosedDashboard()
    ChartRedraw();
 }
 
+
+// ---------------- Floating Market Intelligence HUD (R12) ----------------
+string HUDPositionKey(const string axis)
+{
+   return StringFormat("GPT_HUD_%I64d_%I64d_%I64d_%s",
+      AccountInfoInteger(ACCOUNT_LOGIN),InpMagic,ChartID(),axis);
+}
+
+void LoadFloatingHUDPosition()
+{
+   if(g_fhudLoaded) return;
+   g_fhudX=(int)GlobalVariableGet(HUDPositionKey("X"));
+   g_fhudY=(int)GlobalVariableGet(HUDPositionKey("Y"));
+   if(!GlobalVariableCheck(HUDPositionKey("X"))) g_fhudX=InpDashboardX;
+   if(!GlobalVariableCheck(HUDPositionKey("Y"))) g_fhudY=InpDashboardY;
+   g_fhudLoaded=true;
+}
+
+void SaveFloatingHUDPosition()
+{
+   if(!g_fhudLoaded) return;
+   GlobalVariableSet(HUDPositionKey("X"),(double)g_fhudX);
+   GlobalVariableSet(HUDPositionKey("Y"),(double)g_fhudY);
+}
+
+string HUDPeriodText()
+{
+   switch((ENUM_TIMEFRAMES)_Period)
+   {
+      case PERIOD_M1: return "M1"; case PERIOD_M5: return "M5"; case PERIOD_M15: return "M15";
+      case PERIOD_M30: return "M30"; case PERIOD_H1: return "H1"; case PERIOD_H4: return "H4";
+      case PERIOD_D1: return "D1"; case PERIOD_W1: return "W1"; case PERIOD_MN1: return "MN";
+      default: return EnumToString((ENUM_TIMEFRAMES)_Period);
+   }
+}
+
+string HUDSpreadText(const string sym)
+{
+   MqlTick t={};
+   if(!GetTickSafe(sym,t)) return "--";
+   double sp=MathMax(0.0,t.ask-t.bid);
+   int d=DigitsFor(sym);
+   if(d>3 && sp>0.01) d=2;
+   return DoubleToString(sp,d);
+}
+
+void FloatingHUDLayout(int &x,int &y,int &w,int &h,bool &compact)
+{
+   LoadFloatingHUDPosition();
+   int cw=(int)ChartGetInteger(0,CHART_WIDTH_IN_PIXELS,0);
+   int ch=(int)ChartGetInteger(0,CHART_HEIGHT_IN_PIXELS,0);
+   if(cw<=0) cw=1280;
+   if(ch<=0) ch=720;
+
+   // R12 deliberately ignores legacy R11 width bounds saved in old SET files.
+   // Match the reference HUD: wide/low on desktop, proportional on smaller charts.
+   int designMin=760;
+   int designMax=1420;
+   int preferred=(int)MathRound((double)cw*0.90);
+   preferred=(int)MathMax(900,preferred);
+   preferred=(int)MathMax(designMin,MathMin(designMax,preferred));
+   w=(int)MathMin(preferred,MathMax(520,cw-20));
+   compact=(w<900 || cw<980);
+   h=(compact?294:276);
+
+   x=g_fhudX; y=g_fhudY;
+   int maxX=(int)MathMax(4,cw-w-4);
+   int maxY=(int)MathMax(4,ch-h-4);
+   x=(int)MathMax(4,MathMin(maxX,x));
+   y=(int)MathMax(4,MathMin(maxY,y));
+   g_fhudX=x; g_fhudY=y;
+}
+
+void HUDSetRect(const string name,const int x,const int y,const int w,const int h,
+                const color bg,const color border,const long z=1)
+{
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_RECTANGLE_LABEL,0,0,0);
+   ObjectSetInteger(0,name,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
+   ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
+   ObjectSetInteger(0,name,OBJPROP_XSIZE,w);
+   ObjectSetInteger(0,name,OBJPROP_YSIZE,h);
+   ObjectSetInteger(0,name,OBJPROP_BGCOLOR,bg);
+   ObjectSetInteger(0,name,OBJPROP_BORDER_COLOR,border);
+   ObjectSetInteger(0,name,OBJPROP_BORDER_TYPE,BORDER_FLAT);
+   ObjectSetInteger(0,name,OBJPROP_BACK,false);
+   ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
+   ObjectSetInteger(0,name,OBJPROP_ZORDER,z);
+}
+
+void HUDSetLabel(const string name,const int x,const int y,const string value,
+                 const color fg,const int fs,const string font="Segoe UI",const long z=8)
+{
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,name,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
+   ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,fg);
+   ObjectSetInteger(0,name,OBJPROP_FONTSIZE,fs);
+   ObjectSetInteger(0,name,OBJPROP_BACK,false);
+   ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
+   ObjectSetInteger(0,name,OBJPROP_ZORDER,z);
+   ObjectSetInteger(0,name,OBJPROP_ANCHOR,ANCHOR_LEFT_UPPER);
+   ObjectSetString(0,name,OBJPROP_FONT,font);
+   ObjectSetString(0,name,OBJPROP_TEXT,value);
+}
+
+void HUDSetDragHandle(const int x,const int y,const int w,const int h)
+{
+   if(ObjectFind(0,HUD_DRAG_HANDLE)<0) ObjectCreate(0,HUD_DRAG_HANDLE,OBJ_RECTANGLE_LABEL,0,0,0);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_XDISTANCE,x);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_YDISTANCE,y);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_XSIZE,w);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_YSIZE,h);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_BGCOLOR,C'22,35,51');
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_BORDER_COLOR,C'58,82,109');
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_BORDER_TYPE,BORDER_FLAT);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_BACK,false);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_SELECTABLE,true);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_HIDDEN,true);
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_ZORDER,50);
+   HUDSetLabel(HUD_DRAG_TEXT,x+10,y+5,":::  Drag to move",C'173,188,207',8,"Segoe UI Semibold",51);
+}
+
+void HUDDeleteLegacyLayoutObjects()
+{
+   ObjectDelete(0,DASH_INNER_FRAME);
+   ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL); ObjectDelete(0,DASH_ACTION_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
+   ObjectDelete(0,BTN_SCAN_NOW); ObjectDelete(0,BTN_PAUSE);
+   ObjectDelete(0,RISK_PANEL); ObjectDelete(0,RISK_TEXT);
+   ObjectDelete(0,DASH_TEXT);
+}
+
+void HUDColumn(const string card,const string titleName,const int x,const int y,const int w,const int h,
+               const string title,const color accent,const bool compact)
+{
+   HUDSetRect(card,x,y,w,h,C'12,23,36',C'38,58,79',3);
+   HUDSetLabel(titleName,x+11,y+9,title,accent,compact?8:9,"Segoe UI Semibold",8);
+}
+
+void HUDMetricRow(const int idx,const int x,const int y,const string label,const string value,const color valueColor,const bool compact)
+{
+   HUDSetLabel(HUD_MS_LABEL_PREFIX+IntegerToString(idx),x,y,label,C'166,181,199',compact?7:8,InpDashboardBodyFont,8);
+   HUDSetLabel(HUD_MS_VALUE_PREFIX+IntegerToString(idx),x+(compact?74:84),y,value,valueColor,compact?7:8,"Segoe UI Semibold",8);
+}
+
+void HUDTradeField(const int idx,const int x,const int y,const string label,const string value,
+                   const color valueColor,const bool compact,const int valueDx)
+{
+   HUDSetLabel(HUD_TRADE_LABEL_PREFIX+IntegerToString(idx),x,y,label,C'175,189,205',compact?7:8,InpDashboardBodyFont,9);
+   HUDSetLabel(HUD_TRADE_VALUE_PREFIX+IntegerToString(idx),x+valueDx,y,value,valueColor,compact?7:8,"Segoe UI Semibold",9);
+}
+
+void HUDConfidenceBars(const int x,const int y,const int score,const bool compact)
+{
+   int filled=(int)MathRound(MathMax(0,MathMin(100,score))/10.0);
+   int bw=(compact?7:8);
+   int gap=2;
+   for(int i=0;i<10;i++)
+   {
+      color c=(i<filled?C'57,214,143':C'55,70,86');
+      HUDSetRect(HUD_CONF_BAR_PREFIX+IntegerToString(i),x+i*(bw+gap),y,bw,8,c,c,11);
+   }
+}
+
+void HUDTFState(const string detail,const string tf,string &out,color &clr)
+{
+   int p=StringFind(detail,tf+":");
+   if(p<0){ out=tf+"  ○ --"; clr=C'145,160,178'; return; }
+   int s=p+StringLen(tf)+1;
+   int e=StringFind(detail," ",s); if(e<0) e=StringLen(detail);
+   string b=StringSubstr(detail,s,e-s);
+   if(b=="BULL"){ out=tf+"  ● Bull"; clr=C'57,214,143'; }
+   else if(b=="BEAR"){ out=tf+"  ● Bear"; clr=C'242,94,108'; }
+   else { out=tf+"  ● "+b; clr=C'241,185,75'; }
+}
+
+void HUDSetMTFColumn(const int x,const int y,const int w,const int h,const bool compact)
+{
+   HUDColumn(DASH_RISK_CARD,DASH_RISK_LABEL+"_TITLE",x,y,w,h,"◷  MULTI-TIMEFRAME",C'87,164,229',compact);
+   HUDSetLabel(DASH_RISK_LABEL,x+10,y+30,"",clrWhite,7,InpDashboardBodyFont,8);
+   string tfs[]={"D1","H4","H1","M30","M15","M5"};
+   for(int i=0;i<ArraySize(tfs);i++)
+   {
+      string row=""; color c=clrSilver; HUDTFState(g_visualTrendDetail,tfs[i],row,c);
+      HUDSetLabel(HUD_TF_PREFIX+tfs[i],x+12,y+34+i*(compact?21:22),row,c,compact?7:8,"Segoe UI Semibold",9);
+   }
+}
+
+color HUDRiskColor(const string risk)
+{
+   if(risk=="HIGH") return C'242,94,108';
+   if(risk=="WATCH" || risk=="MEDIUM") return C'241,185,75';
+   return C'57,214,143';
+}
+
+string HUDStatusText(const int pendingIndex,const bool live)
+{
+   if(ApprovalFeedbackActive())
+   {
+      if(StringFind(g_approvalFeedbackText,"DENIED")>=0) return "DENIED • CONTINUING SCAN";
+      if(StringFind(g_approvalFeedbackText,"APPROVED")>=0) return "APPROVED • WAITING FOR ENTRY";
+      if(StringFind(g_approvalFeedbackText,"ACTIVE")>=0) return "POSITION OPEN";
+      if(StringFind(g_approvalFeedbackText,"EXPIRED")>=0 || StringFind(g_approvalFeedbackText,"BLOCKED")>=0) return "SETUP INVALIDATED";
+   }
+   if(g_manualPaused) return "RISK BLOCKED";
+   if(pendingIndex>=0) return "AWAITING APPROVAL";
+   if(live)
+   {
+      if(g_dashboardState==UI_STATE_TP1) return "TP1 HIT";
+      if(g_dashboardState==UI_STATE_BREAK_EVEN) return "BREAK-EVEN ACTIVE";
+      if(g_dashboardState==UI_STATE_TRAILING) return "TRAILING PROFIT";
+      return "POSITION OPEN";
+   }
+   if(g_dashboardClosedUntil>TimeTradeServer()) return "TRADE CLOSED";
+   if(g_visualNewsRisk=="HIGH") return "NEWS PAUSE";
+   if(g_visualHasSetup)
+   {
+      if(g_visualLastReady) return "SETUP DETECTED";
+      if(g_dashboardState==UI_STATE_WAITING_CONFIRMATION) return "WAITING FOR CONFIRMATION";
+      if(g_dashboardState==UI_STATE_SETUP_FOUND) return "SETUP DETECTED";
+   }
+   return "SCANNING";
+}
+
+void HUDSetButton(const string name,const int x,const int y,const int w,const int h,
+                  const string text,const bool enabled,const bool hover,const bool approve)
+{
+   if(ObjectFind(0,name)<0) ObjectCreate(0,name,OBJ_BUTTON,0,0,0);
+   color bg=C'39,49,60',border=C'73,86,101',fg=C'145,156,168';
+   if(enabled && approve){ bg=hover?C'24,181,126':C'17,143,98'; border=hover?C'97,235,180':C'49,204,144'; fg=clrWhite; }
+   if(enabled && !approve){ bg=hover?C'212,62,78':C'173,48,62'; border=hover?C'255,128,139':C'232,84,96'; fg=clrWhite; }
+   ObjectSetInteger(0,name,OBJPROP_CORNER,CORNER_LEFT_UPPER);
+   ObjectSetInteger(0,name,OBJPROP_XDISTANCE,x);
+   ObjectSetInteger(0,name,OBJPROP_YDISTANCE,y-(hover&&enabled?1:0));
+   ObjectSetInteger(0,name,OBJPROP_XSIZE,w);
+   ObjectSetInteger(0,name,OBJPROP_YSIZE,h+(hover&&enabled?1:0));
+   ObjectSetInteger(0,name,OBJPROP_BGCOLOR,bg);
+   ObjectSetInteger(0,name,OBJPROP_COLOR,fg);
+   ObjectSetInteger(0,name,OBJPROP_BORDER_COLOR,border);
+   ObjectSetInteger(0,name,OBJPROP_FONTSIZE,8);
+   ObjectSetInteger(0,name,OBJPROP_HIDDEN,true);
+   ObjectSetInteger(0,name,OBJPROP_ZORDER,30);
+   ObjectSetInteger(0,name,OBJPROP_STATE,false);
+   ObjectSetString(0,name,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,name,OBJPROP_TEXT,text);
+}
+
+void HUDRenderControls(const int x,const int y,const int w,const int h,const int pendingIndex,const bool live)
+{
+   int btnH=26,btnW=(w<900?104:116),gap=8;
+   int by=y+h-33;
+   int denyX=x+w-12-btnW;
+   int approveX=denyX-gap-btnW;
+   bool enabled=(pendingIndex>=0);
+   g_displayPending=enabled?pendingIndex:-1;
+   HUDSetButton(BTN_APPROVE,approveX,by,btnW,btnH,enabled?"✓  APPROVE":"APPROVE",enabled,g_fhudHoverApprove,true);
+   HUDSetButton(BTN_DENY,denyX,by,btnW,btnH,enabled?"✕  DENY":"DENY",enabled,g_fhudHoverDeny,false);
+   string s="EA STATUS: "+HUDStatusText(pendingIndex,live)+(live?"":"  •  NO POSITION")+"  •  RISK "+DoubleToString(InpRiskPercent,2)+"%";
+   HUDSetLabel(HUD_FOOTER_STATUS,x+14,y+h-29,s,C'177,196,218',8,"Segoe UI Semibold",10);
+}
+
+void HUDRenderFrame(const int x,const int y,const int w,const int h,const color accent,const int pendingIndex,const bool live)
+{
+   HUDDeleteLegacyLayoutObjects();
+   HUDSetRect(HUD_SHADOW,x+4,y+5,w,h,C'3,7,12',C'3,7,12',0);
+   HUDSetRect(DASH_PANEL,x,y,w,h,C'7,14,23',C'176,137,55',1);
+   HUDSetRect(DASH_HEADER_BG,x+2,y+2,w-4,44,C'10,20,31',C'31,49,68',2);
+   HUDSetRect(DASH_TOP_RAIL,x+2,y+2,w-4,2,accent,accent,4);
+   HUDSetRect(DASH_FOOTER_BG,x+2,y+h-39,w-4,37,C'9,18,28',C'31,49,68',2);
+
+   bool online=(bool)TerminalInfoInteger(TERMINAL_CONNECTED);
+   string session=(g_visualSession!=""?g_visualSession:"MARKET");
+   bool compact=(w<900);
+   HUDSetLabel(DASH_TITLE,x+14,y+12,"◉  GPT EA — MARKET INTELLIGENCE",C'232,201,115',compact?9:11,"Segoe UI Semibold",10);
+   HUDSetLabel(DASH_STATUS,x+(int)(w*(compact?0.39:0.37)),y+14,_Symbol+"  "+(online?"● ONLINE":"● OFFLINE"),
+               online?C'57,214,143':C'242,94,108',compact?7:9,"Segoe UI Semibold",10);
+   HUDSetLabel(DASH_SUBTITLE,x+(int)(w*(compact?0.61:0.58)),y+14,session+" • "+HUDPeriodText()+" • Spread "+HUDSpreadText(_Symbol),
+               C'180,194,210',compact?7:8,InpDashboardBodyFont,10);
+   HUDSetDragHandle(x+w-(compact?104:128),y+9,compact?92:114,25);
+   HUDRenderControls(x,y,w,h,pendingIndex,live);
+}
+
+void HUDConfirmRow(const int idx,const int x,const int y,const string text,const int state,const bool compact)
+{
+   string icon=(state>0?"✓":(state<0?"✕":"○"));
+   color c=(state>0?C'57,214,143':(state<0?C'242,94,108':C'241,185,75'));
+   HUDSetLabel(HUD_CF_PREFIX+IntegerToString(idx),x,y,icon+"  "+text,c,compact?7:8,"Segoe UI Semibold",9);
+}
+
+void RenderFloatingMarketHUD()
+{
+   if(!InpDrawDashboard || !InpElegantChartDashboard || !InpPremiumDashboard) return;
+
+   int x=0,y=0,w=0,h=0; bool compact=false;
+   FloatingHUDLayout(x,y,w,h,compact);
+
+   int pending=ActivePendingForSymbol(_Symbol);
+   TradeSetup s=g_visualLastSetup;
+   ConfluenceReport r=g_visualLastReport;
+   bool has=(g_visualHasSetup && s.symbol==_Symbol);
+   bool inZone=(has && s.valid && PriceInsideZone(s));
+
+   VisualDashboardState uiState=UI_STATE_SCANNING;
+   string stateReason="scanning for a qualified setup";
+   if(g_dashboardClosedUntil>TimeTradeServer())
+   {
+      uiState=UI_STATE_CLOSED;
+      stateReason="managed trade finalized; scanner cooldown remains active";
+   }
+   else if(has)
+   {
+      if(pending>=0){ uiState=UI_STATE_ENTRY_ARMED; stateReason="validated setup awaiting manual authorization"; }
+      else if(inZone && !g_visualLastReady){ uiState=UI_STATE_WAITING_CONFIRMATION; stateReason="entry zone reached; waiting for lower-timeframe confirmation"; }
+      else { uiState=UI_STATE_SETUP_FOUND; stateReason="setup detected; monitoring entry conditions"; }
+   }
+   SetVisualDashboardState(uiState,stateReason);
+
+   color accent=(uiState==UI_STATE_SCANNING?C'78,145,206':DashboardStateColor(uiState));
+   HUDRenderFrame(x,y,w,h,accent,pending,false);
+
+   int top=y+51,bottom=y+h-45,gap=6;
+   int innerW=w-24-gap*4;
+   int c1=(int)(innerW*0.19);
+   int c2=(int)(innerW*0.16);
+   int c3=(int)(innerW*0.28);
+   int c4=(int)(innerW*0.20);
+   int c5=innerW-c1-c2-c3-c4;
+   int cx1=x+12;
+   int cx2=cx1+c1+gap;
+   int cx3=cx2+c2+gap;
+   int cx4=cx3+c3+gap;
+   int cx5=cx4+c4+gap;
+   int ch=bottom-top;
+
+   HUDColumn(DASH_MARKET_CARD,DASH_MARKET_LABEL+"_TITLE",cx1,top,c1,ch,"↗  MARKET STATE",C'87,164,229',compact);
+   HUDSetLabel(DASH_MARKET_LABEL,cx1+10,top+28,"",clrWhite,7,InpDashboardBodyFont,8);
+   string trend=has?(s.bullish?"BULLISH":"BEARISH"):"SCANNING";
+   string regime=(g_visualRegime!=""?g_visualRegime:"--");
+   string structure=has&&r.structureAligned?(s.bullish?"HH / HL":"LH / LL"):(has?"MIXED":"--");
+   string vol=has?VisualVolatilityLabel(r):"--";
+   string liquidity=has?(s.bullish?"BUY-SIDE TARGETED":"SELL-SIDE TARGETED"):"MONITORING";
+   color trendC=has?(s.bullish?C'57,214,143':C'242,94,108'):C'145,160,178';
+   int rowY=top+35, rowStep=(compact?22:23);
+   HUDMetricRow(0,cx1+11,rowY,"Trend",trend,trendC,compact);
+   HUDMetricRow(1,cx1+11,rowY+rowStep,"Regime",regime,(StringFind(regime,"TREND")>=0?C'57,214,143':C'241,185,75'),compact);
+   HUDMetricRow(2,cx1+11,rowY+rowStep*2,"Structure",structure,has?C'95,207,225':C'145,160,178',compact);
+   HUDMetricRow(3,cx1+11,rowY+rowStep*3,"Volatility",vol,(vol=="ELEVATED"?C'241,185,75':C'175,195,213'),compact);
+   HUDMetricRow(4,cx1+11,rowY+rowStep*4,"Liquidity",liquidity,C'95,207,225',compact);
+   HUDMetricRow(5,cx1+11,rowY+rowStep*5,"News Risk",g_visualNewsRisk,HUDRiskColor(g_visualNewsRisk),compact);
+
+   HUDSetMTFColumn(cx2,top,c2,ch,compact);
+
+   HUDColumn(DASH_TRADE_CARD,DASH_TRADE_LABEL+"_TITLE",cx3,top,c3,ch,"◎  GPT TRADE INTELLIGENCE",C'94,176,230',compact);
+   int d=DigitsFor(_Symbol);
+   double R=has?MathAbs(s.preferred-s.sl):0;
+   double be=(has&&R>0?NormalizePriceToTick(s.symbol,s.bullish?s.preferred+MathMax(InpBELockMinR*R,PointFor(s.symbol)*2.0):
+                                                     s.preferred-MathMax(InpBELockMinR*R,PointFor(s.symbol)*2.0)):0);
+   int conf=has?s.confidence:g_visualDecisionScore;
+   string setup=has?((s.name!=""?s.name:"SETUP")+" "+Arrow(s.bullish)):"NONE";
+   string intelStatus=HUDStatusText(pending,false);
+   if(!ApprovalFeedbackActive() && has && pending<0)
+   {
+      if(inZone && !g_visualLastReady) intelStatus="WAITING FOR M5 CONFIRMATION";
+      else if(!inZone) intelStatus="MONITORING ENTRY ZONE";
+   }
+   ObjectDelete(0,DASH_TRADE_LABEL);
+   int tx=cx3+11;
+   int ty=top+34;
+   int fieldDx=(compact?60:72);
+   color setupColor=has?(s.bullish?C'57,214,143':C'242,94,108'):C'145,160,178';
+   color statusColor=(pending>=0?C'241,185,75':(has?C'241,185,75':C'145,160,178'));
+   if(ApprovalFeedbackActive())
+   {
+      if(StringFind(intelStatus,"APPROVED")>=0 || StringFind(intelStatus,"POSITION")>=0) statusColor=C'57,214,143';
+      if(StringFind(intelStatus,"DENIED")>=0 || StringFind(intelStatus,"INVALIDATED")>=0) statusColor=C'242,94,108';
+   }
+   HUDTradeField(0,tx,ty,"Setup:",setup,setupColor,compact,fieldDx);
+   HUDTradeField(1,tx,ty+21,"Confidence:",IntegerToString(conf)+"/100",C'226,234,242',compact,fieldDx+12);
+   HUDConfidenceBars(tx+(compact?126:150),ty+25,conf,compact);
+   HUDTradeField(2,tx,ty+42,"Status:",intelStatus,statusColor,compact,fieldDx);
+
+   string entryText="--",slText="--",beText="--",tp1Text="--",tp2Text="--",tp3Text="--",rrText="--";
+   if(has)
+   {
+      entryText=StringFormat("%.*f – %.*f",d,s.zoneLow,d,s.zoneHigh);
+      slText=DoubleToString(s.sl,d);
+      beText=DoubleToString(be,d);
+      tp1Text=DoubleToString(s.tp1,d);
+      tp2Text=DoubleToString(s.tp2,d);
+      tp3Text=DoubleToString(s.tp3,d);
+      rrText="1:"+DoubleToString(MathMax(0.0,s.effectiveRR1),2);
+   }
+   int gy=top+103;
+   int rx=cx3+(int)(c3*0.62);
+   HUDTradeField(3,tx,gy,"Entry",entryText,C'226,234,242',compact,compact?38:44);
+   HUDTradeField(4,tx,gy+22,"SL",slText,C'242,122,132',compact,compact?38:44);
+   HUDTradeField(5,tx,gy+44,"BE",beText,C'95,207,225',compact,compact?38:44);
+   HUDTradeField(6,rx,gy,"TP1",tp1Text,C'226,234,242',compact,compact?34:38);
+   HUDTradeField(7,rx,gy+22,"TP2",tp2Text,C'226,234,242',compact,compact?34:38);
+   HUDTradeField(8,rx,gy+44,"TP3",tp3Text,C'226,234,242',compact,compact?34:38);
+   HUDTradeField(9,rx,gy+66,"R:R",rrText,C'57,214,143',compact,compact?34:38);
+
+   HUDColumn(DASH_RULES_CARD,DASH_RULES_LABEL+"_TITLE",cx4,top,c4,ch,"✓  CONFIRMATIONS",C'89,208,146',compact);
+   HUDSetLabel(DASH_RULES_LABEL,cx4+10,top+28,"",clrWhite,7,InpDashboardBodyFont,8);
+   bool momentum=has?MomentumStillAligned(s.symbol,s.bullish):false;
+   bool volOK=has&&(r.volumeRatio>=InpMinVolumeRatio);
+   HUDConfirmRow(0,cx4+11,top+34,has?(r.structureAligned?"H4/H1 structure aligned":"H4/H1 structure mixed"):"H4/H1 structure pending",has?(r.structureAligned?1:-1):0,compact);
+   HUDConfirmRow(1,cx4+11,top+55,has?(momentum?"M15 momentum bullish":"M15 momentum pending"):"M15 momentum pending",has?(momentum?1:0):0,compact);
+   HUDConfirmRow(2,cx4+11,top+76,has?(inZone?(s.bullish?"Pullback into demand":"Pullback into supply"):"Waiting entry zone"):"Waiting entry zone",has?(inZone?1:0):0,compact);
+   HUDConfirmRow(3,cx4+11,top+97,has?(r.rejectionCandle?"M5 rejection confirmed":"Waiting M5 rejection"):"Waiting M5 rejection",has?(r.rejectionCandle?1:0):0,compact);
+   HUDConfirmRow(4,cx4+11,top+118,has?(volOK?"Breakout volume confirmed":"Breakout volume absent"):"Breakout volume pending",has?(volOK?1:-1):0,compact);
+
+   HUDColumn(HUD_INVALIDATION_CARD,HUD_INVALIDATION_TITLE,cx5,top,c5,ch,"!  INVALIDATION",C'242,94,108',compact);
+   string inv=has?VisualOneLine(s.invalidation,compact?26:34):"No setup armed.";
+   string timeInv=has?IntegerToString(MathMax(1,s.expiryM15))+" M15 candles without TP1 → reassess":"Scanner continues.";
+   HUDSetLabel(HUD_INVALIDATION,cx5+11,top+36,inv+"\n\n"+timeInv,C'218,226,236',compact?7:8,InpDashboardBodyFont,9);
+
+   if(has && s.valid && !g_visualNoTrade) DrawTradeMap(s); else DeleteTradeMap();
+   SaveFloatingHUDPosition();
+   ChartRedraw();
+}
+
+void RenderFloatingLiveHUD(const ulong ticket)
+{
+   if(!InpDrawDashboard || !PositionSelectByTicket(ticket)) return;
+   string sym=PositionGetString(POSITION_SYMBOL);
+   if(sym!=_Symbol) return;
+
+   ulong pid=(ulong)PositionGetInteger(POSITION_IDENTIFIER);
+   bool bull=(PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY);
+   double entry=PositionGetDouble(POSITION_PRICE_OPEN);
+   double currentSL=PositionGetDouble(POSITION_SL);
+   double initSL=GVRead(PosKey(pid,"INITSL"),LegacyTicketRead(ticket,"INITSL",currentSL));
+   if(initSL<=0) initSL=HistoricalInitialSL(pid);
+   double R=MathAbs(entry-initSL);
+   if(R<=0) return;
+
+   double rNow=0,liveR=0,liveEntry=0,px=0; bool liveBull=bull;
+   if(CurrentPositionR(ticket,rNow,liveR,liveEntry,px,liveBull))
+   {
+      R=liveR; entry=liveEntry; bull=liveBull;
+   }
+
+   double tp1=LegacyTicketRead(ticket,"TP1",bull?entry+R:entry-R);
+   double tp2=LegacyTicketRead(ticket,"TP2",bull?entry+2*R:entry-2*R);
+   double tp3=LegacyTicketRead(ticket,"TP3",bull?entry+3*R:entry-3*R);
+   int stage=(int)GVRead(PosKey(pid,"SL_STAGE"),LegacyTicketRead(ticket,"ADV_STAGE",0));
+   bool tp1done=PositionFlag(pid,ticket,"TP1DONE");
+   bool tp2done=PositionFlag(pid,ticket,"TP2PARTIAL");
+   double be=VisualBreakEvenLevel(sym,bull,entry,R);
+   int d=DigitsFor(sym);
+   StrategyClass strategy=(StrategyClass)(int)GVRead(PosKey(pid,"STRATEGY"),CandidateStrategyForSymbol(sym));
+
+   VisualDashboardState st=UI_STATE_TRADE_ACTIVE;
+   if(stage>=4) st=UI_STATE_TRAILING;
+   else if(stage>=1 && tp1done) st=UI_STATE_BREAK_EVEN;
+   else if(tp1done) st=UI_STATE_TP1;
+   SetVisualDashboardState(st,"live position management");
+
+   int x=0,y=0,w=0,h=0; bool compact=false;
+   FloatingHUDLayout(x,y,w,h,compact);
+   int pending=ActivePendingForSymbol(_Symbol);
+   HUDRenderFrame(x,y,w,h,DashboardStateColor(st),pending,true);
+
+   int top=y+51,bottom=y+h-45,gap=6;
+   int innerW=w-24-gap*4;
+   int c1=(int)(innerW*0.19);
+   int c2=(int)(innerW*0.16);
+   int c3=(int)(innerW*0.28);
+   int c4=(int)(innerW*0.20);
+   int c5=innerW-c1-c2-c3-c4;
+   int cx1=x+12;
+   int cx2=cx1+c1+gap;
+   int cx3=cx2+c2+gap;
+   int cx4=cx3+c3+gap;
+   int cx5=cx4+c4+gap;
+   int ch=bottom-top;
+
+   TradeSetup ms=g_visualLastSetup;
+   ConfluenceReport mr=g_visualLastReport;
+   bool marketHas=(g_visualHasSetup && ms.symbol==sym);
+   string trend=marketHas?(ms.bullish?"BULLISH":"BEARISH"):(bull?"BULLISH":"BEARISH");
+   string regime=(g_visualRegime!=""?g_visualRegime:"LIVE");
+   string structure=marketHas&&mr.structureAligned?(ms.bullish?"HH / HL":"LH / LL"):"MANAGED";
+   string vol=marketHas?VisualVolatilityLabel(mr):"LIVE";
+   string liquidity=marketHas?(ms.bullish?"BUY-SIDE TARGETED":"SELL-SIDE TARGETED"):(bull?"BUY-SIDE":"SELL-SIDE");
+   color trendC=(trend=="BULLISH"?C'57,214,143':C'242,94,108');
+
+   HUDColumn(DASH_MARKET_CARD,DASH_MARKET_LABEL+"_TITLE",cx1,top,c1,ch,"↗  MARKET STATE",C'87,164,229',compact);
+   HUDSetLabel(DASH_MARKET_LABEL,cx1+10,top+28,"",clrWhite,7,InpDashboardBodyFont,8);
+   int rowY=top+35,rowStep=(compact?22:23);
+   HUDMetricRow(0,cx1+11,rowY,"Trend",trend,trendC,compact);
+   HUDMetricRow(1,cx1+11,rowY+rowStep,"Regime",regime,C'57,214,143',compact);
+   HUDMetricRow(2,cx1+11,rowY+rowStep*2,"Structure",structure,C'95,207,225',compact);
+   HUDMetricRow(3,cx1+11,rowY+rowStep*3,"Volatility",vol,(vol=="ELEVATED"?C'241,185,75':C'175,195,213'),compact);
+   HUDMetricRow(4,cx1+11,rowY+rowStep*4,"Liquidity",liquidity,C'95,207,225',compact);
+   HUDMetricRow(5,cx1+11,rowY+rowStep*5,"News Risk",g_visualNewsRisk,HUDRiskColor(g_visualNewsRisk),compact);
+
+   HUDSetMTFColumn(cx2,top,c2,ch,compact);
+
+   HUDColumn(DASH_TRADE_CARD,DASH_TRADE_LABEL+"_TITLE",cx3,top,c3,ch,"◎  GPT TRADE INTELLIGENCE",C'94,176,230',compact);
+   string liveStatus=HUDStatusText(pending,true);
+   ObjectDelete(0,DASH_TRADE_LABEL);
+   int tx=cx3+11;
+   int ty=top+34;
+   int fieldDx=(compact?60:72);
+   int liveConf=marketHas?ms.confidence:g_visualDecisionScore;
+   string liveSetup=StrategyClassName(strategy)+" "+(bull?"LONG":"SHORT");
+   color liveSetupColor=bull?C'57,214,143':C'242,94,108';
+   color liveStatusColor=(StringFind(liveStatus,"POSITION")>=0 || StringFind(liveStatus,"TP1")>=0 ||
+                          StringFind(liveStatus,"BREAK-EVEN")>=0 || StringFind(liveStatus,"TRAILING")>=0)?
+                          C'57,214,143':C'241,185,75';
+   HUDTradeField(0,tx,ty,"Setup:",liveSetup,liveSetupColor,compact,fieldDx);
+   HUDTradeField(1,tx,ty+21,"Confidence:",IntegerToString(liveConf)+"/100",C'226,234,242',compact,fieldDx+12);
+   HUDConfidenceBars(tx+(compact?126:150),ty+25,liveConf,compact);
+   HUDTradeField(2,tx,ty+42,"Status:",liveStatus,liveStatusColor,compact,fieldDx);
+
+   int gy=top+103;
+   int rx=cx3+(int)(c3*0.62);
+   HUDTradeField(3,tx,gy,"Entry",DoubleToString(entry,d),C'226,234,242',compact,compact?38:44);
+   HUDTradeField(4,tx,gy+22,"SL",DoubleToString(currentSL,d),C'242,122,132',compact,compact?38:44);
+   HUDTradeField(5,tx,gy+44,"BE",DoubleToString(be,d),C'95,207,225',compact,compact?38:44);
+   HUDTradeField(6,rx,gy,"TP1",DoubleToString(tp1,d),C'226,234,242',compact,compact?34:38);
+   HUDTradeField(7,rx,gy+22,"TP2",DoubleToString(tp2,d),C'226,234,242',compact,compact?34:38);
+   HUDTradeField(8,rx,gy+44,"TP3",DoubleToString(tp3,d),C'226,234,242',compact,compact?34:38);
+   HUDTradeField(9,rx,gy+66,"R:R","1:"+DoubleToString((R>0?MathAbs(tp3-entry)/R:0.0),2),C'57,214,143',compact,compact?34:38);
+
+   HUDColumn(DASH_RULES_CARD,DASH_RULES_LABEL+"_TITLE",cx4,top,c4,ch,"✓  CONFIRMATIONS",C'89,208,146',compact);
+   HUDSetLabel(DASH_RULES_LABEL,cx4+10,top+28,"",clrWhite,7,InpDashboardBodyFont,8);
+   HUDConfirmRow(0,cx4+11,top+34,"Position open / protected",1,compact);
+   HUDConfirmRow(1,cx4+11,top+55,tp1done?"TP1 hit":"TP1 pending",tp1done?1:0,compact);
+   HUDConfirmRow(2,cx4+11,top+76,stage>=1?"Break-even active":"Break-even pending",stage>=1?1:0,compact);
+   HUDConfirmRow(3,cx4+11,top+97,stage>=4?"Trailing profit active":"Trailing pending",stage>=4?1:0,compact);
+   HUDConfirmRow(4,cx4+11,top+118,tp2done?"TP2 partial complete":"TP2 pending",tp2done?1:0,compact);
+
+   HUDColumn(HUD_INVALIDATION_CARD,HUD_INVALIDATION_TITLE,cx5,top,c5,ch,"!  INVALIDATION",C'242,94,108',compact);
+   string invalidText="Live broker stop/freeze,\nrisk and lifecycle rules\nremain active until close.";
+   HUDSetLabel(HUD_INVALIDATION,cx5+11,top+36,invalidText,C'218,226,236',compact?7:8,InpDashboardBodyFont,9);
+
+   DrawLiveManagementMap(ticket);
+   SaveFloatingHUDPosition();
+   ChartRedraw();
+}
+
+void RefreshFloatingHUDHover(const long mx,const double my)
+{
+   int x=0,y=0,w=0,h=0; bool compact=false; FloatingHUDLayout(x,y,w,h,compact);
+   int btnW=(w<900?104:116),gap=8,btnH=26,by=y+h-33;
+   int denyX=x+w-12-btnW,approveX=denyX-gap-btnW;
+   bool a=(mx>=approveX && mx<=approveX+btnW && my>=by && my<=by+btnH);
+   bool d=(mx>=denyX && mx<=denyX+btnW && my>=by && my<=by+btnH);
+   if(a==g_fhudHoverApprove && d==g_fhudHoverDeny) return;
+   g_fhudHoverApprove=a; g_fhudHoverDeny=d;
+   ulong tk=0; bool live=FindChartManagedPosition(tk);
+   HUDRenderControls(x,y,w,h,ActivePendingForSymbol(_Symbol),live);
+   ChartRedraw();
+}
+
+void HandleFloatingHUDDrag()
+{
+   if(ObjectFind(0,HUD_DRAG_HANDLE)<0) return;
+   int x=0,y=0,w=0,h=0; bool compact=false; FloatingHUDLayout(x,y,w,h,compact);
+   int dragX=(int)ObjectGetInteger(0,HUD_DRAG_HANDLE,OBJPROP_XDISTANCE);
+   int dragY=(int)ObjectGetInteger(0,HUD_DRAG_HANDLE,OBJPROP_YDISTANCE);
+   int dragOffset=(w<900?104:128);
+   g_fhudX=dragX-(w-dragOffset);
+   g_fhudY=dragY-9;
+   SaveFloatingHUDPosition();
+   ObjectSetInteger(0,HUD_DRAG_HANDLE,OBJPROP_SELECTED,false);
+   RefreshElegantChartDashboard(true);
+}
+
 void RefreshElegantChartDashboard(bool force=false)
 {
    if(!InpElegantChartDashboard || !InpPremiumDashboard || !InpDrawDashboard) return;
@@ -17600,11 +18272,6 @@ void RefreshElegantChartDashboard(bool force=false)
    if(!force && g_visualLastRefreshMS>0 && nowMS-g_visualLastRefreshMS<(ulong)refreshMs) return;
    g_visualLastRefreshMS=nowMS;
 
-   if(g_dashboardClosedUntil>TimeTradeServer())
-   {
-      RenderClosedDashboard();
-      return;
-   }
    if(g_dashboardClosedUntil>0 && TimeTradeServer()>=g_dashboardClosedUntil)
    {
       g_dashboardClosedUntil=0;
@@ -17615,24 +18282,18 @@ void RefreshElegantChartDashboard(bool force=false)
    ulong ticket=0;
    if(FindChartManagedPosition(ticket))
    {
-      RenderLiveManagementDashboard(ticket);
+      RenderFloatingLiveHUD(ticket);
       return;
    }
 
    if(g_visualTrailPid!=0)
    {
       DeleteLiveManagementVisuals();
-      DeleteVisualObject(LEVEL_ENTRY);
-      DeleteVisualObject(LEVEL_SL);
-      DeleteVisualObject(LEVEL_TP1);
-      DeleteVisualObject(LEVEL_TP2);
-      DeleteVisualObject(LEVEL_TP3);
+      DeleteVisualObject(LEVEL_ENTRY); DeleteVisualObject(LEVEL_SL);
+      DeleteVisualObject(LEVEL_TP1); DeleteVisualObject(LEVEL_TP2); DeleteVisualObject(LEVEL_TP3);
    }
 
-   if(g_visualHasSetup && g_visualLastSetup.symbol==_Symbol)
-      RenderCandidateOperationalDashboard();
-   else
-      RenderScanningDashboard();
+   RenderFloatingMarketHUD();
 }
 
 // ----------------------------- Scanner ----------------------------
@@ -17931,8 +18592,10 @@ bool ValidateUserFacingInputs(string &why)
    { why="Dashboard width bounds are invalid; minimum must be >= 360 and maximum >= minimum."; return false; }
    if(InpDashboardWidth<InpDashboardMinWidth || InpDashboardWidth>InpDashboardMaxWidth)
    { why="InpDashboardWidth must fall inside InpDashboardMinWidth..InpDashboardMaxWidth."; return false; }
-   if(InpDashboardHeight<380 || InpDashboardHeight>900)
-   { why="InpDashboardHeight must be between 380 and 900 pixels."; return false; }
+   // Keep legacy R11 SET files loadable; the R12 floating renderer derives its
+   // actual compact height independently of this compatibility input.
+   if(InpDashboardHeight<240 || InpDashboardHeight>900)
+   { why="InpDashboardHeight compatibility value must be between 240 and 900 pixels."; return false; }
    if(InpDashboardRefreshMs<100 || InpDashboardRefreshMs>5000)
    { why="InpDashboardRefreshMs must be between 100 and 5000 ms."; return false; }
 
@@ -17959,9 +18622,19 @@ int OnInit()
    trade.SetExpertMagicNumber(InpMagic);
    trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
-   Print("GPT_EA runtime build R10-AUTO-MODEL-HUD-20260918 • source version 1.23 • EX5 marker HUD123");
+   LoadFloatingHUDPosition();
+   Print("GPT_EA runtime build R12-FLOATING-HUD-20260918 • source version 1.24 • EX5 marker FLOAT124");
    ChartSetInteger(0,CHART_EVENT_MOUSE_MOVE,true);
    EventSetTimer(MathMax(1,InpTimerSeconds));
+
+   // Paint the premium dashboard immediately. Several intelligence/recovery
+   // initializers can be intentionally expensive across a full broker universe;
+   // the chart must never look as if the EA is missing while they are running.
+   RenderFloatingMarketHUD();
+   Print("Dashboard bootstrap visual check | panel=",ObjectFind(0,DASH_PANEL)>=0?"VISIBLE":"MISSING",
+         " | approve=",ObjectFind(0,BTN_APPROVE)>=0?"VISIBLE":"MISSING",
+         " | deny=",ObjectFind(0,BTN_DENY)>=0?"VISIBLE":"MISSING");
+
    RiskRecoveryInit();
    PrepareRecoveryCheckpointFallback();
    UniversalRecoveryInit();
@@ -18010,11 +18683,17 @@ int OnInit()
    ScanAll("EA startup / restart recovery full-intelligence scan");
    RefreshElegantChartDashboard(true);
    RenderApprovalPrompt(); StyleApprovalUI(); UpdateRiskAnalyticsPanel(); SafeUniversalCheckpointNow();
+   Print("Dashboard visual check | panel=",ObjectFind(0,DASH_PANEL)>=0?"VISIBLE":"MISSING",
+         " | approve=",ObjectFind(0,BTN_APPROVE)>=0?"VISIBLE":"MISSING",
+         " | deny=",ObjectFind(0,BTN_DENY)>=0?"VISIBLE":"MISSING",
+         " | scan=",ObjectFind(0,BTN_SCAN_NOW)>=0?"VISIBLE":"MISSING",
+         " | state=",DashboardStateName(g_dashboardState));
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
+   SaveFloatingHUDPosition();
    EventKillTimer();
    UniversalRecoveryShutdown();
    BackupRecoveryCheckpointIfValid();
@@ -18065,19 +18744,23 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
       return;
    }
 
+   if(id==CHARTEVENT_OBJECT_DRAG && sparam==HUD_DRAG_HANDLE)
+   {
+      HandleFloatingHUDDrag();
+      return;
+   }
+
    if(id==CHARTEVENT_MOUSE_MOVE)
    {
-      bool oldA=g_approvalHoverApprove,oldD=g_approvalHoverDeny;
-      UpdateApprovalHover(lparam,dparam);
-      if(oldA!=g_approvalHoverApprove || oldD!=g_approvalHoverDeny)
-      {
-         StyleApprovalUI();
-         ChartRedraw();
-      }
+      RefreshFloatingHUDHover(lparam,dparam);
       return;
    }
 
    if(id!=CHARTEVENT_OBJECT_CLICK) return;
+
+   // Dragging/clicking the HUD shell or handle can never authorize a trade.
+   if(sparam==HUD_DRAG_HANDLE || sparam==HUD_DRAG_TEXT || sparam==DASH_PANEL) return;
+
    if(sparam==BTN_SCAN_NOW)
    {
       ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_STATE,false);
@@ -18093,16 +18776,22 @@ void OnChartEvent(const int id,const long &lparam,const double &dparam,const str
       if(g_manualPaused) for(int i=0;i<ArraySize(g_pending);i++) if(g_pending[i].active) DeletePending(i,"manual trading pause");
       return;
    }
-   if(g_displayPending<0) return;
+
    if(sparam==BTN_APPROVE)
    {
       ObjectSetInteger(0,BTN_APPROVE,OBJPROP_STATE,false);
-      ApprovePending(g_displayPending);
+      int idx=g_displayPending;
+      if(idx>=0 && idx<ArraySize(g_pending) && g_pending[idx].active) ApprovePending(idx);
+      RefreshElegantChartDashboard(true);
+      return;
    }
-   else if(sparam==BTN_DENY)
+   if(sparam==BTN_DENY)
    {
       ObjectSetInteger(0,BTN_DENY,OBJPROP_STATE,false);
-      DeletePending(g_displayPending,"user denied trade");
+      int idx=g_displayPending;
+      if(idx>=0 && idx<ArraySize(g_pending) && g_pending[idx].active) DeletePending(idx,"user denied trade");
+      RefreshElegantChartDashboard(true);
+      return;
    }
 }
 

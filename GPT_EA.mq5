@@ -1215,7 +1215,7 @@ void DeleteAdvancedDashboard()
 
 void RenderAdvancedDashboard(const TradeSetup &s,const ConfluenceReport &r,const string filterState,bool readyNow)
 {
-   if(!InpDrawDashboard) return;
+   if(!InpDrawDashboard || s.symbol!=_Symbol) return;
    g_visualLastSetup=s;
    g_visualLastReport=r;
    g_visualLastFilter=filterState;
@@ -15450,6 +15450,120 @@ void RenderLiveManagementDashboard(ulong ticket)
    ChartRedraw();
 }
 
+void RenderCandidateOperationalDashboard()
+{
+   if(!InpDrawDashboard || !g_visualHasSetup || g_visualLastSetup.symbol!=_Symbol) return;
+   TradeSetup s=g_visualLastSetup;
+   ConfluenceReport r=g_visualLastReport;
+
+   MqlTick tick={};
+   double market=0;
+   if(GetTickSafe(s.symbol,tick)) market=(tick.bid+tick.ask)*0.5;
+   double atr=0; ATRValue(s.symbol,PERIOD_M15,InpATRPeriod,1,atr);
+   double distATR=(atr>0?MathAbs(market-s.preferred)/atr:0);
+   bool inZone=PriceInsideZone(s);
+   StrategyClass strategy=CandidateStrategyForSymbol(s.symbol);
+   string modelDetail=""; int modelMode=CurrentModelTrustMode(modelDetail);
+   string brokerDetail=""; double brokerHealth=BrokerHealthScore(s.symbol,brokerDetail);
+   int pending=ActivePendingForSymbol(s.symbol);
+   string releaseState=g_releaseBlocked?"BLOCK":"PASS";
+   string releaseWhy=VisualShortText(g_releaseBlockReason,82);
+   string action="";
+   if(pending>=0) action="Setup passed the scan; EA is waiting for APPROVE / DENY before execution.";
+   else if(g_visualLastReady && inZone) action="Price/trigger is ready; EA is performing final fresh intelligence, risk, broker and release validation.";
+   else if(inZone) action="Price is in the zone, but one or more strategy/confirmation gates are still waiting.";
+   else action="EA is monitoring price toward the preferred entry while continuously rechecking structure, news, costs and risk.";
+
+   int panelW=(int)MathMax(500,InpDashboardWidth);
+   int panelH=(int)MathMax(370,InpDashboardHeight);
+   if(ObjectFind(0,DASH_PANEL)<0) ObjectCreate(0,DASH_PANEL,OBJ_RECTANGLE_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XDISTANCE,InpDashboardX);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YDISTANCE,InpDashboardY);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_XSIZE,panelW);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_YSIZE,panelH);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BGCOLOR,C'9,15,24');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BORDER_COLOR,C'75,119,158');
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_BACK,false);
+   ObjectSetInteger(0,DASH_PANEL,OBJPROP_SELECTABLE,false);
+
+   if(ObjectFind(0,DASH_TITLE)<0) ObjectCreate(0,DASH_TITLE,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_XDISTANCE,InpDashboardX+20);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_YDISTANCE,InpDashboardY+13);
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_COLOR,C'230,199,111');
+   ObjectSetInteger(0,DASH_TITLE,OBJPROP_FONTSIZE,15);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_FONT,InpDashboardTitleFont);
+   ObjectSetString(0,DASH_TITLE,OBJPROP_TEXT,"GPT EA  •  Market Intelligence Atelier");
+
+   if(ObjectFind(0,DASH_SUBTITLE)<0) ObjectCreate(0,DASH_SUBTITLE,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_YDISTANCE,InpDashboardY+46);
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_COLOR,C'161,184,211');
+   ObjectSetInteger(0,DASH_SUBTITLE,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_FONT,InpDashboardBodyFont);
+   ObjectSetString(0,DASH_SUBTITLE,OBJPROP_TEXT,StringFormat("%s  •  %s  •  %s  •  D1 H4 H1 M30 M15 M5",
+      s.symbol,s.bullish?"LONG BIAS":"SHORT BIAS",StrategyClassName(strategy)));
+
+   if(ObjectFind(0,DASH_STATUS)<0) ObjectCreate(0,DASH_STATUS,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_YDISTANCE,InpDashboardY+70);
+   bool operationalReady=(g_visualLastReady && inZone && !g_releaseBlocked);
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_COLOR,operationalReady?C'91,220,156':C'245,184,86');
+   ObjectSetInteger(0,DASH_STATUS,OBJPROP_FONTSIZE,10);
+   ObjectSetString(0,DASH_STATUS,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,DASH_STATUS,OBJPROP_TEXT,pending>=0?"● APPROVAL PENDING":
+      operationalReady?"● FINAL EXECUTION CHECKS ACTIVE":"● ANALYZING / WAITING");
+
+   if(ObjectFind(0,DASH_TEXT)<0) ObjectCreate(0,DASH_TEXT,OBJ_LABEL,0,0,0);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_YDISTANCE,InpDashboardY+96);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_COLOR,clrWhiteSmoke);
+   ObjectSetInteger(0,DASH_TEXT,OBJPROP_FONTSIZE,9);
+   ObjectSetString(0,DASH_TEXT,OBJPROP_FONT,InpDashboardBodyFont);
+
+   int d=DigitsFor(s.symbol);
+   string text=StringFormat(
+      "Market %.*f   •   Preferred %.*f   •   Distance %.2f ATR   •   In zone %s\n"
+      "Entry %.*f – %.*f   •   SL %.*f\n"
+      "TP1 %.*f   •   TP2 %.*f   •   TP3 %.*f   •   Eff R:R %.2f\n"
+      "Confidence %d%%   •   Confluence %d/100   •   ADX %.1f   •   Volume %.2fx\n"
+      "Structure %s   •   Sweep %s   •   FVG %s   •   Rejection %s\n"
+      "Portfolio risk %.2f%%   •   Daily loss %.2f%%   •   Drawdown %.2f%%\n"
+      "Broker health %.0f/100   •   Model %s   •   Release %s\n"
+      "Filters: %s\n"
+      "Release detail: %s\n"
+      "EA action: %s",
+      d,market,d,s.preferred,distATR,inZone?"YES":"NO",
+      d,s.zoneLow,d,s.zoneHigh,d,s.sl,
+      d,s.tp1,d,s.tp2,d,s.tp3,s.effectiveRR1,
+      s.confidence,r.score,r.adx,r.volumeRatio,
+      r.structureAligned?"YES":"NO",r.liquiditySweep?"YES":"NO",r.fairValueGap?"YES":"NO",r.rejectionCandle?"YES":"NO",
+      CurrentPortfolioRiskPercent(),DailyLossPercent(),EquityDrawdownPercent(),
+      brokerHealth,ModelTrustModeName(modelMode),releaseState,
+      VisualShortText(g_visualLastFilter,110),releaseWhy,action);
+   ObjectSetString(0,DASH_TEXT,OBJPROP_TEXT,text);
+
+   if(ObjectFind(0,BTN_SCAN_NOW)<0) ObjectCreate(0,BTN_SCAN_NOW,OBJ_BUTTON,0,0,0);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_CORNER,CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XDISTANCE,InpDashboardX+22);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YDISTANCE,InpDashboardY+panelH-42);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_XSIZE,132);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_YSIZE,27);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BGCOLOR,C'34,87,139');
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_COLOR,clrWhite);
+   ObjectSetInteger(0,BTN_SCAN_NOW,OBJPROP_BORDER_COLOR,C'107,173,221');
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_FONT,"Segoe UI Semibold");
+   ObjectSetString(0,BTN_SCAN_NOW,OBJPROP_TEXT,"↻  SCAN NOW");
+
+   DrawTradeMap(s);
+   StyleApprovalUI();
+   ChartRedraw();
+}
+
 void RefreshElegantChartDashboard(bool force=false)
 {
    if(!InpElegantChartDashboard) return;
@@ -15473,11 +15587,12 @@ void RefreshElegantChartDashboard(bool force=false)
       DeleteVisualObject(LEVEL_TP1);
       DeleteVisualObject(LEVEL_TP2);
       DeleteVisualObject(LEVEL_TP3);
-      if(g_visualHasSetup && g_visualLastSetup.symbol==_Symbol)
-         RenderAdvancedDashboard(g_visualLastSetup,g_visualLastReport,g_visualLastFilter,g_visualLastReady);
-      else
-         ChartRedraw();
    }
+
+   if(g_visualHasSetup && g_visualLastSetup.symbol==_Symbol)
+      RenderCandidateOperationalDashboard();
+   else
+      ChartRedraw();
 }
 
 // ----------------------------- Scanner ----------------------------

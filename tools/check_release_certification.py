@@ -209,7 +209,7 @@ if ci_schema_path.exists():
 
 for path_name, tokens in {
     "tools/validate_release_evidence.py": ["validate_ci_release_record", "validate_runner_release_record", "validate_runner_acceptance_release_record", "validate_mt5_release_record", "validate_broker_coverage_release_record", "validate_runner_recovery", "validate_acceptance", "validate_mt5", "validate_bundle", "validate_api_transport", "broker_coverage", "runner_recovery_acceptance", "mt5_validation", "ci_static", "api_transport"],
-    "tools/validate_broker_coverage_evidence.py": ["broker_agnostic_coverage_v1", "BROKER COVERAGE EVIDENCE", "classification_passed", "broker_runtime_required", "live_execution_certified"],
+    "tools/validate_broker_coverage_evidence.py": ["release_contract", "broker_coverage_schema", "BROKER COVERAGE EVIDENCE", "classification_passed", "broker_runtime_required", "live_execution_certified"],
     "tools/fetch_ci_job_metadata.py": ["runner_id", "steps_executed", "static-release-gate", "GITHUB_TOKEN", "/attempts/{args.run_attempt}/jobs"],
     "tools/build_ci_evidence.py": ["job_metadata_sha256", "static_job_conclusion", "runner_id"],
     "tools/validate_ci_evidence.py": ["validate_ci_value", "validate_job_metadata", "runner_id", "evidence_digest"],

@@ -29,7 +29,7 @@ int IntegrityTextHash(const string text);
 string CurrentSensitiveConfigText();
 
 // Defined in Part40 and used by strict revalidation before Part40 is included.
-bool DeterministicEmergencyExecutionActive(const string sym,StrategyClass c,string &why);
+bool DeterministicEmergencyExecutionActive(const string sym,int strategyValue,string &why);
 
 // Defined in Part42; allows Part39 fingerprinting to include later reliability/champion inputs.
 string LateResilienceConfigText();

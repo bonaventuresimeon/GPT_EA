@@ -323,16 +323,20 @@ bool GetLiveWebIntelHardened(const string sym,const TradeSetup &s,const Strategy
    if(!ok)
    {
       bool highQualityCandidate=(d.action==STRATEGY_ACTION_HIGH_CONFIDENCE || d.score>=InpMinStrategyScore);
-      if(g_lastWebIntelProvenanceHardFail && highQualityCandidate)
+      bool hardStructuredFailure=(g_lastWebIntelFailureClass=="SCHEMA" ||
+                                  g_lastWebIntelFailureClass=="PROVENANCE" ||
+                                  g_lastWebIntelFailureClass=="STALE");
+      if((g_lastWebIntelProvenanceHardFail || hardStructuredFailure) && highQualityCandidate)
       {
          g_webHardFailCounts[fidx]++;
          block=true; watch=false;
-         text="Structured web intelligence hard-failed freshness/provenance: "+errorText;
+         text="Structured web intelligence hard-failed "+g_lastWebIntelFailureClass+": "+errorText;
          return false;
       }
 
-      // Compatibility fallback is allowed only when the structured failure was
-      // not a hard provenance/freshness failure for a high-quality candidate.
+      // Compatibility fallback is allowed only for transport/availability-type
+      // failures. Schema, stale or provenance failures on a high-quality
+      // candidate are semantic integrity failures and cannot be rescued.
       string fallback="",fallbackErr="";
       bool fallbackOK=CallOpenAIWebIntel(prompt,fallback,fallbackErr);
       if(fallbackOK)

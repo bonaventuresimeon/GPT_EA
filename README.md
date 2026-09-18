@@ -146,6 +146,40 @@ flowchart LR
 
 Full roadmap: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 
+## 🧊 Release hardening sequence
+
+The project is now in **prove-the-candidate** mode rather than feature-expansion mode:
+
+```mermaid
+flowchart LR
+    F[🧊 Feature Freeze] --> C[🛠️ MetaEditor Compile]
+    C --> S[🚦 Smoke Test]
+    S --> R[💾 Fail-Closed Recovery Drill]
+    R --> D[🧪 Demo Validation Harness]
+    D --> SEC[🛡️ Security / Secret Scan]
+    SEC --> SOAK[🌊 Matrices + Five-Day Soak]
+    SOAK --> GO[✅ Final GO/NO-GO]
+    GO --> PKG[📦 PASS-Only Customer Package]
+```
+
+Key hardening documents:
+
+- 🧊 [docs/FEATURE_FREEZE_RELEASE_POLICY.md](docs/FEATURE_FREEZE_RELEASE_POLICY.md)
+- 🚦 [docs/RELEASE_CANDIDATE_SMOKE_TEST.md](docs/RELEASE_CANDIDATE_SMOKE_TEST.md)
+- 💾 [docs/FAIL_CLOSED_RECOVERY_DRILL.md](docs/FAIL_CLOSED_RECOVERY_DRILL.md)
+- 🧪 [docs/DEMO_VALIDATION_HARNESS.md](docs/DEMO_VALIDATION_HARNESS.md)
+- 🛡️ [docs/SECURITY_THREAT_MODEL.md](docs/SECURITY_THREAT_MODEL.md)
+- 🗄️ [docs/EVIDENCE_RETENTION_POLICY.md](docs/EVIDENCE_RETENTION_POLICY.md)
+- 🔏 [docs/SIGNED_LICENSE_ARCHITECTURE.md](docs/SIGNED_LICENSE_ARCHITECTURE.md)
+- 📦 [docs/REPRODUCIBLE_RELEASE_PACKAGING.md](docs/REPRODUCIBLE_RELEASE_PACKAGING.md)
+- 🔄 [docs/SAFE_UPDATE_ROLLBACK_ARCHITECTURE.md](docs/SAFE_UPDATE_ROLLBACK_ARCHITECTURE.md)
+- 📉 [docs/BACKTEST_LIVE_DRIFT_MONITORING.md](docs/BACKTEST_LIVE_DRIFT_MONITORING.md)
+- 🚨 [docs/PRODUCTION_INCIDENT_SYSTEM.md](docs/PRODUCTION_INCIDENT_SYSTEM.md)
+- 🧠 [docs/PROMPT_INJECTION_HARDENING.md](docs/PROMPT_INJECTION_HARDENING.md)
+- 📊 [docs/OPERATOR_DASHBOARD.md](docs/OPERATOR_DASHBOARD.md)
+
+Signed-license **runtime** code is deliberately deferred to a new release candidate so it does not invalidate the current feature-freeze/compile campaign.
+
 ## 📦 Release evidence architecture
 
 ```mermaid

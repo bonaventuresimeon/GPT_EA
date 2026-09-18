@@ -63,8 +63,9 @@ string PortfolioStressScenarioName(int scenario)
 double FXUSDScenarioShockPct(const string sym,double usdStrengthPct)
 {
    string key=CanonicalInstrumentKey(sym,SymbolInfoString(sym,SYMBOL_DESCRIPTION),SymbolInfoString(sym,SYMBOL_PATH));
-   if(StringFind(key,"FX:")!=0 || StringLen(key)<12) return 0.0;
+   if(StringFind(key,"FX:")!=0 || StringLen(key)<9) return 0.0;
    string pair=StringSubstr(key,3,6);
+   if(StringLen(pair)!=6) return 0.0;
    string base=StringSubstr(pair,0,3),quote=StringSubstr(pair,3,3);
    if(base=="USD") return usdStrengthPct;
    if(quote=="USD") return -usdStrengthPct;

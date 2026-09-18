@@ -1,6 +1,6 @@
 <!-- RELEASE_TRUTH_SCHEMA: gpt_ea_release_truth_v1 -->
-<!-- RELEASE_TRUTH_EVIDENCE_SHA256: 57b415534935c21235fc0e19b1b54682e993639f7a3be5325d55428ae135ca4b -->
-<!-- RELEASE_TRUTH_FINGERPRINT: 6bc5a78d99c7641584c6c530d052710674dc0f1d85b961955bc189d0426f85a0 -->
+<!-- RELEASE_TRUTH_EVIDENCE_SHA256: 772f5656ce653bc50ae3f7c14b6ce6a3600d3584d3ddf7e0482027d4ee42e29b -->
+<!-- RELEASE_TRUTH_FINGERPRINT: f5a48f38590b2a5496101549c60ef30f8850c59ea7f80a54b5563c8ec909e44b -->
 <!-- RELEASE_TRUTH_OVERALL: ⏸️ HOLD -->
 <!-- GPT_EA_DOC_HEADER -->
 <div align="center">
@@ -28,7 +28,7 @@ This checked-in dashboard is the repository **baseline generated from the intent
 
 - **Release validation ID:** `GPT_EA_FULL_INTELLIGENCE_R6_20260917`
 - **Evidence Git SHA:** placeholder / not certified
-- **Repository HEAD observed for this baseline:** `ce70f44c9b0f785513e763c57f492461baa03046`
+- **Repository HEAD observed for this baseline:** `f55c031663b3c4796df098b35eda3b145f0ea6ec`
 - **Evidence source:** `RELEASE_EVIDENCE_TEMPLATE.json`
 - **External MetaEditor compile:** not represented as PASS
 
@@ -36,20 +36,25 @@ This checked-in dashboard is the repository **baseline generated from the intent
 
 | Release truth | Status | Current evidence | Required for PASS |
 |---|---|---|---|
-| 🧬 **Source identity** | ⏸️ HOLD | candidate Git SHA is placeholder | exact candidate SHA + archived artifact identity |
-| 🛠️ **MetaEditor compile** | ⏸️ HOLD | compile and compile-evidence gates are false | real 0-error/0-warning compile + validated compile record |
-| 🤖 **Executed CI / runner** | ⏸️ HOLD | runner ID is 0 / no accepted executed bundle | allocated runner + executed/attested CI bundle |
-| 🧪 **MT5 validation** | ⏸️ HOLD | gate false | validated MT5 evidence |
-| 🧪 **Strategy Tester** | ⏸️ HOLD | gate false | exact-candidate tester PASS |
-| 🧠 **Intelligence matrix** | ⏸️ HOLD | gate false | required intelligence matrices PASS |
-| 🏦 **Broker / deployment** | ⏸️ HOLD | broker/deployment gates false | broker matrix + deployment identity PASS |
-| 💾 **Recovery** | ⏸️ HOLD | gate false | restart/recovery validation PASS |
-| 🛑 **Stop management** | ⏸️ HOLD | gate false | stop-management matrix PASS |
-| 📊 **Stop observability** | ⏸️ HOLD | gate false | observability evidence PASS |
-| 🌐 **API transport** | ⏸️ HOLD | WebRequest/matrix evidence not approved | transport matrix + tracing/failure recovery + zero leaks |
-| 🌊 **Five-day demo soak** | ⏸️ HOLD | soak gate false | schema-valid exact-candidate soak PASS |
-| 🔐 **R10 privacy sign-off** | ⏸️ HOLD | privacy gate false, telemetry UNSET | jurisdiction-matched validated privacy sign-off |
-| ✅ **Final GO/NO-GO** | ⏸️ HOLD | decision is HOLD | machine-validated final decision GO |
+| **Source identity** | ⏸️ HOLD | candidate Git SHA is missing/placeholder | Record the exact 40-character candidate SHA. |
+| **MetaEditor compile** | ⏸️ HOLD | real compile evidence is not fully validated | Compile exact candidate in MetaEditor and validate compile-evidence.json. |
+| **Executed CI / runner** | ⏸️ HOLD | no allocated runner evidence (runner_id=0 or absent) | Obtain an actually executed runner/job bundle. |
+| **Release-candidate smoke** | ⏸️ HOLD | gates.release_candidate_smoke=false / validated=false | Execute and validate exact-candidate evidence. |
+| **Fail-closed recovery drill** | ⏸️ HOLD | gates.fail_closed_recovery_drill=false / validated=false | Execute and validate exact-candidate evidence. |
+| **Demo validation harness** | ⏸️ HOLD | gates.demo_validation_harness=false / validated=false | Execute and validate exact-candidate evidence. |
+| **MT5 validation** | ⏸️ HOLD | gates.mt5_validation=false | Complete and validate required evidence. |
+| **Strategy Tester** | ⏸️ HOLD | gates.strategy_tester=false | Complete and validate required evidence. |
+| **Intelligence matrix** | ⏸️ HOLD | gates.intelligence_matrix=false | Complete and validate required evidence. |
+| **Broker/deployment** | ⏸️ HOLD | gates.broker_matrix=false | Complete and validate required evidence. |
+| **Recovery** | ⏸️ HOLD | gates.recovery=false | Complete and validate required evidence. |
+| **Stop management** | ⏸️ HOLD | gates.stop_matrix=false | Complete and validate required evidence. |
+| **Stop observability** | ⏸️ HOLD | gates.stop_observability=false | Complete and validate required evidence. |
+| **API transport** | ⏸️ HOLD | API transport evidence is incomplete | Complete WebRequest/matrix/failure-recovery evidence. |
+| **Five-day demo soak** | ⏸️ HOLD | soak gate/evidence digest not validated | Complete exact-candidate five-day soak and schema validation. |
+| **R10 privacy sign-off** | ⏸️ HOLD | privacy sign-off is missing/unvalidated | Complete jurisdiction-matched privacy sign-off. |
+| **Security review** | ⏸️ HOLD | security review evidence is incomplete | Complete threat-model, secret-scan and prompt-injection review. |
+| **Evidence retention** | ⏸️ HOLD | retention register/policy review is incomplete | Approve retention register for target jurisdiction. |
+| **Final GO/NO-GO** | ⏸️ HOLD | decision=HOLD | Complete final review only after all prerequisite evidence passes. |
 
 ## ⛔ Explicit blockers
 

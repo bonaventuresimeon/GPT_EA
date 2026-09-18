@@ -2792,7 +2792,8 @@ void PrintResolvedBrokerProfiles()
                ArraySize(g_symbols),g_universalUniverseTotal,InpUniversalScanBatchSize);
    if(!InpPrintBrokerSymbolProfiles) return;
    int total=ArraySize(g_symbols);
-   int cap=(InpMaxPrintedBrokerProfiles<=0?total:MathMin(total,InpMaxPrintedBrokerProfiles));
+   int cap=total;
+   if(InpMaxPrintedBrokerProfiles>0 && InpMaxPrintedBrokerProfiles<cap) cap=InpMaxPrintedBrokerProfiles;
    for(int i=0;i<cap;i++) Print("GPT_EA profile: ",SymbolProfileSummary(g_symbols[i]));
    if(cap<total) PrintFormat("GPT_EA profile logging capped at %d/%d symbols.",cap,total);
 }
@@ -8517,7 +8518,9 @@ bool ContinuousIntelligenceScanDue(string &why)
    {
       datetime newest=0;
       int total=ArraySize(g_symbols);
-      int probes=MathMin(total,MathMax(1,InpUniverseClockProbeSymbols));
+      int probes=InpUniverseClockProbeSymbols;
+      if(probes<1) probes=1;
+      if(probes>total) probes=total;
       for(int p=0;p<probes;p++)
       {
          int i=(g_universalScanCursor+p)%total;
@@ -16213,7 +16216,8 @@ void ScanAll(const string reason)
    int total=ArraySize(g_symbols);
    if(total<=0) return;
 
-   int batch=(InpUniversalScanBatchSize<=0?total:MathMin(total,InpUniversalScanBatchSize));
+   int batch=total;
+   if(InpUniversalScanBatchSize>0 && InpUniversalScanBatchSize<batch) batch=InpUniversalScanBatchSize;
    int scanned=0;
    int visited=0;
    int start=g_universalScanCursor;

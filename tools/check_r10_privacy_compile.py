@@ -6,8 +6,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+MQH = ROOT / "mqh"
 MAIN = (ROOT / "GPT_EA.mq5").read_text(encoding="utf-8")
-PART40 = (ROOT / "GPT_EA_Part40_PrivacyReleaseGate.mqh").read_text(encoding="utf-8")
+PART40 = (MQH / "GPT_EA_Part40_PrivacyReleaseGate.mqh").read_text(encoding="utf-8")
 errors: list[str] = []
 
 for token in [

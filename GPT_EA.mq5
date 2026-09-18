@@ -1622,10 +1622,10 @@ string VisualVolatilityLabel(const ConfluenceReport &r)
 void ClearDashboardSections()
 {
    ObjectDelete(0,DASH_MARKET_CARD); ObjectDelete(0,DASH_MARKET_LABEL); ObjectDelete(0,DASH_MARKET_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE"); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
    ObjectDelete(0,DASH_RISK_CARD); ObjectDelete(0,DASH_RISK_LABEL); ObjectDelete(0,DASH_RISK_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE"); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE"); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    ObjectDelete(0,DASH_ACTION_CARD); ObjectDelete(0,DASH_ACTION_LABEL); ObjectDelete(0,DASH_ACTION_LABEL+"_TITLE");
 }
 
@@ -3283,12 +3283,12 @@ bool FinitePositiveMarketValue(const double v)
 
 int RequiredAnalysisBars(const ENUM_TIMEFRAMES tf)
 {
-   if(tf==PERIOD_D1)  return MathMax(20,InpMinBarsD1);
-   if(tf==PERIOD_H4)  return MathMax(20,InpMinBarsH4);
-   if(tf==PERIOD_H1)  return MathMax(20,InpMinBarsH1);
-   if(tf==PERIOD_M30) return MathMax(20,InpMinBarsM30);
-   if(tf==PERIOD_M15) return MathMax(170,InpMinBarsM15);
-   if(tf==PERIOD_M5)  return MathMax(60,InpMinBarsM5);
+   if(tf==PERIOD_D1)  return (int)MathMax(20,InpMinBarsD1);
+   if(tf==PERIOD_H4)  return (int)MathMax(20,InpMinBarsH4);
+   if(tf==PERIOD_H1)  return (int)MathMax(20,InpMinBarsH1);
+   if(tf==PERIOD_M30) return (int)MathMax(20,InpMinBarsM30);
+   if(tf==PERIOD_M15) return (int)MathMax(170,InpMinBarsM15);
+   if(tf==PERIOD_M5)  return (int)MathMax(60,InpMinBarsM5);
    return 60;
 }
 
@@ -3300,7 +3300,9 @@ bool TimeframeAnalysisDataReady(const string sym,const ENUM_TIMEFRAMES tf,string
    // CopyRates also asks MT5 to download/build missing history asynchronously.
    int got=CopyRates(sym,tf,0,need,warm);
    int bars=Bars(sym,tf);
-   bool synchronized=((bool)SeriesInfoInteger(sym,tf,SERIES_SYNCHRONIZED));
+   long syncFlag=0;
+   bool syncQuery=SeriesInfoInteger(sym,tf,SERIES_SYNCHRONIZED,syncFlag);
+   bool synchronized=(syncQuery && syncFlag!=0);
 
    if(InpRequireSynchronizedMarketData && (!synchronized || got<need || bars<need))
    {
@@ -16957,7 +16959,7 @@ void RenderLiveManagementDashboard(ulong ticket)
       VisualOneLine(action,compact?82:118)+"\n"+VisualOneLine("Broker "+brokerDetail+" | Model "+modelDetail,compact?82:118),
       DashboardStateColor(uiState));
 
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    if(pendingAny>=0)
    {
@@ -17097,7 +17099,7 @@ void RenderCandidateOperationalDashboard()
       decisionLine+"  •  "+VisualOneLine(action,compact?58:82)+"\nWhy: "+reason+"\nNext: "+next,
       DashboardStateColor(uiState));
 
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    int controlsPending=(pending>=0?pending:pendingAny);
    if(controlsPending>=0 && controlsPending!=pending)
@@ -17150,9 +17152,9 @@ void RenderScanningDashboard()
       "SCANNING → SETUP FOUND → WAITING CONFIRMATION → ENTRY ARMED\nTRADE ACTIVE → TP1 → BREAK EVEN → TRAILING → CLOSED\nCurrent: searching for sufficient independent confirmation.",
       C'116,101,181');
 
-   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL);
-   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL);
-   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL);
+   ObjectDelete(0,DASH_TRADE_CARD); ObjectDelete(0,DASH_TRADE_LABEL); ObjectDelete(0,DASH_TRADE_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_RULES_CARD); ObjectDelete(0,DASH_RULES_LABEL); ObjectDelete(0,DASH_RULES_LABEL+"_TITLE");
+   ObjectDelete(0,DASH_TIMELINE_CARD); ObjectDelete(0,DASH_TIMELINE_LABEL); ObjectDelete(0,DASH_TIMELINE_LABEL+"_TITLE");
    int pendingAny=FirstActivePending();
    if(pendingAny>=0)
    {
@@ -17265,7 +17267,8 @@ void ScanSymbol(const string sym,const string scanReason)
          g_visualDecisionScore=0;
          g_visualDataState="DATA LOADING / INSUFFICIENT HISTORY • "+dataWhy;
       }
-      Print(sym,": analysis deferred — ",dataWhy);
+      if(sym==_Symbol || InpPrintBrokerSymbolProfiles)
+         Print(sym,": analysis deferred — ",dataWhy);
       return;
    }
    if(sym==_Symbol) g_visualDataState=dataWhy;
@@ -17300,7 +17303,8 @@ void ScanSymbol(const string sym,const string scanReason)
          g_visualDecisionScore=0;
          g_visualDataState="SETUP REJECTED • "+geometryWhy;
       }
-      Print(sym,": invalid setup geometry blocked before confluence/news/AI/risk pipeline — ",geometryWhy);
+      if(sym==_Symbol || InpPrintBrokerSymbolProfiles)
+         Print(sym,": invalid setup geometry blocked before confluence/news/AI/risk pipeline — ",geometryWhy);
       return;
    }
 
@@ -17437,7 +17441,9 @@ void ScanSymbol(const string sym,const string scanReason)
    }
 
    NotifyCard(card);
-   RenderAdvancedDashboard(primary,primaryReport,filterState,readyNow);
+   // The visible ENTRY ARMED state is reserved for the fully authorized candidate,
+   // not merely a strategy trigger that still has news/risk/release/execution gates pending.
+   RenderAdvancedDashboard(primary,primaryReport,filterState,approvalReady);
    UpdateRiskAnalyticsPanel();
 
    int existing=ActivePendingForSymbol(sym);

@@ -69,6 +69,21 @@
       "path": "release-truth-drift-validation.txt",
       "evidence_type": "release_truth_drift_validation",
       "required": true
+    },
+    {
+      "path": "ADR_REGISTRY.json",
+      "evidence_type": "architecture_decision_registry",
+      "required": true
+    },
+    {
+      "path": "ADR_INDEX.md",
+      "evidence_type": "architecture_decision_index",
+      "required": true
+    },
+    {
+      "path": "ADR_SUPERSESSION_POLICY.md",
+      "evidence_type": "architecture_decision_policy",
+      "required": true
     }
   ]
 }

@@ -55,7 +55,7 @@ required = [
     '#property version   "1.24"',
     '#include <Canvas/Canvas.mqh>',
     "CCanvas g_hudCanvas",
-    "R14-PIXEL-HUD-20260919",
+    "R32-REFERENCE-HUD-20260919",
     "PIXEL124",
     "RenderFloatingMarketHUD",
     "RenderFloatingLiveHUD",
@@ -90,25 +90,33 @@ required = [
 ]
 for token in required:
     if token not in SRC:
-        errors.append("missing R14 HUD token: " + token)
+        errors.append("missing R32 HUD token: " + token)
 
 # Pixel-derived design geometry from reference image 1.
 for token in (
     "#define HUD_DESIGN_W 1138",
-    "#define HUD_DESIGN_H 276",
+    "#define HUD_DESIGN_H 277",
+    "#define HUD_DEFAULT_X 18",
+    "#define HUD_DEFAULT_Y 36",
+    "#define HUD_REFERENCE_RASTER_SCALE 1.00",
+    "#define HUD_CHART_GUTTER_ALLOWANCE 0",
     "#define HUD_HEADER_H 44",
     "#define HUD_PANEL_Y 46",
     "#define HUD_PANEL_H 186",
-    "#define HUD_FOOTER_Y 237",
+    "#define HUD_FOOTER_Y 235",
     "#define HUD_MARKET_X 9",
     "#define HUD_MARKET_W 232",
-    "#define HUD_MTF_X 246",
-    "#define HUD_MTF_W 173",
-    "#define HUD_TRADE_X 423",
-    "#define HUD_TRADE_W 320",
-    "#define HUD_CONFIRM_X 748",
-    "#define HUD_CONFIRM_W 206",
-    "#define HUD_INVALID_X 959",
+    "#define HUD_MTF_X 247",
+    "#define HUD_MTF_W 172",
+    "#define HUD_TRADE_X 425",
+    "#define HUD_TRADE_W 318",
+    "#define HUD_CONFIRM_X 749",
+    "#define HUD_CONFIRM_W 205",
+    "#define HUD_INVALID_X 960",
+    "#define HUD_APPROVE_X 835",
+    "#define HUD_APPROVE_W 147",
+    "#define HUD_DENY_X 988",
+    "#define HUD_DENY_W 138",
 ):
     if token not in SRC:
         errors.append("reference geometry missing/mismatched: " + token)
@@ -119,7 +127,7 @@ for token in (
     "ChartGetInteger(0,CHART_HEIGHT_IN_PIXELS",
     "HUD_DESIGN_W",
     "HUD_DESIGN_H",
-    "cw-24",
+    "availableW",
     "MathMax(180",
     "g_fhudX",
     "g_fhudY",
@@ -164,6 +172,8 @@ for token in (
     "HUD_DRAG_HANDLE",
     "HUD_SETTINGS_HIT",
     "HUD_CLOSE_HIT",
+    "HUDS(391,sc)",
+    "HUDS(511,sc)",
 ):
     if token not in header:
         errors.append("header contract missing: " + token)
@@ -273,7 +283,7 @@ for token in (
         errors.append("HUD click behavior missing: " + token)
 
 persist = fn("SaveFloatingHUDPosition") + fn("LoadFloatingHUDPosition") + fn("HUDPositionKey")
-for token in ("GlobalVariableSet", "GlobalVariableGet", "ChartID()", "GPT_HUD_R14_"):
+for token in ("GlobalVariableSet", "GlobalVariableGet", "ChartID()", "GPT_HUD_R32_"):
     if token not in persist:
         errors.append("HUD persistence missing: " + token)
 
@@ -316,4 +326,4 @@ if errors:
     raise SystemExit(1)
 
 print("PIXEL HUD STATIC CHECK: PASS")
-print("R14: 1138x276 reference geometry, CCanvas rendering, five panels, persistent drag, chart-local fail-closed controls")
+print("R32: 1138x277 reference master at 1:1 canvas scale, reference-tracked typography/icons/buttons, persistent drag, live state binding, chart-local fail-closed controls")

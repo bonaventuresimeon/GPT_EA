@@ -957,8 +957,8 @@ input bool   InpDrawTrailingMovement        = true;
 input bool   InpShowStopMovementRules        = true;
 input bool   InpShowCompactTradeTimeline     = true;
 input int    InpTrailMovementSegments       = 12;
-input int    InpDashboardWidth              = 1120;
-input int    InpDashboardHeight             = 276;
+input int    InpDashboardWidth              = 1138;
+input int    InpDashboardHeight             = 277;
 input int    InpDashboardRefreshMs           = 500;
 input string InpDashboardTitleFont          = "Segoe Script";
 input string InpDashboardBodyFont           = "Segoe UI";
@@ -17701,26 +17701,30 @@ void RenderClosedDashboard()
 }
 
 
-// ---------------- Floating Market Intelligence HUD (R13 Pixel Replica) ----------------
+// ---------------- Floating Market Intelligence HUD (R32 Reference Replica) ----------------
 #define HUD_DESIGN_W 1138
-#define HUD_DESIGN_H 276
+#define HUD_DESIGN_H 277
+#define HUD_DEFAULT_X 18
+#define HUD_DEFAULT_Y 36
+#define HUD_REFERENCE_RASTER_SCALE 1.00
+#define HUD_CHART_GUTTER_ALLOWANCE 0
 #define HUD_HEADER_H 44
 #define HUD_PANEL_Y 46
 #define HUD_PANEL_H 186
-#define HUD_FOOTER_Y 237
+#define HUD_FOOTER_Y 235
 #define HUD_MARKET_X 9
 #define HUD_MARKET_W 232
-#define HUD_MTF_X 246
-#define HUD_MTF_W 173
-#define HUD_TRADE_X 423
-#define HUD_TRADE_W 320
-#define HUD_CONFIRM_X 748
-#define HUD_CONFIRM_W 206
-#define HUD_INVALID_X 959
-#define HUD_APPROVE_X 836
-#define HUD_APPROVE_W 145
-#define HUD_DENY_X 989
-#define HUD_DENY_W 140
+#define HUD_MTF_X 247
+#define HUD_MTF_W 172
+#define HUD_TRADE_X 425
+#define HUD_TRADE_W 318
+#define HUD_CONFIRM_X 749
+#define HUD_CONFIRM_W 205
+#define HUD_INVALID_X 960
+#define HUD_APPROVE_X 835
+#define HUD_APPROVE_W 147
+#define HUD_DENY_X 988
+#define HUD_DENY_W 138
 #define HUD_CONTROL_Y 8
 #define HUD_DRAG_X 904
 #define HUD_DRAG_W 143
@@ -17751,15 +17755,15 @@ uint HUDMix(const color a,const color b,const double t,const uchar alpha=255)
 
 string HUDPositionKey(const string axis)
 {
-   return StringFormat("GPT_HUD_R14_%I64d_%I64d_%I64d_%s",
+   return StringFormat("GPT_HUD_R32_%I64d_%I64d_%I64d_%s",
       AccountInfoInteger(ACCOUNT_LOGIN),InpMagic,ChartID(),axis);
 }
 
 void LoadFloatingHUDPosition()
 {
    if(g_fhudLoaded) return;
-   g_fhudX=InpDashboardX;
-   g_fhudY=InpDashboardY;
+   g_fhudX=HUD_DEFAULT_X;
+   g_fhudY=HUD_DEFAULT_Y;
    if(GlobalVariableCheck(HUDPositionKey("X"))) g_fhudX=(int)GlobalVariableGet(HUDPositionKey("X"));
    if(GlobalVariableCheck(HUDPositionKey("Y"))) g_fhudY=(int)GlobalVariableGet(HUDPositionKey("Y"));
    g_fhudLoaded=true;
@@ -17797,21 +17801,40 @@ string HUDSpreadText(const string sym)
 void FloatingHUDLayout(int &x,int &y,int &w,int &h,bool &compact)
 {
    LoadFloatingHUDPosition();
+
    int cw=(int)ChartGetInteger(0,CHART_WIDTH_IN_PIXELS,0);
    int ch=(int)ChartGetInteger(0,CHART_HEIGHT_IN_PIXELS,0);
    if(cw<=0) cw=1280;
    if(ch<=0) ch=720;
-   w=(int)MathMin(HUD_DESIGN_W,MathMax(520,cw-24));
+
+   // Reference Image 1 is the 1138 x 277 design master.  MT5 CCanvas
+   // coordinates are already chart pixels, so render the master 1:1 whenever
+   // the live chart can contain it.  Only genuinely narrower charts scale down.
+   int availableW=(int)MathMax(520,cw-(HUD_DEFAULT_X+4));
+   w=(int)MathMin(HUD_DESIGN_W,availableW);
    double scale=(double)w/(double)HUD_DESIGN_W;
    h=(int)MathRound((double)HUD_DESIGN_H*scale);
    h=(int)MathMax(180,MathMin(HUD_DESIGN_H,h));
-   compact=(w<900);
+   compact=(scale<0.90);
+
    x=g_fhudX; y=g_fhudY;
    int maxX=(int)MathMax(4,cw-w-4);
    int maxY=(int)MathMax(4,ch-h-4);
    x=(int)MathMax(4,MathMin(maxX,x));
    y=(int)MathMax(4,MathMin(maxY,y));
    g_fhudX=x; g_fhudY=y;
+
+   static bool layoutLogged=false;
+   if(!layoutLogged)
+   {
+      Print("HUD LAYOUT METRICS | chart=",cw,"x",ch,
+            " | screenDPI=",TerminalInfoInteger(TERMINAL_SCREEN_DPI),
+            " | master=",HUD_DESIGN_W,"x",HUD_DESIGN_H,
+            " | HUD=",w,"x",h,
+            " | pos=",x,",",y,
+            " | scale=",DoubleToString(scale,3));
+      layoutLogged=true;
+   }
 }
 
 int HUDRowInset(const int row,const int h,const int r)
@@ -17882,7 +17905,11 @@ string HUDGlyph(const ushort code)
 
 void HUDSetFont(const int pt,const bool semibold=false)
 {
-   g_hudCanvas.FontSet(semibold?"Segoe UI Semibold":"Segoe UI",-pt*10,0,0);
+   // Reference Image 1 uses a compact institutional typeface. Bahnschrift's
+   // semi-condensed metrics reproduce the measured reference widths/heights
+   // far more closely than the default Segoe UI rendering used by R19.
+   g_hudCanvas.FontSet(semibold?"Bahnschrift SemiBold SemiCondensed":"Bahnschrift SemiCondensed",
+                       -pt*10,0,0);
 }
 
 void HUDCanvasText(const int x,const int y,const string value,const int pt,const color clr,
@@ -17890,6 +17917,47 @@ void HUDCanvasText(const int x,const int y,const string value,const int pt,const
 {
    HUDSetFont(pt,semibold);
    g_hudCanvas.TextOut(x,y,value,HUDARGB(clr,(uchar)MathMax(0,MathMin(255,alpha))),TA_LEFT|TA_TOP);
+}
+
+void HUDCanvasSectionText(const int x,const int y,const string value,const int pt,const color clr)
+{
+   g_hudCanvas.FontSet("Bahnschrift Light SemiCondensed",-pt*10,0,0);
+   g_hudCanvas.TextOut(x,y,value,HUDARGB(clr),TA_LEFT|TA_TOP);
+}
+
+void HUDCanvasTitleText(const int x,const int y,const string value,const int pt,const color clr)
+{
+   // The reference title is wider than the compact section typography.
+   // Use normal-width Bahnschrift only for the brand title while retaining
+   // semi-condensed Bahnschrift everywhere else.
+   // Reference title metrics are ~2.5% narrower than the normal-width
+   // Bahnschrift 10pt raster while retaining the same cap height.
+   g_hudCanvas.FontSet("Bahnschrift Bold",-(int)MathRound((double)pt*9.8),0,0);
+   // Keep the R21 glyph height, but tighten character placement by 2.3%.
+   // This reproduces the reference title's optical width without shrinking
+   // the cap height.
+   const double squeeze=0.977;
+   int n=StringLen(value);
+   for(int i=0;i<n;i++)
+   {
+      string ch=StringSubstr(value,i,1);
+      int prefix=(i==0?0:g_hudCanvas.TextWidth(StringSubstr(value,0,i)));
+      g_hudCanvas.TextOut(x+(int)MathRound(prefix*squeeze),y,ch,HUDARGB(clr),TA_LEFT|TA_TOP);
+   }
+}
+
+void HUDCanvasTrackedText(const int x,const int y,const string value,const int pt,const color clr,
+                          const double trackingScale,const bool semibold=true)
+{
+   if(semibold) HUDSetFont(pt,true);
+   else g_hudCanvas.FontSet("Bahnschrift Light SemiCondensed",-pt*10,0,0);
+   int n=StringLen(value);
+   for(int i=0;i<n;i++)
+   {
+      string ch=StringSubstr(value,i,1);
+      int prefix=(i==0?0:g_hudCanvas.TextWidth(StringSubstr(value,0,i)));
+      g_hudCanvas.TextOut(x+(int)MathRound(prefix*trackingScale),y,ch,HUDARGB(clr),TA_LEFT|TA_TOP);
+   }
 }
 
 int HUDCanvasTextW(const string value,const int pt,const bool semibold=false)
@@ -18005,152 +18073,193 @@ bool HUDCanvasEnsure(const int x,const int y,const int w,const int h)
 
 int HUDS(const double v,const double scale){ return (int)MathRound(v*scale); }
 
-void HUDDrawBrain(const int x,const int y,const int s)
+void HUDDrawBrain(const int x,const int y,const double sc)
 {
-   uint gold=HUDARGB(C'236,194,64');
-   uint dark=HUDARGB(C'39,36,21');
-   int r=MathMax(7,s/2);
-   g_hudCanvas.FillCircle(x+r,y+r,r,gold);
-   g_hudCanvas.CircleAA(x+r,y+r,r,HUDARGB(C'252,221,104'));
-   g_hudCanvas.LineThick(x+r,y+4,x+r,y+s-4,dark,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+5,y+r,x+r-2,y+r,dark,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+r+2,y+r,x+s-5,y+r,dark,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+8,y+5,x+8,y+s-5,dark,1,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+s-8,y+5,x+s-8,y+s-5,dark,1,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.CircleAA(x+8,y+8,2,dark);
-   g_hudCanvas.CircleAA(x+s-8,y+s-8,2,dark);
+   // Reference icon is a dense 33 x 28 gold brain outline.  Its internal
+   // folds are deliberately drawn, rather than using an emoji/font glyph, so
+   // the live MT5 raster stays stable across Windows font/DPI settings.
+   uint c=HUDARGB(C'236,194,64');
+   int lw=(int)MathMax(3,HUDS(3,sc));
+   int ilw=(int)MathMax(2,HUDS(2,sc));
+   int cx=x+HUDS(16,sc);
+
+   // left silhouette
+   g_hudCanvas.LineThick(cx,y+HUDS(1,sc),x+HUDS(10,sc),y+HUDS(1,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(10,sc),y+HUDS(1,sc),x+HUDS(6,sc),y+HUDS(3,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(6,sc),y+HUDS(3,sc),x+HUDS(3,sc),y+HUDS(7,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(3,sc),y+HUDS(7,sc),x+HUDS(1,sc),y+HUDS(12,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(1,sc),y+HUDS(12,sc),x+HUDS(3,sc),y+HUDS(18,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(3,sc),y+HUDS(18,sc),x+HUDS(8,sc),y+HUDS(23,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(8,sc),y+HUDS(23,sc),cx,y+HUDS(27,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+
+   // right silhouette
+   g_hudCanvas.LineThick(cx,y+HUDS(1,sc),x+HUDS(22,sc),y+HUDS(1,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(22,sc),y+HUDS(1,sc),x+HUDS(27,sc),y+HUDS(3,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(27,sc),y+HUDS(3,sc),x+HUDS(29,sc),y+HUDS(7,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(29,sc),y+HUDS(7,sc),x+HUDS(31,sc),y+HUDS(12,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(32,sc),y+HUDS(12,sc),x+HUDS(29,sc),y+HUDS(18,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(29,sc),y+HUDS(18,sc),x+HUDS(24,sc),y+HUDS(23,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(24,sc),y+HUDS(23,sc),cx,y+HUDS(27,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+
+   // centre fissure + dense lobe folds
+   g_hudCanvas.LineThick(cx,y+HUDS(2,sc),cx,y+HUDS(25,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(12,sc),y+HUDS(4,sc),x+HUDS(8,sc),y+HUDS(7,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(8,sc),y+HUDS(7,sc),x+HUDS(12,sc),y+HUDS(10,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(5,sc),y+HUDS(12,sc),x+HUDS(12,sc),y+HUDS(12,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(12,sc),y+HUDS(12,sc),x+HUDS(9,sc),y+HUDS(17,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(9,sc),y+HUDS(17,sc),x+HUDS(12,sc),y+HUDS(22,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(20,sc),y+HUDS(4,sc),x+HUDS(24,sc),y+HUDS(7,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(24,sc),y+HUDS(7,sc),x+HUDS(20,sc),y+HUDS(10,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(27,sc),y+HUDS(12,sc),x+HUDS(20,sc),y+HUDS(12,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(20,sc),y+HUDS(12,sc),x+HUDS(23,sc),y+HUDS(17,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(23,sc),y+HUDS(17,sc),x+HUDS(20,sc),y+HUDS(22,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawMarketIcon(const int x,const int y)
+void HUDDrawMarketIcon(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'74,167,228');
-   g_hudCanvas.LineThick(x,y+15,x+7,y+9,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+7,y+9,x+12,y+12,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+12,y+12,x+20,y+3,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+15,y+3,x+20,y+3,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+20,y+3,x+20,y+8,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineVertical(x+2,y+13,y+19,c);
-   g_hudCanvas.LineVertical(x+7,y+11,y+19,c);
-   g_hudCanvas.LineVertical(x+12,y+14,y+19,c);
-   g_hudCanvas.LineVertical(x+17,y+10,y+19,c);
+   int lw=(int)MathMax(2,HUDS(2,sc));
+   g_hudCanvas.LineThick(x,y+HUDS(15,sc),x+HUDS(7,sc),y+HUDS(9,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(7,sc),y+HUDS(9,sc),x+HUDS(12,sc),y+HUDS(12,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(12,sc),y+HUDS(12,sc),x+HUDS(20,sc),y+HUDS(1,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(15,sc),y+HUDS(1,sc),x+HUDS(20,sc),y+HUDS(1,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(20,sc),y+HUDS(1,sc),x+HUDS(20,sc),y+HUDS(7,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   for(int i=0;i<4;i++)
+   {
+      int bx=x+HUDS(2+i*5,sc);
+      int top=y+HUDS((i==0?13:(i==1?11:(i==2?14:10))),sc);
+      g_hudCanvas.LineThick(bx,top,bx,y+HUDS(20,sc),c,(int)MathMax(1,HUDS(1,sc)),STYLE_SOLID,LINE_END_ROUND);
+   }
 }
 
-void HUDDrawClockIcon(const int x,const int y)
+void HUDDrawClockIcon(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'76,164,226');
-   g_hudCanvas.CircleAA(x+10,y+10,8,c);
-   g_hudCanvas.LineThick(x+10,y+10,x+10,y+5,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+10,y+10,x+14,y+12,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+7,y,x+13,y,c,2,STYLE_SOLID,LINE_END_ROUND);
+   int cx=x+HUDS(9,sc),cy=y+HUDS(9,sc),r=HUDS(8,sc);
+   int lw=(int)MathMax(2,HUDS(2,sc));
+   g_hudCanvas.CircleAA(cx,cy,r,c);
+   g_hudCanvas.LineThick(cx,cy,cx,y+HUDS(4,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(cx,cy,x+HUDS(13,sc),y+HUDS(11,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(6,sc),y,x+HUDS(12,sc),y,c,lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawTargetIcon(const int x,const int y)
+void HUDDrawTargetIcon(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'77,166,227');
-   g_hudCanvas.CircleAA(x+10,y+10,9,c);
-   g_hudCanvas.CircleAA(x+10,y+10,5,c);
-   g_hudCanvas.FillCircle(x+10,y+10,2,c);
-   g_hudCanvas.LineThick(x+15,y+5,x+20,y,c,2,STYLE_SOLID,LINE_END_ROUND);
+   int cx=x+HUDS(10,sc),cy=y+HUDS(10,sc);
+   g_hudCanvas.CircleAA(cx,cy,HUDS(9,sc),c);
+   g_hudCanvas.CircleAA(cx,cy,HUDS(5,sc),c);
+   g_hudCanvas.FillCircle(cx,cy,HUDS(2,sc),c);
+   g_hudCanvas.LineThick(x+HUDS(15,sc),y+HUDS(5,sc),x+HUDS(20,sc),y,c,(int)MathMax(2,HUDS(2,sc)),STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawConfirmTitleIcon(const int x,const int y)
+void HUDDrawConfirmTitleIcon(const int x,const int y,const double sc)
 {
    uint green=HUDARGB(C'75,211,134');
-   g_hudCanvas.FillCircle(x+9,y+9,9,green);
-   g_hudCanvas.LineThick(x+4,y+9,x+8,y+13,HUDARGB(clrWhite),2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+8,y+13,x+14,y+5,HUDARGB(clrWhite),2,STYLE_SOLID,LINE_END_ROUND);
+   int cx=x+HUDS(9,sc),cy=y+HUDS(9,sc);
+   int lw=(int)MathMax(2,HUDS(2,sc));
+   g_hudCanvas.FillCircle(cx,cy,HUDS(9,sc),green);
+   g_hudCanvas.LineThick(x+HUDS(4,sc),y+HUDS(9,sc),x+HUDS(8,sc),y+HUDS(13,sc),HUDARGB(clrWhite),lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(8,sc),y+HUDS(13,sc),x+HUDS(14,sc),y+HUDS(5,sc),HUDARGB(clrWhite),lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawWarning(const int x,const int y)
+void HUDDrawWarning(const int x,const int y,const double sc)
 {
-   int xx[3]={x+9,x,x+18};
-   int yy[3]={y,y+18,y+18};
+   int xx[3]={x+HUDS(9,sc),x,x+HUDS(18,sc)};
+   int yy[3]={y,y+HUDS(18,sc),y+HUDS(18,sc)};
    g_hudCanvas.FillPolygon(xx,yy,HUDARGB(C'230,65,77'));
-   HUDCanvasText(x+7,y+3,"!",10,clrWhite,true);
+   HUDCanvasText(x+HUDS(7,sc),y+HUDS(2,sc),"!",HUDPt(10,sc),clrWhite,true);
 }
 
-void HUDDrawRobot(const int x,const int y)
+void HUDDrawRobot(const int x,const int y,const double sc)
 {
    uint blue=HUDARGB(C'70,168,222');
-   HUDStrokeRoundRect(x+2,y+5,20,16,4,blue);
-   g_hudCanvas.LineThick(x+12,y+5,x+12,y+1,blue,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.FillCircle(x+12,y,2,blue);
-   g_hudCanvas.FillCircle(x+8,y+12,2,blue);
-   g_hudCanvas.FillCircle(x+16,y+12,2,blue);
-   g_hudCanvas.LineHorizontal(x+7,x+17,y+17,blue);
-   g_hudCanvas.LineHorizontal(x,x+2,y+11,blue);
-   g_hudCanvas.LineHorizontal(x+22,x+24,y+11,blue);
+   HUDStrokeRoundRect(x+HUDS(2,sc),y+HUDS(5,sc),HUDS(20,sc),HUDS(16,sc),HUDS(4,sc),blue);
+   int lw=(int)MathMax(2,HUDS(2,sc));
+   g_hudCanvas.LineThick(x+HUDS(12,sc),y+HUDS(5,sc),x+HUDS(12,sc),y+HUDS(1,sc),blue,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.FillCircle(x+HUDS(12,sc),y,HUDS(2,sc),blue);
+   g_hudCanvas.FillCircle(x+HUDS(8,sc),y+HUDS(12,sc),HUDS(2,sc),blue);
+   g_hudCanvas.FillCircle(x+HUDS(16,sc),y+HUDS(12,sc),HUDS(2,sc),blue);
+   g_hudCanvas.LineThick(x+HUDS(7,sc),y+HUDS(17,sc),x+HUDS(17,sc),y+HUDS(17,sc),blue,(int)MathMax(1,HUDS(1,sc)),STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x,y+HUDS(11,sc),x+HUDS(2,sc),y+HUDS(11,sc),blue,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(22,sc),y+HUDS(11,sc),x+HUDS(24,sc),y+HUDS(11,sc),blue,lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawGrip(const int x,const int y)
+void HUDDrawGrip(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'113,144,177');
-   for(int r=0;r<3;r++) for(int col=0;col<3;col++) g_hudCanvas.FillCircle(x+col*5,y+r*5,1,c);
+   int rr=(int)MathMax(1,HUDS(1,sc));
+   for(int r=0;r<3;r++)
+      for(int col=0;col<3;col++)
+         g_hudCanvas.FillCircle(x+HUDS(col*5,sc),y+HUDS(r*5,sc),rr,c);
 }
 
-void HUDDrawGear(const int x,const int y)
+void HUDDrawGear(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'225,233,240');
-   g_hudCanvas.CircleAA(x+8,y+8,6,c);
-   g_hudCanvas.CircleAA(x+8,y+8,2,c);
-   g_hudCanvas.LineHorizontal(x,x+3,y+8,c); g_hudCanvas.LineHorizontal(x+13,x+16,y+8,c);
-   g_hudCanvas.LineVertical(x+8,y,y+3,c); g_hudCanvas.LineVertical(x+8,y+13,y+16,c);
+   int cx=x+HUDS(8,sc),cy=y+HUDS(8,sc);
+   g_hudCanvas.CircleAA(cx,cy,HUDS(6,sc),c);
+   g_hudCanvas.CircleAA(cx,cy,HUDS(2,sc),c);
+   int lw=(int)MathMax(1,HUDS(1,sc));
+   g_hudCanvas.LineThick(x,y+HUDS(8,sc),x+HUDS(3,sc),y+HUDS(8,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(13,sc),y+HUDS(8,sc),x+HUDS(16,sc),y+HUDS(8,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(8,sc),y,x+HUDS(8,sc),y+HUDS(3,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+HUDS(8,sc),y+HUDS(13,sc),x+HUDS(8,sc),y+HUDS(16,sc),c,lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
-void HUDDrawClose(const int x,const int y)
+void HUDDrawClose(const int x,const int y,const double sc)
 {
    uint c=HUDARGB(C'220,228,236');
-   g_hudCanvas.LineThick(x,y,x+11,y+11,c,2,STYLE_SOLID,LINE_END_ROUND);
-   g_hudCanvas.LineThick(x+11,y,x,y+11,c,2,STYLE_SOLID,LINE_END_ROUND);
+   int e=HUDS(11,sc),lw=(int)MathMax(2,HUDS(2,sc));
+   g_hudCanvas.LineThick(x,y,x+e,y+e,c,lw,STYLE_SOLID,LINE_END_ROUND);
+   g_hudCanvas.LineThick(x+e,y,x,y+e,c,lw,STYLE_SOLID,LINE_END_ROUND);
 }
 
 void HUDDrawPanelFrame(const int x,const int y,const int w,const int h)
 {
-   HUDGradientRoundRect(x,y,w,h,7,C'6,22,36',C'4,17,29',255);
-   HUDStrokeRoundRect(x,y,w,h,7,HUDARGB(C'31,55,77'));
-   g_hudCanvas.LineHorizontal(x+1,x+w-2,y+1,HUDARGB(C'49,69,91',110));
+   HUDGradientRoundRect(x,y,w,h,7,C'3,22,42',C'1,17,34',255);
+   HUDStrokeRoundRect(x,y,w,h,7,HUDARGB(C'28,46,67'));
+   g_hudCanvas.LineHorizontal(x+1,x+w-2,y+1,HUDARGB(C'43,60,82',110));
 }
 
 void HUDDrawHeader(const int ox,const int oy,const double sc,const int w)
 {
    int H=HUDS(HUD_HEADER_H,sc);
-   HUDGradientRoundRect(ox,oy,w,H,9,C'7,22,35',C'3,15,26',255);
-   g_hudCanvas.LineHorizontal(ox+HUDS(2,sc),ox+w-HUDS(3,sc),oy+H-1,HUDARGB(C'42,61,80'));
-   g_hudCanvas.LineHorizontal(ox+HUDS(9,sc),ox+w-HUDS(10,sc),oy+1,HUDARGB(C'193,146,42'));
+   HUDGradientRoundRect(ox,oy,w,H,9,C'7,24,44',C'3,16,32',255);
+   g_hudCanvas.LineHorizontal(ox+HUDS(2,sc),ox+w-HUDS(3,sc),oy+H-1,HUDARGB(C'8,25,42'));
 
-   int brain=HUDS(32,sc);
-   HUDDrawBrain(ox+HUDS(20,sc),oy+HUDS(11,sc),brain);
+   HUDDrawBrain(ox+HUDS(20,sc),oy+HUDS(9,sc),sc);
    string title="GPT EA "+HUDGlyph(0x2014)+" MARKET INTELLIGENCE";
-   HUDCanvasText(ox+HUDS(68,sc),oy+HUDS(16,sc),title,HUDPt(10,sc),C'235,199,86',true);
+   HUDCanvasTitleText(ox+HUDS(66,sc),oy+HUDS(11,sc),title,HUDPt(10,sc),C'235,199,86');
 
    bool online=(bool)TerminalInfoInteger(TERMINAL_CONNECTED);
-   int symbolX=ox+HUDS(423,sc);
-   HUDCanvasFitText(symbolX,oy+HUDS(16,sc),HUDS(80,sc),_Symbol,HUDPt(9,sc),C'223,230,237',true);
-   int dotX=ox+HUDS(505,sc),dotY=oy+HUDS(22,sc);
+   int symbolX=ox+HUDS(391,sc);
+   HUDCanvasFitText(symbolX,oy+HUDS(11,sc),HUDS(98,sc),_Symbol,HUDPt(9,sc),C'223,230,237',true);
+   int dotX=ox+HUDS(511,sc),dotY=oy+HUDS(22,sc);
    g_hudCanvas.FillCircle(dotX,dotY,HUDS(5,sc),HUDARGB(online?C'0,222,111':C'234,74,84'));
-   HUDCanvasText(dotX+HUDS(17,sc),oy+HUDS(15,sc),online?"ONLINE":"OFFLINE",HUDPt(8,sc),
+   HUDCanvasText(dotX+HUDS(16,sc),oy+HUDS(12,sc),online?"ONLINE":"OFFLINE",HUDPt(8,sc),
                  online?C'47,222,133':C'235,94,104',true);
 
    string sep=" "+HUDGlyph(0x2022)+" ";
    string session=(g_visualSession!=""?g_visualSession:"MARKET");
    string info=session+sep+HUDPeriodText()+sep+"Spread "+HUDSpreadText(_Symbol);
-   HUDCanvasFitText(ox+HUDS(612,sc),oy+HUDS(15,sc),HUDS(281,sc),info,HUDPt(8,sc),C'181,193,207',false);
+   HUDCanvasFitText(ox+HUDS(611,sc),oy+HUDS(12,sc),HUDS(282,sc),info,HUDPt(8,sc),C'181,193,207',false);
 
    int dx=ox+HUDS(HUD_DRAG_X,sc),dy=oy+HUDS(HUD_CONTROL_Y,sc),dw=HUDS(HUD_DRAG_W,sc),dh=HUDS(29,sc);
    HUDGradientRoundRect(dx,dy,dw,dh,6,C'18,40,62',C'11,27,45',255);
    HUDStrokeRoundRect(dx,dy,dw,dh,6,HUDARGB(C'39,66,93'));
-   HUDDrawGrip(dx+HUDS(14,sc),dy+HUDS(9,sc));
+   HUDDrawGrip(dx+HUDS(14,sc),dy+HUDS(9,sc),sc);
    HUDCanvasText(dx+HUDS(34,sc),dy+HUDS(7,sc),"Drag to move",HUDPt(8,sc),C'159,176,194',false);
 
    int sx=ox+HUDS(HUD_SETTINGS_X,sc),sw=HUDS(HUD_SETTINGS_W,sc);
    HUDGradientRoundRect(sx,dy,sw,dh,6,C'18,35,51',C'9,22,36',255);
    HUDStrokeRoundRect(sx,dy,sw,dh,6,HUDARGB(C'39,59,80'));
-   HUDDrawGear(sx+HUDS(11,sc),dy+HUDS(7,sc));
+   HUDDrawGear(sx+HUDS(11,sc),dy+HUDS(7,sc),sc);
 
    int cx=ox+HUDS(HUD_CLOSE_X,sc),cw=HUDS(HUD_CLOSE_W,sc);
    HUDGradientRoundRect(cx,dy,cw,dh,6,C'19,31,44',C'9,18,29',255);
    HUDStrokeRoundRect(cx,dy,cw,dh,6,HUDARGB(C'48,61,76'));
-   HUDDrawClose(cx+HUDS(11,sc),dy+HUDS(9,sc));
+   HUDDrawClose(cx+HUDS(11,sc),dy+HUDS(9,sc),sc);
 
    HUDSetHitBox(HUD_DRAG_HANDLE,g_fhudX+HUDS(HUD_DRAG_X,sc),g_fhudY+HUDS(HUD_CONTROL_Y,sc),dw,dh,true);
    HUDSetHitBox(HUD_SETTINGS_HIT,g_fhudX+HUDS(HUD_SETTINGS_X,sc),g_fhudY+HUDS(HUD_CONTROL_Y,sc),sw,dh,false);
@@ -18205,9 +18314,20 @@ void HUDDrawNewsRisk(const int x,const int y,const int valueX,const string risk,
 {
    HUDCanvasText(x,y,"News Risk",pt,C'170,183,197',false);
    string r=UpperCopy(risk);
-   if(r=="LOW") HUDCanvasText(valueX,y,"LOW",pt,C'52,211,127',true);
-   else if(r=="MEDIUM" || r=="WATCH") HUDCanvasText(valueX,y,"MEDIUM",pt,C'238,187,68',true);
-   else HUDCanvasText(valueX,y,"HIGH",pt,C'239,83,93',true);
+   bool low=(r=="LOW");
+   bool med=(r=="MEDIUM" || r=="WATCH");
+   bool high=(r=="HIGH" || r=="EXTREME");
+
+   int p=valueX;
+   HUDCanvasText(p,y,"LOW",pt,low?C'52,211,127':C'116,132,149',low);
+   p+=HUDCanvasTextW("LOW",pt,low)+HUDS(5,1.0);
+   HUDCanvasText(p,y,"/",pt,C'116,132,149',false);
+   p+=HUDCanvasTextW("/",pt,false)+HUDS(5,1.0);
+   HUDCanvasText(p,y,"MEDIUM",pt,med?C'238,187,68':C'116,132,149',med);
+   p+=HUDCanvasTextW("MEDIUM",pt,med)+HUDS(5,1.0);
+   HUDCanvasText(p,y,"/",pt,C'116,132,149',false);
+   p+=HUDCanvasTextW("/",pt,false)+HUDS(5,1.0);
+   HUDCanvasText(p,y,"HIGH",pt,high?C'239,83,93':C'116,132,149',high);
 }
 
 void HUDTFState(const string detail,const string tf,string &state,color &clr)
@@ -18264,9 +18384,9 @@ void HUDDrawConfirmIcon(const int x,const int y,const int state,const double sc)
 void HUDDrawConfirmRow(const int x,const int y,const string value,const int state,const int maxW,
                        const int pt,const double sc)
 {
-   HUDDrawConfirmIcon(x+HUDS(6,sc),y+HUDS(7,sc),state,sc);
+   HUDDrawConfirmIcon(x+HUDS(8,sc),y+HUDS(7,sc),state,sc);
    color c=(state>0?C'191,226,207':(state<0?C'222,190,194':C'212,202,161'));
-   HUDCanvasFitText(x+HUDS(20,sc),y,maxW-HUDS(20,sc),value,pt,c,false);
+   HUDCanvasFitText(x+HUDS(26,sc),y,maxW-HUDS(26,sc),value,pt,c,false);
 }
 
 string HUDLineOne(const string src,const int maxChars)
@@ -18297,21 +18417,21 @@ void HUDDrawButton(const int x,const int y,const int w,const int h,const string 
    color top,bot,border;
    if(approve)
    {
-      top=enabled?(hover?C'18,187,114':C'22,170,104'):C'12,103,72';
-      bot=enabled?(hover?C'5,129,82':C'4,117,75'):C'7,67,51';
-      border=enabled?C'69,222,149':C'37,134,99';
+      top=enabled?(hover?C'18,187,114':C'22,170,104'):C'18,151,94';
+      bot=enabled?(hover?C'5,129,82':C'4,117,75'):C'4,101,66';
+      border=enabled?C'69,222,149':C'55,197,132';
    }
    else
    {
-      top=enabled?(hover?C'221,54,67':C'195,46,59'):C'116,35,45';
-      bot=enabled?(hover?C'159,25,40':C'143,25,39'):C'76,26,34';
-      border=enabled?C'238,84,95':C'143,55,64';
+      top=enabled?(hover?C'221,54,67':C'195,46,59'):C'178,42,55';
+      bot=enabled?(hover?C'159,25,40':C'143,25,39'):C'126,22,35';
+      border=enabled?C'238,84,95':C'219,68,80';
    }
    HUDGradientRoundRect(x,y,w,h,7,top,bot,255);
    HUDStrokeRoundRect(x,y,w,h,7,HUDARGB(border));
    g_hudCanvas.LineHorizontal(x+HUDS(7,sc),x+w-HUDS(8,sc),y+1,HUDARGB(clrWhite,45));
 
-   uint ic=HUDARGB(clrWhite,(uchar)(enabled?255:180));
+   uint ic=HUDARGB(clrWhite,255);
    int ix=x+HUDS(24,sc),iy=y+HUDS(16,sc);
    if(approve)
    {
@@ -18323,34 +18443,34 @@ void HUDDrawButton(const int x,const int y,const int w,const int h,const string 
       g_hudCanvas.LineThick(ix-HUDS(6,sc),iy-HUDS(6,sc),ix+HUDS(6,sc),iy+HUDS(6,sc),ic,2,STYLE_SOLID,LINE_END_ROUND);
       g_hudCanvas.LineThick(ix+HUDS(6,sc),iy-HUDS(6,sc),ix-HUDS(6,sc),iy+HUDS(6,sc),ic,2,STYLE_SOLID,LINE_END_ROUND);
    }
-   HUDCanvasText(x+HUDS(47,sc),y+HUDS(7,sc),value,pt,clrWhite,true,enabled?255:180);
+   HUDCanvasText(x+HUDS(47,sc),y+HUDS(7,sc),value,pt,clrWhite,true,255);
 }
 
 void HUDDrawFooter(const int ox,const int oy,const int w,const int h,const double sc,
                    const int pendingIndex,const bool live)
 {
    int fy=oy+HUDS(HUD_FOOTER_Y,sc),fh=h-HUDS(HUD_FOOTER_Y,sc);
-   HUDGradientRoundRect(ox,fy,w,fh,8,C'5,20,32',C'2,12,21',255);
-   g_hudCanvas.LineHorizontal(ox+HUDS(2,sc),ox+w-HUDS(3,sc),fy,HUDARGB(C'35,56,76'));
-   HUDDrawRobot(ox+HUDS(17,sc),fy+HUDS(8,sc));
-   HUDCanvasText(ox+HUDS(55,sc),fy+HUDS(10,sc),"EA STATUS",HUDPt(8,sc),C'87,174,221',true);
+   HUDGradientRoundRect(ox,fy,w,fh,8,C'3,25,43',C'0,18,34',255);
+   g_hudCanvas.LineHorizontal(ox+HUDS(2,sc),ox+w-HUDS(3,sc),fy,HUDARGB(C'32,53,74'));
+   HUDDrawRobot(ox+HUDS(17,sc),fy+HUDS(8,sc),sc);
+   HUDCanvasText(ox+HUDS(52,sc),fy+HUDS(8,sc),"EA STATUS",HUDPt(8,sc),C'87,174,221',true);
 
    string sep="  "+HUDGlyph(0x2022)+"  ";
    string status=HUDStatusText(pendingIndex,live);
    if(g_fhudSettingsHintUntil>TimeTradeServer()) status="SETTINGS"+sep+"PRESS F7 TO EDIT GPT_EA INPUTS";
    else if(!live) status+=sep+"NO POSITION";
    status+=sep+"RISK "+DoubleToString(InpRiskPercent,2)+"%";
-   HUDCanvasFitText(ox+HUDS(140,sc),fy+HUDS(10,sc),HUDS(650,sc),status,HUDPt(8,sc),C'192,205,218',true);
+   HUDCanvasFitText(ox+HUDS(140,sc),fy+HUDS(8,sc),HUDS(650,sc),status,HUDPt(8,sc),C'192,205,218',true);
 
-   int by=fy+HUDS(5,sc),bh=HUDS(31,sc);
+   int by=fy+HUDS(1,sc),bh=HUDS(35,sc);
    int ax=ox+HUDS(HUD_APPROVE_X,sc),aw=HUDS(HUD_APPROVE_W,sc);
    int dx=ox+HUDS(HUD_DENY_X,sc),dw=HUDS(HUD_DENY_W,sc);
    bool enabled=(pendingIndex>=0);
    HUDDrawButton(ax,by,aw,bh,"APPROVE",true,enabled,g_fhudHoverApprove,HUDPt(9,sc),sc);
    HUDDrawButton(dx,by,dw,bh,"DENY",false,enabled,g_fhudHoverDeny,HUDPt(9,sc),sc);
    g_displayPending=enabled?pendingIndex:-1;
-   HUDSetHitBox(HUD_APPROVE_HIT,g_fhudX+HUDS(HUD_APPROVE_X,sc),g_fhudY+HUDS(HUD_FOOTER_Y+5,sc),aw,bh,false);
-   HUDSetHitBox(HUD_DENY_HIT,g_fhudX+HUDS(HUD_DENY_X,sc),g_fhudY+HUDS(HUD_FOOTER_Y+5,sc),dw,bh,false);
+   HUDSetHitBox(HUD_APPROVE_HIT,g_fhudX+HUDS(HUD_APPROVE_X,sc),g_fhudY+HUDS(HUD_FOOTER_Y+1,sc),aw,bh,false);
+   HUDSetHitBox(HUD_DENY_HIT,g_fhudX+HUDS(HUD_DENY_X,sc),g_fhudY+HUDS(HUD_FOOTER_Y+1,sc),dw,bh,false);
 }
 
 
@@ -18358,16 +18478,16 @@ void HUDDrawMarketPanel(const int x,const int y,const int w,const int h,const do
                         const bool has,const TradeSetup &s,const ConfluenceReport &r)
 {
    HUDDrawPanelFrame(x,y,w,h);
-   HUDDrawMarketIcon(x+HUDS(12,sc),y+HUDS(9,sc));
-   HUDCanvasText(x+HUDS(48,sc),y+HUDS(9,sc),"MARKET STATE",HUDPt(9,sc),C'232,197,88',true);
+   HUDDrawMarketIcon(x+HUDS(12,sc),y+HUDS(9,sc),sc);
+   HUDCanvasSectionText(x+HUDS(49,sc),y+HUDS(9,sc),"MARKET STATE",HUDPt(9,sc),C'232,197,88');
    string trend=has?(s.bullish?"BULLISH":"BEARISH"):"SCANNING";
    string regime=(g_visualRegime!=""?UpperCopy(g_visualRegime):"--");
    string structure=has&&r.structureAligned?(s.bullish?"HH / HL":"LH / LL"):(has?"MIXED":"--");
    string vol=has?VisualVolatilityLabel(r):"--";
    string liquidity=has?(s.bullish?"BUY-SIDE TARGETED":"SELL-SIDE TARGETED"):"MONITORING";
    color trendC=has?(s.bullish?C'43,215,127':C'238,79,90'):C'143,161,178';
-   int lx=x+HUDS(13,sc),vx=x+HUDS(91,sc),pt=HUDPt(8,sc);
-   int ry=y+HUDS(43,sc),step=HUDS(23,sc);
+   int lx=x+HUDS(12,sc),vx=x+HUDS(91,sc),pt=HUDPt(8,sc);
+   int ry=y+HUDS(40,sc),step=HUDS(22,sc);
    int vmax=w-HUDS(104,sc);
    HUDMetric(lx,ry,vx,vmax,"Trend",trend,trendC,pt);
    HUDMetric(lx,ry+step,vx,vmax,"Regime",regime,(StringFind(regime,"TREND")>=0?C'47,211,126':C'234,182,64'),pt);
@@ -18380,15 +18500,15 @@ void HUDDrawMarketPanel(const int x,const int y,const int w,const int h,const do
 void HUDDrawMTFPanel(const int x,const int y,const int w,const int h,const double sc)
 {
    HUDDrawPanelFrame(x,y,w,h);
-   HUDDrawClockIcon(x+HUDS(12,sc),y+HUDS(9,sc));
-   HUDCanvasText(x+HUDS(40,sc),y+HUDS(9,sc),"MULTI-TIMEFRAME",HUDPt(9,sc),C'232,197,88',true);
+   HUDDrawClockIcon(x+HUDS(9,sc),y+HUDS(10,sc),sc);
+   HUDCanvasTrackedText(x+HUDS(38,sc),y+HUDS(9,sc),"MULTI-TIMEFRAME",HUDPt(9,sc),C'232,197,88',0.953,false);
    string tfs[]={"D1","H4","H1","M30","M15","M5"};
-   int pt=HUDPt(8,sc),ry=y+HUDS(43,sc),step=HUDS(23,sc);
+   int pt=HUDPt(8,sc),ry=y+HUDS(40,sc),step=HUDS(22,sc);
    for(int i=0;i<ArraySize(tfs);i++)
    {
       string state=""; color c=clrSilver;
       HUDTFState(g_visualTrendDetail,tfs[i],state,c);
-      HUDDrawMTFRow(x+HUDS(14,sc),ry+i*step,tfs[i],state,c,pt,sc);
+      HUDDrawMTFRow(x+HUDS(10,sc),ry+i*step,tfs[i],state,c,pt,sc);
    }
 }
 
@@ -18406,8 +18526,8 @@ void HUDDrawTradePanel(const int x,const int y,const int w,const int h,const dou
                        const string liveTP2,const string liveTP3,const string liveRR)
 {
    HUDDrawPanelFrame(x,y,w,h);
-   HUDDrawTargetIcon(x+HUDS(12,sc),y+HUDS(9,sc));
-   HUDCanvasText(x+HUDS(41,sc),y+HUDS(9,sc),"GPT TRADE INTELLIGENCE",HUDPt(9,sc),C'232,197,88',true);
+   HUDDrawTargetIcon(x+HUDS(8,sc),y+HUDS(10,sc),sc);
+   HUDCanvasTrackedText(x+HUDS(40,sc),y+HUDS(9,sc),"GPT TRADE INTELLIGENCE",HUDPt(9,sc),C'232,197,88',1.012,false);
 
    int d=DigitsFor(_Symbol),pt=HUDPt(8,sc);
    string setup="NONE",status=HUDStatusText(pending,live);
@@ -18440,26 +18560,26 @@ void HUDDrawTradePanel(const int x,const int y,const int w,const int h,const dou
       rr="1:"+DoubleToString(MathMax(0.0,s.effectiveRR1),2);
    }
 
-   int lx=x+HUDS(13,sc),labelW=HUDS(79,sc);
-   HUDDrawTradeValue(lx,y+HUDS(43,sc),"Setup:",setup,setupC,labelW,w-HUDS(25,sc),pt);
-   HUDCanvasText(lx,y+HUDS(65,sc),"Confidence:",pt,C'179,192,205',false);
-   HUDCanvasText(lx+HUDS(80,sc),y+HUDS(65,sc),IntegerToString(conf)+"/100",pt,C'230,236,242',true);
-   HUDDrawConfidence(lx+HUDS(140,sc),y+HUDS(69,sc),conf,sc);
+   int lx=x+HUDS(9,sc),labelW=HUDS(79,sc);
+   HUDDrawTradeValue(lx,y+HUDS(40,sc),"Setup:",setup,setupC,labelW,w-HUDS(25,sc),pt);
+   HUDCanvasText(lx,y+HUDS(62,sc),"Confidence:",pt,C'179,192,205',false);
+   HUDCanvasText(lx+HUDS(80,sc),y+HUDS(62,sc),IntegerToString(conf)+"/100",pt,C'230,236,242',true);
+   HUDDrawConfidence(lx+HUDS(140,sc),y+HUDS(66,sc),conf,sc);
    color statusC=(StringFind(status,"DENIED")>=0||StringFind(status,"INVALID")>=0?C'238,80,90':
                  (StringFind(status,"POSITION")>=0||StringFind(status,"APPROVED")>=0||
                   StringFind(status,"TP1")>=0?C'47,211,126':C'237,182,59'));
-   HUDDrawTradeValue(lx,y+HUDS(87,sc),"Status:",status,statusC,labelW,w-HUDS(25,sc),pt);
+   HUDDrawTradeValue(lx,y+HUDS(84,sc),"Status:",status,statusC,labelW,w-HUDS(25,sc),pt);
 
-   int gy=y+HUDS(118,sc),step=HUDS(20,sc);
+   int gy=y+HUDS(107,sc),step=HUDS(20,sc);
    int leftMax=HUDS(182,sc);
    HUDDrawTradeValue(lx,gy,"Entry:",entry,C'226,233,240',HUDS(48,sc),leftMax,pt);
    HUDDrawTradeValue(lx,gy+step,"SL:",sl,C'239,113,123',HUDS(48,sc),leftMax,pt);
    HUDDrawTradeValue(lx,gy+step*2,"BE Trigger:",be,C'81,199,219',HUDS(70,sc),leftMax,pt);
-   int rx=x+HUDS(205,sc),rightMax=w-HUDS(216,sc);
-   HUDDrawTradeValue(rx,gy,"TP1:",tp1,C'226,233,240',HUDS(38,sc),rightMax,pt);
-   HUDDrawTradeValue(rx,gy+step,"TP2:",tp2,C'226,233,240',HUDS(38,sc),rightMax,pt);
-   HUDDrawTradeValue(rx,gy+step*2,"TP3:",tp3,C'226,233,240',HUDS(38,sc),rightMax,pt);
-   HUDDrawTradeValue(rx,gy+step*3,"R:R:",rr,C'49,211,126',HUDS(38,sc),rightMax,pt);
+   int rx=x+HUDS(225,sc),rightMax=w-HUDS(225,sc);
+   HUDDrawTradeValue(rx,gy,"TP1:",tp1,C'226,233,240',HUDS(44,sc),rightMax,pt);
+   HUDDrawTradeValue(rx,gy+step,"TP2:",tp2,C'226,233,240',HUDS(44,sc),rightMax,pt);
+   HUDDrawTradeValue(rx,gy+step*2,"TP3:",tp3,C'226,233,240',HUDS(44,sc),rightMax,pt);
+   HUDDrawTradeValue(rx,gy+step*3,"R:R:",rr,C'49,211,126',HUDS(44,sc),rightMax,pt);
 }
 
 void HUDDrawConfirmationsPanel(const int x,const int y,const int w,const int h,const double sc,
@@ -18467,9 +18587,9 @@ void HUDDrawConfirmationsPanel(const int x,const int y,const int w,const int h,c
                                const bool tp1done=false,const int stage=0,const bool tp2done=false)
 {
    HUDDrawPanelFrame(x,y,w,h);
-   HUDDrawConfirmTitleIcon(x+HUDS(12,sc),y+HUDS(10,sc));
-   HUDCanvasText(x+HUDS(40,sc),y+HUDS(9,sc),"CONFIRMATIONS",HUDPt(9,sc),C'232,197,88',true);
-   int pt=HUDPt(8,sc),ry=y+HUDS(45,sc),step=HUDS(24,sc),maxW=w-HUDS(22,sc);
+   HUDDrawConfirmTitleIcon(x+HUDS(11,sc),y+HUDS(10,sc),sc);
+   HUDCanvasText(x+HUDS(40,sc),y+HUDS(9,sc),"CONFIRMATIONS",HUDPt(9,sc),C'232,197,88',false);
+   int pt=HUDPt(8,sc),ry=y+HUDS(42,sc),step=HUDS(26,sc),maxW=w-HUDS(22,sc);
    if(live)
    {
       HUDDrawConfirmRow(x+HUDS(10,sc),ry,"Position open / protected",1,maxW,pt,sc);
@@ -18503,26 +18623,31 @@ void HUDDrawInvalidationPanel(const int x,const int y,const int w,const int h,co
                               const string invalidation,const string timeRule)
 {
    HUDDrawPanelFrame(x,y,w,h);
-   HUDDrawWarning(x+HUDS(12,sc),y+HUDS(10,sc));
-   HUDCanvasText(x+HUDS(41,sc),y+HUDS(9,sc),"INVALIDATION",HUDPt(9,sc),C'232,197,88',true);
+   HUDDrawWarning(x+HUDS(11,sc),y+HUDS(11,sc),sc);
+   HUDCanvasText(x+HUDS(41,sc),y+HUDS(9,sc),"INVALIDATION",HUDPt(9,sc),C'232,197,88',false);
    int pt=HUDPt(8,sc),maxChars=(int)MathMax(15,MathRound(22*sc));
    string l1=HUDLineOne(invalidation,maxChars);
    string l2=HUDLineRest(invalidation,l1);
    if(StringLen(l2)>maxChars) l2=HUDLineOne(l2,maxChars);
-   HUDCanvasFitText(x+HUDS(13,sc),y+HUDS(47,sc),w-HUDS(25,sc),l1,pt,C'216,225,234',false);
-   if(l2!="") HUDCanvasFitText(x+HUDS(13,sc),y+HUDS(66,sc),w-HUDS(25,sc),l2,pt,C'216,225,234',false);
+   HUDCanvasFitText(x+HUDS(10,sc),y+HUDS(43,sc),w-HUDS(22,sc),l1,pt,C'216,225,234',false);
+   int timeY=67;
+   if(l2!="")
+   {
+      HUDCanvasFitText(x+HUDS(10,sc),y+HUDS(67,sc),w-HUDS(22,sc),l2,pt,C'216,225,234',false);
+      timeY=91;
+   }
    string t1=HUDLineOne(timeRule,maxChars);
    string t2=HUDLineRest(timeRule,t1);
    if(StringLen(t2)>maxChars) t2=HUDLineOne(t2,maxChars);
-   HUDCanvasFitText(x+HUDS(13,sc),y+HUDS(105,sc),w-HUDS(25,sc),t1,pt,C'216,225,234',false);
-   if(t2!="") HUDCanvasFitText(x+HUDS(13,sc),y+HUDS(124,sc),w-HUDS(25,sc),t2,pt,C'216,225,234',false);
+   HUDCanvasFitText(x+HUDS(10,sc),y+HUDS(timeY,sc),w-HUDS(22,sc),t1,pt,C'216,225,234',false);
+   if(t2!="") HUDCanvasFitText(x+HUDS(10,sc),y+HUDS(timeY+24,sc),w-HUDS(22,sc),t2,pt,C'216,225,234',false);
 }
 
 void HUDPaintShell(const int w,const int h,const double sc)
 {
    int ox=8,oy=8;
    HUDFillRoundRect(ox+3,oy+5,w,h,10,HUDARGB(C'0,0,0',90));
-   HUDGradientRoundRect(ox,oy,w,h,10,C'4,17,28',C'2,11,20',255);
+   HUDGradientRoundRect(ox,oy,w,h,10,C'3,22,42',C'1,17,34',255);
    HUDDrawHeader(ox,oy,sc,w);
 }
 
@@ -18550,13 +18675,18 @@ void HUDRenderMarketBody(const int w,const int h,const double sc,
    int x2=ox+HUDS(HUD_MTF_X,sc),w2=HUDS(HUD_MTF_W,sc);
    int x3=ox+HUDS(HUD_TRADE_X,sc),w3=HUDS(HUD_TRADE_W,sc);
    int x4=ox+HUDS(HUD_CONFIRM_X,sc),w4=HUDS(HUD_CONFIRM_W,sc);
-   int x5=ox+HUDS(HUD_INVALID_X,sc),w5=w-HUDS(HUD_INVALID_X+10,sc);
+   int x5=ox+HUDS(HUD_INVALID_X,sc),w5=w-HUDS(HUD_INVALID_X+9,sc);
    HUDDrawMarketPanel(x1,py,w1,ph,sc,has,s,r);
    HUDDrawMTFPanel(x2,py,w2,ph,sc);
    HUDDrawTradePanel(x3,py,w3,ph,sc,has,s,pending,false,"",0,"","","","","","","");
    HUDDrawConfirmationsPanel(x4,py,w4,ph,sc,has,s,r,false);
-   string inv=has?(s.invalidation!=""?s.invalidation:"Setup invalidates on structure failure."):"No setup armed.";
-   string timeRule=has?IntegerToString(MathMax(1,s.expiryM15))+" M15 candles without TP1 "+
+   string inv="No setup armed.";
+   if(has)
+   {
+      int id=DigitsFor(s.symbol);
+      inv="M15 close "+(s.bullish?"below ":"above ")+DoubleToString(s.sl,id);
+   }
+   string timeRule=has?IntegerToString(MathMax(1,s.expiryM15))+" candles without TP1 "+
                    HUDGlyph(0x2192)+" reassess":"Scanner continues.";
    HUDDrawInvalidationPanel(x5,py,w5,ph,sc,inv,timeRule);
    HUDDrawFooter(ox,oy,w,h,sc,pending,false);
@@ -18639,7 +18769,7 @@ void RenderFloatingLiveHUD(const ulong ticket)
    int x2=ox+HUDS(HUD_MTF_X,sc),w2=HUDS(HUD_MTF_W,sc);
    int x3=ox+HUDS(HUD_TRADE_X,sc),w3=HUDS(HUD_TRADE_W,sc);
    int x4=ox+HUDS(HUD_CONFIRM_X,sc),w4=HUDS(HUD_CONFIRM_W,sc);
-   int x5=ox+HUDS(HUD_INVALID_X,sc),w5=w-HUDS(HUD_INVALID_X+10,sc);
+   int x5=ox+HUDS(HUD_INVALID_X,sc),w5=w-HUDS(HUD_INVALID_X+9,sc);
 
    TradeSetup ms=g_visualLastSetup;
    ConfluenceReport mr=g_visualLastReport;
@@ -18679,7 +18809,7 @@ void RefreshFloatingHUDHover(const long mx,const double my)
    int x=0,y=0,w=0,h=0; bool compact=false;
    FloatingHUDLayout(x,y,w,h,compact);
    double sc=(double)w/(double)HUD_DESIGN_W;
-   int by=y+HUDS(HUD_FOOTER_Y+5,sc),bh=HUDS(31,sc);
+   int by=y+HUDS(HUD_FOOTER_Y+1,sc),bh=HUDS(35,sc);
    int ax=x+HUDS(HUD_APPROVE_X,sc),aw=HUDS(HUD_APPROVE_W,sc);
    int dx=x+HUDS(HUD_DENY_X,sc),dw=HUDS(HUD_DENY_W,sc);
    bool a=(mx>=ax && mx<=ax+aw && my>=by && my<=by+bh);
@@ -19099,28 +19229,29 @@ int OnInit()
       return INIT_PARAMETERS_INCORRECT;
    }
 
-   if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
-   if(!ResolveConfiguredSymbolsUniversal())
-   { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
-
-   PrintResolvedBrokerProfiles();
+   // Bootstrap the chart-facing presentation before broker-universe discovery.
+   // Full symbol resolution can take minutes on brokers exposing hundreds of
+   // instruments; the floating HUD must still appear immediately and show the
+   // SCANNING state while intelligence services initialize.
    PurgeLegacyVisualObjects();
-   trade.SetExpertMagicNumber(InpMagic);
-   trade.SetDeviationInPoints(InpMaxSlippagePoints);
    ApplyChartPolish();
    LoadFloatingHUDPosition();
-   Print("GPT_EA runtime build R14-PIXEL-HUD-20260919 • source version 1.24 • EX5 marker PIXEL124");
+   Print("GPT_EA runtime build R32-REFERENCE-HUD-20260919 | source version 1.24 | EX5 marker PIXEL124");
    ChartSetInteger(0,CHART_EVENT_MOUSE_MOVE,true);
    EventSetTimer(MathMax(1,InpTimerSeconds));
-
-   // Paint the premium dashboard immediately. Several intelligence/recovery
-   // initializers can be intentionally expensive across a full broker universe;
-   // the chart must never look as if the EA is missing while they are running.
    RenderFloatingMarketHUD();
    Print("HUD bootstrap visual check | canvas=",ObjectFind(0,HUD_CANVAS_NAME)>=0?"VISIBLE":"MISSING",
          " | drag=",ObjectFind(0,HUD_DRAG_HANDLE)>=0?"VISIBLE":"MISSING",
          " | approve_hit=",ObjectFind(0,HUD_APPROVE_HIT)>=0?"VISIBLE":"MISSING",
          " | deny_hit=",ObjectFind(0,HUD_DENY_HIT)>=0?"VISIBLE":"MISSING");
+
+   if(SplitSymbols()<=0){ Print("No symbols configured."); return INIT_PARAMETERS_INCORRECT; }
+   if(!ResolveConfiguredSymbolsUniversal())
+   { Print("No configured symbols could be resolved on this broker."); return INIT_PARAMETERS_INCORRECT; }
+
+   PrintResolvedBrokerProfiles();
+   trade.SetExpertMagicNumber(InpMagic);
+   trade.SetDeviationInPoints(InpMaxSlippagePoints);
 
    RiskRecoveryInit();
    PrepareRecoveryCheckpointFallback();

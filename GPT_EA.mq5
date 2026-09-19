@@ -18294,6 +18294,7 @@ string HUDStatusText(const int pendingIndex,const bool live)
    }
    if(g_dashboardClosedUntil>TimeTradeServer()) return "TRADE CLOSED";
    if(g_visualNewsRisk=="HIGH") return "NEWS PAUSE";
+   if(g_visualNoTrade) return "NO TRADE";
    if(g_visualHasSetup)
    {
       if(g_visualLastReady) return "SETUP DETECTED";
@@ -18456,7 +18457,9 @@ void HUDDrawFooter(const int ox,const int oy,const int w,const int h,const doubl
    HUDCanvasText(ox+HUDS(52,sc),fy+HUDS(8,sc),"EA STATUS",HUDPt(8,sc),C'87,174,221',true);
 
    string sep="  "+HUDGlyph(0x2022)+"  ";
-   string status=HUDStatusText(pendingIndex,live);
+   bool enabled=(pendingIndex>=0 && (live || !g_visualNoTrade));
+   int statusPending=enabled?pendingIndex:-1;
+   string status=HUDStatusText(statusPending,live);
    if(g_fhudSettingsHintUntil>TimeTradeServer()) status="SETTINGS"+sep+"PRESS F7 TO EDIT GPT_EA INPUTS";
    else if(!live) status+=sep+"NO POSITION";
    status+=sep+"RISK "+DoubleToString(InpRiskPercent,2)+"%";
@@ -18465,7 +18468,6 @@ void HUDDrawFooter(const int ox,const int oy,const int w,const int h,const doubl
    int by=fy+HUDS(1,sc),bh=HUDS(35,sc);
    int ax=ox+HUDS(HUD_APPROVE_X,sc),aw=HUDS(HUD_APPROVE_W,sc);
    int dx=ox+HUDS(HUD_DENY_X,sc),dw=HUDS(HUD_DENY_W,sc);
-   bool enabled=(pendingIndex>=0);
    HUDDrawButton(ax,by,aw,bh,"APPROVE",true,enabled,g_fhudHoverApprove,HUDPt(9,sc),sc);
    HUDDrawButton(dx,by,dw,bh,"DENY",false,enabled,g_fhudHoverDeny,HUDPt(9,sc),sc);
    g_displayPending=enabled?pendingIndex:-1;
@@ -18667,7 +18669,8 @@ bool HUDPrepare(int &x,int &y,int &w,int &h,bool &compact,double &sc)
 }
 
 void HUDRenderMarketBody(const int w,const int h,const double sc,
-                         const bool has,const TradeSetup &s,const ConfluenceReport &r,const int pending)
+                         const bool contextHas,const bool setupHas,
+                         const TradeSetup &s,const ConfluenceReport &r,const int pending)
 {
    int ox=8,oy=8;
    int py=oy+HUDS(HUD_PANEL_Y,sc),ph=HUDS(HUD_PANEL_H,sc);
@@ -18676,17 +18679,17 @@ void HUDRenderMarketBody(const int w,const int h,const double sc,
    int x3=ox+HUDS(HUD_TRADE_X,sc),w3=HUDS(HUD_TRADE_W,sc);
    int x4=ox+HUDS(HUD_CONFIRM_X,sc),w4=HUDS(HUD_CONFIRM_W,sc);
    int x5=ox+HUDS(HUD_INVALID_X,sc),w5=w-HUDS(HUD_INVALID_X+9,sc);
-   HUDDrawMarketPanel(x1,py,w1,ph,sc,has,s,r);
+   HUDDrawMarketPanel(x1,py,w1,ph,sc,contextHas,s,r);
    HUDDrawMTFPanel(x2,py,w2,ph,sc);
-   HUDDrawTradePanel(x3,py,w3,ph,sc,has,s,pending,false,"",0,"","","","","","","");
-   HUDDrawConfirmationsPanel(x4,py,w4,ph,sc,has,s,r,false);
+   HUDDrawTradePanel(x3,py,w3,ph,sc,setupHas,s,pending,false,"",0,"","","","","","","");
+   HUDDrawConfirmationsPanel(x4,py,w4,ph,sc,setupHas,s,r,false);
    string inv="No setup armed.";
-   if(has)
+   if(setupHas)
    {
       int id=DigitsFor(s.symbol);
       inv="M15 close "+(s.bullish?"below ":"above ")+DoubleToString(s.sl,id);
    }
-   string timeRule=has?IntegerToString(MathMax(1,s.expiryM15))+" candles without TP1 "+
+   string timeRule=setupHas?IntegerToString(MathMax(1,s.expiryM15))+" candles without TP1 "+
                    HUDGlyph(0x2192)+" reassess":"Scanner continues.";
    HUDDrawInvalidationPanel(x5,py,w5,ph,sc,inv,timeRule);
    HUDDrawFooter(ox,oy,w,h,sc,pending,false);
@@ -18700,13 +18703,15 @@ void RenderFloatingMarketHUD()
    int pending=ActivePendingForSymbol(_Symbol);
    TradeSetup s=g_visualLastSetup;
    ConfluenceReport r=g_visualLastReport;
-   bool has=(g_visualHasSetup && s.symbol==_Symbol);
-   bool inZone=(has && s.valid && PriceInsideZone(s));
+   bool contextHas=(g_visualHasSetup && s.symbol==_Symbol);
+   bool setupHas=(contextHas && !g_visualNoTrade);
+   bool inZone=(setupHas && PriceInsideZone(s));
 
    VisualDashboardState uiState=UI_STATE_SCANNING;
    string reason="scanning for a qualified setup";
    if(g_dashboardClosedUntil>TimeTradeServer()){ uiState=UI_STATE_CLOSED; reason="managed trade finalized"; }
-   else if(has)
+   else if(contextHas && g_visualNoTrade){ reason="strategy engine returned NO TRADE; scanning continues"; }
+   else if(setupHas)
    {
       if(pending>=0){ uiState=UI_STATE_ENTRY_ARMED; reason="validated setup awaiting authorization"; }
       else if(inZone && !g_visualLastReady){ uiState=UI_STATE_WAITING_CONFIRMATION; reason="entry zone reached; waiting for confirmation"; }
@@ -18714,10 +18719,10 @@ void RenderFloatingMarketHUD()
    }
    SetVisualDashboardState(uiState,reason);
    HUDPaintShell(w,h,sc);
-   HUDRenderMarketBody(w,h,sc,has,s,r,pending);
+   HUDRenderMarketBody(w,h,sc,contextHas,setupHas,s,r,pending);
    HUDOutlineShell(w,h);
    g_hudCanvas.Update(false);
-   if(has && s.valid && !g_visualNoTrade) DrawTradeMap(s); else DeleteTradeMap();
+   if(setupHas && s.valid) DrawTradeMap(s); else DeleteTradeMap();
    SaveFloatingHUDPosition();
    ChartRedraw();
 }

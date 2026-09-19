@@ -42,8 +42,11 @@ status=fn("HUDStatusText")
 
 for token in (
  'VisualDashboardState uiState=UI_STATE_SCANNING;',
+ 'bool contextHas=(g_visualHasSetup && s.symbol==_Symbol);',
+ 'bool setupHas=(contextHas && !g_visualNoTrade);',
  'if(g_dashboardClosedUntil>TimeTradeServer())',
  'uiState=UI_STATE_CLOSED;',
+ 'else if(contextHas && g_visualNoTrade)',
  'if(pending>=0){ uiState=UI_STATE_ENTRY_ARMED;',
  'else if(inZone && !g_visualLastReady){ uiState=UI_STATE_WAITING_CONFIRMATION;',
  'else { uiState=UI_STATE_SETUP_FOUND;',
@@ -60,7 +63,7 @@ for token in (
 ):
     if token not in live: errors.append("live state mapping missing: "+token)
 
-for token in ("TRADE CLOSED","NEWS PAUSE","RISK BLOCKED","SETUP INVALIDATED","AWAITING APPROVAL"):
+for token in ("TRADE CLOSED","NEWS PAUSE","RISK BLOCKED","SETUP INVALIDATED","AWAITING APPROVAL","NO TRADE"):
     if token not in status: errors.append("status text missing: "+token)
 
 pos_live=router.find("FindChartManagedPosition(ticket)")
@@ -71,20 +74,22 @@ if min(pos_live,pos_live_render,pos_market)<0:
 elif not (pos_live < pos_live_render < pos_market):
     errors.append("router priority must be LIVE > MARKET")
 
-def market_state(closed,has,pending,in_zone,last_ready):
+def market_state(closed,context_has,no_trade,pending,in_zone,last_ready):
     if closed: return "CLOSED"
-    if not has: return "SCANNING"
+    setup_has=context_has and not no_trade
+    if not setup_has: return "SCANNING"
     if pending: return "ENTRY_ARMED"
     if in_zone and not last_ready: return "WAITING_CONFIRMATION"
     return "SETUP_FOUND"
 
 cases=[
- ((True,False,False,False,False),"CLOSED"),
- ((False,False,False,False,False),"SCANNING"),
- ((False,True,False,False,False),"SETUP_FOUND"),
- ((False,True,False,True,False),"WAITING_CONFIRMATION"),
- ((False,True,True,False,False),"ENTRY_ARMED"),
- ((False,True,True,True,True),"ENTRY_ARMED"),
+ ((True,False,False,False,False,False),"CLOSED"),
+ ((False,False,False,False,False,False),"SCANNING"),
+ ((False,True,True,False,False,False),"SCANNING"), # explicit NO TRADE
+ ((False,True,False,False,False,False),"SETUP_FOUND"),
+ ((False,True,False,False,True,False),"WAITING_CONFIRMATION"),
+ ((False,True,False,True,False,False),"ENTRY_ARMED"),
+ ((False,True,False,True,True,True),"ENTRY_ARMED"),
 ]
 for args,expected in cases:
     got=market_state(*args)

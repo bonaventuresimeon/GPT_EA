@@ -47,7 +47,7 @@ for token in (
  'if(pending>=0){ uiState=UI_STATE_ENTRY_ARMED;',
  'else if(inZone && !g_visualLastReady){ uiState=UI_STATE_WAITING_CONFIRMATION;',
  'else { uiState=UI_STATE_SETUP_FOUND;',
- 'SetVisualDashboardState(uiState,stateReason);'
+ 'SetVisualDashboardState(uiState,reason);'
 ):
     if token not in market: errors.append("market state mapping missing: "+token)
 
